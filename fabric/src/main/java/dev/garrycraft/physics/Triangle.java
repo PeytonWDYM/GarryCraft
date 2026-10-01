@@ -19,6 +19,7 @@ public final class Triangle {
 	public final int material;
 	/** Source's land (terrain), not an object on it. */
 	public final boolean terrain;
+    public final int sourceEntity;
 
 	public Triangle(float[] v, int o, boolean stairHelper) {
 		this(v, o, stairHelper ? 1 : 0);
@@ -26,6 +27,10 @@ public final class Triangle {
 
 	/** {@code flags}: the triangle's Proto.TRI_* flags as Source sent them. */
 	public Triangle(float[] v, int o, int flags) {
+        this(v, o, flags, 0);
+    }
+    public Triangle(float[] v, int o, int flags, int sourceEntity) {
+        this.sourceEntity = sourceEntity;
 		boolean stairHelper = (flags & 1) != 0;
 		this.diggable = (flags & 2) != 0;
 		this.material = (flags >>> 8) & 0xFF;

@@ -9,8 +9,8 @@
 class Mailbox {
 public:
     static constexpr size_t fileSize = 128 * 1024 * 1024;
-    static constexpr std::array<size_t, 7> capacities{64 * 1024, 4 * 1024 * 1024,
-        16 * 1024 * 1024, 8 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024, 64 * 1024 * 1024};
+    static constexpr std::array<size_t, 8> capacities{64 * 1024, 4 * 1024 * 1024,
+        16 * 1024 * 1024, 8 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024, 64 * 1024 * 1024, 8 * 1024 * 1024};
     Mailbox() = default;
     ~Mailbox();
     Mailbox(const Mailbox&) = delete;

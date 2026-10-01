@@ -12,8 +12,11 @@ loom {
     }
     runs {
         client {
+            if (project.hasProperty('garrycraftRunDir')) runDir project.property('garrycraftRunDir')
             programArgs '--username', 'GarryCraft'
             vmArgs '--enable-native-access=ALL-UNNAMED', '-Dgarrycraft.autoWorld=true'
+            if (project.hasProperty('garrycraftBridge')) vmArgs "-Dgarrycraft.bridge=${project.property('garrycraftBridge')}"
+            if (project.hasProperty('garrycraftArtifacts')) vmArgs "-Dgarrycraft.artifacts=${project.property('garrycraftArtifacts')}"
         }
     }
 }
@@ -34,4 +37,7 @@ processResources {
     def modVersion = project.version
     inputs.property 'version', modVersion
     filesMatching('fabric.mod.json') { expand version: modVersion }
+}
+processClientResources {
+    from('../tests/scenarios.json') { into 'garrycraft' }
 }

@@ -11,6 +11,7 @@ public final class FrameExporter {
     private static long frame;
     private static byte[] previous;
     private static int previousWidth, previousHeight;
+    private static long nextCapture;
     private static final int FREE = 0, PENDING = 1, READY = 2;
     private static final class Staging {
         GpuBuffer buffer;
@@ -19,7 +20,7 @@ public final class FrameExporter {
         volatile int state;
     }
     private FrameExporter() {}
-    public static void reset() { previous = null; }
+    public static void reset() { previous = null; nextCapture = 0; }
 
     public static void capture(Minecraft mc) {
         Staging newest = null;
@@ -37,6 +38,10 @@ public final class FrameExporter {
             }
             for (var slot : STAGING) if (slot.state == READY && slot.frame <= newest.frame) slot.state = FREE;
         }
+        // HUD state changes on game ticks. Read menus at 60 Hz and the HUD at 30 Hz without limiting world frames.
+        long now = System.nanoTime();
+        if (now < nextCapture) return;
+        nextCapture = now + (mc.gui.screen() == null ? 33_333_333L : 16_666_666L);
         var target = mc.gameRenderer.mainRenderTarget();
         var color = target.getColorTexture();
         if (color == null || (long) target.width * target.height * 4 > 64 * 1024 * 1024 - 4096) return;
