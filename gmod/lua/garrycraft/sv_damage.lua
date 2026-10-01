@@ -40,10 +40,11 @@ end
 hook.Add("EntityTakeDamage", "GarryCraftDamage", function(entity, damage)
     if entity ~= owner then return end
     if not damage:IsDamageType(DMG_DROWN) and not damage:IsDamageType(DMG_FALL) then
-        total = total + damage:GetDamage() / 5
+        local amount = damage:GetDamage() * GC.DamageScale("sourceToPlayer")
+        total = total + amount
         sequence = sequence + 1
         local kind = damage:IsDamageType(DMG_BULLET) and "bullet" or damage:IsDamageType(DMG_BLAST) and "blast" or "melee"
-        events[#events + 1] = {id = sequence, amount = damage:GetDamage() / 5,
+        events[#events + 1] = {id = sequence, amount = amount,
             attacker = attackerName(damage:GetAttacker()), kind = kind}
     end
     return true

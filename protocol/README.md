@@ -1,14 +1,18 @@
 # Bridge protocol
 
-The bridge uses a local 32 MiB memory-mapped file. It has four independent single-writer mailboxes.
+The bridge uses a local 128 MiB memory-mapped file with eight single-writer mailboxes.
 Each mailbox has a 64-byte header and a fixed payload capacity.
 
 | Lane | Writer | Capacity | Content |
 | --- | --- | --- | --- |
-| 0 | Source | 64 KiB | Input, session, player origin, acknowledgments |
-| 1 | Minecraft | 4 MiB | Player state and world changes |
-| 2 | Source | 16 MiB | Static collision batches |
-| 3 | Source | 8 MiB | Nearby dynamic collision |
+| 0 | Source server | 64 KiB | Input, session, viewport, acknowledgments, mob damage |
+| 1 | Minecraft | 4 MiB | Player state, camera, combat events, mob states |
+| 2 | Source server | 16 MiB | Static collision batches |
+| 3 | Source server | 8 MiB | Nearby moving geometry, entity bounds, native water |
+| 4 | Minecraft | 16 MiB | Texture header and RGBA pixels |
+| 5 | Minecraft | 8 MiB | Scene header and packed meshes |
+| 6 | Minecraft | 64 MiB | HUD header and visible RGBA tiles |
+| 7 | Minecraft | 8 MiB | Block section header, meshes, collision boxes, lights |
 
 All integers use little endian. Each header contains a sequence at byte 0 and payload length at byte 4.
 The writer sets an odd sequence, writes the payload, then publishes the next even sequence.
@@ -16,9 +20,16 @@ The reader copies an even sequence, copies the payload, and checks the sequence 
 A changed or odd sequence means the reader must retry on the next frame.
 Sequence access uses acquire/release ordering across processes.
 
-Payloads contain UTF-8 JSON. Protocol version 1 rejects other versions.
-Positions use Minecraft coordinates: Source `(x,y,z)` maps to `(x/32,z/32,-y/32)`.
-Source units per block are fixed at 32. Yaw maps to `-SourceYaw - 90`. Pitch uses the Source pitch.
+Lanes 0 through 3 contain UTF-8 JSON. Protocol version 1 rejects other versions.
+Render lanes contain one JSON header, a newline, and a binary body.
+Each mesh vertex occupies 24 bytes: five float32 values for `x,y,z,u,v`, then four uint8 RGBA values.
+Mesh metadata stores byte offsets and vertex counts. Each mesh contains at most 65,532 triangle vertices.
+
+Positions map Source `(x,y,z)` to Minecraft `(x/32,(z-gridHeight)/32,-y/32)`.
+Relative vectors omit `gridHeight`. Source units per block are fixed at 32.
+Source persists the vertical grid alignment per map with alignment format version 2.
+Flat terrain aligns to block faces. Slopes retain their native triangles.
+Yaw maps to `-SourceYaw - 90`. Pitch uses the Source pitch.
 Minecraft remains the owner of player position after the initial attachment.
 
 Static geometry uses numbered batches and acknowledgments. Input snapshots must not replace geometry batches.
@@ -36,3 +47,50 @@ The native client reads lane 1 directly. Player state includes previous/current 
 The Source camera interpolates the raw tick history on the same clock. It never treats post-gravity velocity as camera displacement.
 Minecraft publishes camera FOV and bob after its render frame. Source converts the vertical FOV to the horizontal 4:3 setting.
 Minecraft releases bridge controls after one second without Source input. Source restores its player after five seconds without Minecraft state.
+
+## Sessions and delivery
+
+Each Source attachment creates a new session. Each Minecraft process has an instance ID.
+Texture and scene packets carry a render instance ID, which changes after attachment, resource reload, or Source video reset.
+Source rejects render packets from another session or render instance.
+
+Texture transfers use ordered IDs and acknowledgments that include the render instance.
+Source accepts acknowledgments only from the attached owner and current instance. Acknowledgments never move backward.
+Animated sprites replace pending updates with their latest pixels.
+Block sections repeat until both Source realms acknowledge them. Their acknowledgment includes the render instance.
+Scene and HUD snapshots contain complete current state. Skipped mailbox frames must not leave stale items or HUD tiles.
+Scenes carry cached item model IDs and twelve matrix values per item instance.
+Item transforms come from Minecraft's renderer, including its bob, rotation, and stack offsets.
+
+Combat events retain IDs until acknowledged. Source entity index and creation ID identify a combat target.
+Minecraft stand-ins resolve vanilla weapon damage before Source applies `garrycraft_damage_scale`.
+The default scale is ten Source health points per Minecraft damage point.
+Hits carry environmental damage separately from attacker damage, so lava and fire use the environmental multiplier.
+Archived damage controls provide separate player-to-Source, mob-to-Source, Source-to-player, Source-to-mob,
+player-to-mob, mob-to-player, mob-to-mob, and environmental multipliers.
+Source publishes these controls to Minecraft. Minecraft applies its directional multiplier before vanilla armor calculations.
+Explosion events include Minecraft's three-dimensional impulse in blocks per tick.
+Source converts that impulse to units per second before it changes a loose prop's velocity.
+
+Minecraft mob states use UUIDs. Invisible Source bullseyes provide native aim targets for Source NPCs.
+Bullseyes are excluded from exported bounds and geometry to prevent a feedback loop.
+Source damage events include the mob UUID and the Source attacker's creation ID.
+Minecraft applies each acknowledged event once through its normal damage API.
+Removed mobs, stopped bridges, and new sessions remove their Source bullseyes.
+
+Source increments `renderEpoch` after a video reset. Minecraft changes its render instance and resends textures and sections.
+Player state and gameplay continue during render resynchronization.
+Mesh metadata includes a center. Source uses that center to sort transparent block faces across sections.
+
+## Thread ownership
+
+Minecraft owns movement, attacks, fluids, projectiles, and mob AI.
+Source owns its map, NPC health, props, input, lighting, and final rendering.
+Minecraft's integrated server and render thread call their own game APIs.
+A transport thread packs snapshots and transfers bytes. It does not call game engine APIs.
+Source mesh construction uses GMod's public mesh API on the client thread.
+
+GMod defaults to 240 FPS. Minecraft retains its saved limit and defaults to Unlimited in a new mirror profile.
+Render exports follow the Source target rate. HUD captures run at 30 Hz, or 60 Hz while a menu is open.
+This file layout is incompatible with the original four-lane bridge.
+Install matching Fabric, client DLL, server DLL, and Lua versions together.

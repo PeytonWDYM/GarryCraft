@@ -1,67 +1,42 @@
 # GarryCraft mod log
 
-The target is 64-bit Garry's Mod with Minecraft as the physics and gameplay authority.
-The user owns both games and authorized local tests, tools, and a public GitHub repository.
-The public repository name is GarryCraft.
+## October 1, 2026
 
-## Local environment
+GarryCraft keeps Minecraft Java 26.3 and Windows x64 Garry's Mod in separate processes.
+The Fabric mod owns player movement, game rules, fluids, projectiles, and mob AI.
+Source supplies collision geometry, native NPCs, props, input, lighting, and final rendering.
 
-- Workspace: `C:\Users\plamb\Desktop\project\GarryCraft`.
-- Garry's Mod: `C:\Program Files (x86)\Steam\steamapps\common\GarrysMod`.
-- Installed Steam branch: `x86-64`, build `25464497`.
-- Minecraft: `%APPDATA%\.minecraft`, including Minecraft Java 26.3.
-- Visual Studio 2022 Build Tools includes the x64 compiler and CMake.
-- Universal Modder plugin and `um` CLI installed. No FAL key is needed.
-- SkyCraft reference checkout is outside this repository under `%LOCALAPPDATA%\GaryCraft\research`.
+The port extends the existing SkyCraft triangle collider to server entities and exact surface ray casts.
+An immutable triangle index bounds nearby queries. Source navigation supplies floor heights to Minecraft ground paths.
+Vanilla movement constants stay in Minecraft.
 
-## Architecture
+Minecraft exports placed sections, block collision shapes, animated fluid textures, entities, items, particles, and mining effects.
+Source builds meshes through its public Lua mesh API. Transparent block faces sort across sections.
+Torches and lava use self-lit materials. Source model lighting must be prepared before ordinary mesh draws.
+Each mesh samples ambient light at its world position. Torch point lights illuminate meshes independently of camera distance.
+Floor and wall torches export their flame positions. Source reserves 16 world lights and supplies four local lights per mesh draw.
+Minecraft lighting updates invalidate exported sections through the complete section-dirty API.
 
-Minecraft runs its own player movement and integrated server in a separate Fabric instance.
-A 64-bit C++ Lua module exchanges snapshots through a local memory-mapped file.
-Lua exports Source collision meshes and input. Minecraft returns the player pose and world changes.
-No binary hooks or game source redistribution are required.
+Source entity stand-ins resolve Minecraft attacks and environmental effects.
+Acknowledgments retain hits until Source applies them. Creation IDs prevent recycled entity indices from receiving stale hits.
+Damage controls cover player, mob, native NPC, and environmental damage directions.
+Minecraft mobs have invisible Source bullseyes for native target selection and return fire.
 
-## Acceptance
+Transport work runs outside game threads. Game API calls remain on their owning threads.
+Cached item geometry, bounded section work, asynchronous HUD readback, and changed texture uploads reduce repeated work.
+Both games record frame times. The current Source scenario still fails the stable 240 FPS budget.
 
-Compare recorded movement against Minecraft itself on equivalent flat geometry.
-Verify Source floor, wall, ceiling, stairs, slopes, and props in a local test map.
-Exercise walking, sprinting, jumping, crouching, falling, swimming, block placement, and block removal.
-Record trace files and a screenshot. Do not describe untested behavior as verified.
+Video resets retire invalid texture handles and request fresh render state.
+Every attachment has a fresh render instance. Texture acknowledgments include that instance to reject late replies.
+Minecraft options persist outside fresh world directories. New profiles default to Unlimited FPS.
+GMod uses a 240 FPS cap while the bridge runs.
 
-## Isolation
+Tests use `%LOCALAPPDATA%\GarryCraft\gmod-lab`, which has the required `.garrycraft-lab` marker.
+Minecraft test worlds and all generated evidence stay under owned run directories outside tracked source.
+The installer refuses to replace modules in a running test installation.
+The user's Steam installation and existing Minecraft worlds remain outside these tests.
 
-Use a separate Minecraft run directory and a new test world.
-Back up the Garry's Mod config before the first modded launch.
-Add only the GarryCraft addon and module. Do not change Steam branches or existing saves.
-
-
-## Current work, October 1
-
-The user reports that the SkyCraft port feels much better. Keep that movement implementation.
-The user removed the artificial ramp fixtures. Use native gm_construct slopes for all further play tests.
-Keep the visible Source player at spawn during tests. Never publish Minecraft reference-world coordinates to Source.
-The user controls the game between bounded test actions. Do not run the old comparison suite by default.
-
-Universal Modder 0.2.0 is installed and enabled in Codex. Its Source playbook and Terraria agent bridge example were reviewed.
-The initial voxel-shape adapter passed 11 movement comparisons but did not feel correct. It has been replaced.
-The current implementation ports SkyCraft's TriCollider, SourceCollider wrapper, edge behavior, input handlers, QPC clock, and raw-tick camera.
-Minecraft's FOV, eye smoothing, and view bob now feed the Source camera.
-The native client module reads state directly, avoiding a server-network round trip for the camera.
-Minecraft's experimental-world warning is automatically accepted only for the owned GarryCraft mirror world.
-Two unattended reopens joined successfully after that fix.
-
-A clear-path run at Source spawn recorded walking near 0.216 blocks/tick and sprinting near 0.281 blocks/tick.
-Sprint FOV rose from 70 to 80.5 degrees in Minecraft. Source uses the corresponding 4:3 horizontal FOV.
-Trace: artifacts/sprint-clear-path.json. The earlier sprint-port.json run hit a wall and is not a speed comparison.
-Artificial Source ramps were removed from the live map and their course command was removed from source.
-Native map slopes, swimming, placed blocks, lighting, and the final install process still need verification.
-Do not claim complete or perfect physics yet.
-
-Use the isolated Source install at %LOCALAPPDATA%\GarryCraft\gmod-lab.
-Current Source process: 48628. Current Minecraft process: 29176. Dev launch session: 96120.
-Minecraft runs from fabric/run. The launcher profile uses %LOCALAPPDATA%\GarryCraft\minecraft and still needs the latest jar.
-The live client DLL is current. The live server DLL is the previous mailbox-compatible build because its file remained locked at copy time.
-After stopping the game, wait for it to exit before replacing both DLLs.
-
-Next: port SkyCraft's water substitution, test native map movement without fixtures, then port block model drawing and lighting.
-The public GitHub repository, README, licenses, and general install script are not created yet.
+The source repository is [PeytonWDYM/GarryCraft](https://github.com/PeytonWDYM/GarryCraft).
+SkyCraft source attribution and its MIT license appear in [third-party notices](THIRD_PARTY_NOTICES.md).
+[Universal Modder](https://github.com/rehan-remade/universal-modder) supplies game research and screenshot tools.
+See [feature coverage](PARITY.md) and [test results](tests/RESULTS.md) for current limits.

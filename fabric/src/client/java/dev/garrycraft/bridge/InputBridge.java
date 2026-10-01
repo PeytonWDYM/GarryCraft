@@ -30,6 +30,8 @@ public final class InputBridge {
     private static void key(Minecraft mc, KeyMapping mapping, boolean down) {
         int scancode = InputConstants.getKey(mapping.saveString()).getValue();
         key(mc, scancode, down);
+        // Window focus changes can clear Minecraft's mappings while Source still holds the key.
+        mapping.setDown(down);
     }
 
     private static void key(Minecraft mc, int scancode, boolean down) {

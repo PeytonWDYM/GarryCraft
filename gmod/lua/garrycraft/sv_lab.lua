@@ -5,7 +5,7 @@ local currentCase
 
 local function surface(minimum, maximum, ramp)
     local entity = ents.Create("gc_fixture")
-    entity:SetPos(GC.LabOrigin + GC.ToSource(-0.5, 0, -0.5))
+    entity:SetPos(GC.LabOrigin + GC.DirectionToSource(-0.5, 0, -0.5))
     entity:SetNWVector("Minimum", minimum)
     entity:SetNWVector("Maximum", maximum)
     entity:SetNWBool("Ramp", ramp or false)
@@ -32,7 +32,18 @@ function GC.RunLabTest(caller)
     owner:SetEyeAngles(Angle(0, -90, 0))
     GC.BeginTest(owner, tostring(SysTime()))
 end
-concommand.Add("garrycraft_test", GC.RunLabTest)
+concommand.Add("garrycraft_test", function(caller, _, arguments)
+    if arguments[1] == "damage" then GC.RunDamageTest(caller)
+    elseif arguments[1] == "terrain" then GC.RunTerrainTest(caller)
+    elseif arguments[1] == "lighting" then GC.RunLightingTest(caller)
+    elseif arguments[1] == "entities" then GC.RunEntityTest(caller) else GC.RunLabTest(caller) end
+end)
+
+function GC.RunLightingTest(owner)
+    assert(game.SinglePlayer() and game.GetMap() == "gm_construct", "Lighting tests require local gm_construct")
+    owner:SetPos(Vector(1200, 16, -144))
+    GC.BeginTest(owner, "lighting:" .. tostring(SysTime()))
+end
 
 -- The agent can request a test without taking the user's keyboard or mouse.
 local nextControl = 0
@@ -51,7 +62,10 @@ hook.Add("Think", "GarryCraftLabControl", function()
 
     elseif request.command == "test" then
         GetConVar("garrycraft_bridge"):SetString(request.bridge)
-        GC.RunLabTest(player.GetHumans()[1])
+        if request.scenario == "damage" then GC.RunDamageTest(player.GetHumans()[1])
+        elseif request.scenario == "terrain" then GC.RunTerrainTest(player.GetHumans()[1])
+        elseif request.scenario == "lighting" then GC.RunLightingTest(player.GetHumans()[1])
+        elseif request.scenario == "entities" then GC.RunEntityTest(player.GetHumans()[1]) else GC.RunLabTest(player.GetHumans()[1]) end
     elseif request.command == "kill" then player.GetHumans()[1]:Kill()
     elseif request.command == "damage" then
         local owner = player.GetHumans()[1]
@@ -69,11 +83,15 @@ hook.Add("Think", "GarryCraftLabControl", function()
         if attacker then attacker:Remove() end
     elseif request.command == "look" then player.GetHumans()[1]:SetEyeAngles(Angle(request.pitch, request.yaw, 0))
     elseif request.command == "terrain-check" then GC.CheckDisplacements()
+    elseif request.command == "report" then
+        player.GetHumans()[1]:ConCommand("garrycraft_render_report\ngarrycraft_world_report\ngarrycraft_blocks_report\ngarrycraft_frame_report\n")
     elseif request.command == "observe" then
         local owner = player.GetHumans()[1]
         local target, sequence = GC.RespawnTarget()
         file.Write("garrycraft-observation.json", util.TableToJSON({position = GC.ToMinecraft(owner:GetPos()),
             spawn = GC.ToMinecraft(target), teleportSeq = sequence, alive = owner:Alive(),
+            god = owner:HasGodMode(),
+            mobTargets = #ents.FindByClass("npc_bullseye"), blockEntities = #ents.FindByClass("gc_block"),
             health = owner:Health(), waterLevel = owner:WaterLevel(), contents = util.PointContents(owner:GetPos()), water = GC.WaterGrid(owner)}))
     elseif request.command == "water-survey" then
         local points = {}

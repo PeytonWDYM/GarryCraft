@@ -7,10 +7,10 @@ import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.world.entity.LivingEntity;
 
 /** Uses Minecraft's localized death messages with the Source attacker's displayed name. */
-final class SourceDamage extends DamageSource {
+public final class SourceDamage extends DamageSource {
     private final String attacker;
     private final String kind;
-    SourceDamage(Holder<DamageType> type, String attacker, String kind) {
+    public SourceDamage(Holder<DamageType> type, String attacker, String kind) {
         super(type);
         this.attacker = attacker;
         this.kind = kind;
