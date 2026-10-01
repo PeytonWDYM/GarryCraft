@@ -2,7 +2,7 @@
 
 ## SkyCraft
 
-The collision, input, camera, and water ports derive from chasmlol/SkyCraft.
+The collision, input, camera, water, combat, and renderer capture ports derive from chasmlol/SkyCraft.
 https://github.com/chasmlol/SkyCraft
 
 MIT License

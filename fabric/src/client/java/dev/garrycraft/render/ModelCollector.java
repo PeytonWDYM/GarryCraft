@@ -29,8 +29,11 @@ import org.joml.Vector3f;
 import org.jspecify.annotations.Nullable;
 
 /** Minecraft's renderers supply animation, skin, armor, and held-item geometry. */
-final class ModelCollector extends EmptyCollector {
-    record Batch(int texture, List<float[]> vertices) {}
+class ModelCollector extends EmptyCollector {
+    record Batch(int texture, List<float[]> vertices, boolean translucent, boolean unlit) {
+        Batch(int texture, List<float[]> vertices, boolean translucent) { this(texture, vertices, translucent, false); }
+        Batch(int texture, List<float[]> vertices) { this(texture, vertices, false); }
+    }
     private final Map<Integer, List<VertexCapture.Vertex>> batches = new LinkedHashMap<>();
     private final VertexCapture capture = new VertexCapture();
     private static final Direction[] FACES = {null, Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
@@ -115,5 +118,26 @@ final class ModelCollector extends EmptyCollector {
                 vertices.add(new VertexCapture.Vertex(position.x, position.y, position.z, u, v, quad.color(i)));
             }
         });
+    }
+
+    @Override public void submitCustomGeometry(PoseStack pose, RenderType renderType, net.minecraft.client.renderer.SubmitNodeCollector.CustomGeometryRenderer renderer) {
+        capture.flush();
+        var binding = ((RenderSetupAccessor) (Object) ((RenderTypeAccessor) renderType).garrycraft$state()).garrycraft$textures().get("Sampler0");
+        if (binding == null) return;
+        int texture = Textures.resource(((TextureBindingAccessor) binding).garrycraft$location());
+        if (texture < 0) return;
+        capture.begin(batch(texture));
+        renderer.render(pose.last(), capture);
+        capture.flush();
+    }
+
+    @Override public void submitMovingBlock(PoseStack pose, net.minecraft.client.renderer.block.MovingBlockRenderState state, int outline) {
+        var mc = net.minecraft.client.Minecraft.getInstance();
+        var renderer = new net.minecraft.client.renderer.block.ModelBlockRenderer(false, true, mc.getBlockColors());
+        renderer.tesselateBlock((x, y, z, baked, instance) -> {
+            int[] tint = {instance.getColor(0)};
+            quad(pose.last().pose(), baked, baked.materialInfo().isTinted() ? tint : new int[0]);
+        }, 0, 0, 0, state, state.blockPos, state.blockState,
+            mc.getModelManager().getBlockStateModelSet().get(state.blockState), state.blockState.getSeed(state.randomSeedPos));
     }
 }

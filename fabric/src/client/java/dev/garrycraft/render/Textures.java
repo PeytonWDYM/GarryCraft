@@ -17,14 +17,18 @@ import net.minecraft.resources.Identifier;
 /** Reads the installed resources and runtime skin. Each block/item sprite has its own small host texture. */
 final class Textures {
     private static final Map<String, Integer> IDS = new HashMap<>();
+    private static final Map<Integer, SpriteAnimation> ANIMATIONS = new HashMap<>();
     private Textures() {}
-    static void reset() { IDS.clear(); }
+    static void reset() { IDS.clear(); ANIMATIONS.clear(); ItemInstances.reset(); }
+    static void tick(long tick) { ANIMATIONS.values().forEach(animation -> animation.tick(tick)); }
 
     static int sprite(TextureAtlasSprite sprite) {
         String key = "sprite:" + sprite.contents().name();
         return IDS.computeIfAbsent(key, ignored -> {
             var pixels = ((SpriteContentsAccessor) sprite.contents()).garrycraft$originalImage();
-            return send(pixels, sprite.contents().width(), sprite.contents().height());
+            int id = send(pixels, sprite.contents().width(), sprite.contents().height());
+            if (sprite.contents().isAnimated()) ANIMATIONS.put(id, new SpriteAnimation(id, sprite, pixels));
+            return id;
         });
     }
 

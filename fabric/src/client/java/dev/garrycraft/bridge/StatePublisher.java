@@ -6,6 +6,8 @@ import dev.garrycraft.GarryCraftClient;
 import dev.garrycraft.testing.PhysicsOracle;
 import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.client.Minecraft;
+import dev.garrycraft.combat.SourceCombat;
+import dev.garrycraft.testing.ParityOracle;
 
 /** Publishes raw ticks and Minecraft's camera state. The Source renderer interpolates the raw ticks. */
 public final class StatePublisher {
@@ -61,7 +63,24 @@ public final class StatePublisher {
         state.addProperty("food", player.getFoodData().getFoodLevel());
         state.addProperty("gameMode", mc.gameMode.getPlayerMode().getName());
         state.addProperty("reference", PhysicsOracle.sampledReference);
+        state.addProperty("parityPhase", ParityOracle.phase());
+        state.addProperty("parityRequest", ParityOracle.request());
+        state.addProperty("parityTick", ParityOracle.tick());
+        state.addProperty("damageTestRequest", dev.garrycraft.testing.DamageOracle.request());
+        state.addProperty("damageTestPhase", dev.garrycraft.testing.DamageOracle.phase());
+        state.addProperty("damageTestMob", dev.garrycraft.testing.DamageOracle.mob());
+        state.addProperty("terrainTestRequest", dev.garrycraft.testing.TerrainUseOracle.request());
+        state.addProperty("terrainTestPhase", dev.garrycraft.testing.TerrainUseOracle.phase());
+        state.addProperty("terrainTestYaw", player.getYRot());
+        state.addProperty("terrainTestPitch", player.getXRot());
+        state.addProperty("lightingTestRequest", dev.garrycraft.testing.LightingOracle.request());
+        state.addProperty("lightingTestPhase", dev.garrycraft.testing.LightingOracle.phase());
+        state.addProperty("lightingTestYaw", player.getYRot());
+        state.addProperty("lightingTestPitch", player.getXRot());
         state.addProperty("fixture", PhysicsOracle.fixture());
+        state.add("entityHits", JSON.toJsonTree(SourceCombat.hits()));
+        state.add("mobs", JSON.toJsonTree(dev.garrycraft.combat.SourceMobs.states()));
+        state.addProperty("mobDamageAck", dev.garrycraft.combat.SourceMobs.acknowledged());
         var avatar = player.avatarState();
         boolean bob = mc.options.bobView().get();
         state.addProperty("walkPrevious", bob ? avatar.getInterpolatedWalkDistance(0) : 0);
@@ -79,6 +98,7 @@ public final class StatePublisher {
         state.addProperty("screenOpen", mc.gui.screen() != null);
         state.addProperty("fps", mc.getFps());
         state.addProperty("targetFps", GarryCraftClient.targetFps());
+        state.addProperty("renderInstance", GarryCraftClient.renderInstance());
         state.addProperty("uiAck", InputBridge.acknowledged());
         state.addProperty("damageAck", DamageBridge.acknowledged());
         state.addProperty("screenType", mc.gui.screen() == null ? "" : mc.gui.screen().getClass().getSimpleName());

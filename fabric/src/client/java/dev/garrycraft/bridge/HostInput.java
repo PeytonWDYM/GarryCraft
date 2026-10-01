@@ -12,11 +12,13 @@ public record HostInput(int version, String session, long frame, boolean active,
                         boolean camera, boolean inventory, boolean escape, double mouseX, double mouseY,
                         String textureInstance, int targetFps, boolean chat,
                         List<UiEvent> uiEvents, List<DamageEvent> damageEvents,
-                        int viewportWidth, int viewportHeight) {
+                        int viewportWidth, int viewportHeight, long entityHitAck, long worldAck, String worldInstance,
+                        List<dev.garrycraft.combat.SourceMobs.Damage> mobDamage, long renderEpoch,
+                        dev.garrycraft.combat.DamageScaling.Settings damageScaling) {
     public record UiEvent(long id, int key, String text) {}
     public record DamageEvent(long id, float amount, String attacker, String kind) {}
     public static HostInput idle() {
         return new HostInput(1, "", 0, false, 0, 0, 0, 0, 0,
-                false, false, false, false, false, false, false, false, false, 0, "", 0, 0, 0, 0, false, false, false, 0, 0, "", 0, false, List.of(), List.of(), 0, 0);
+                false, false, false, false, false, false, false, false, false, 0, "", 0, 0, 0, 0, false, false, false, 0, 0, "", 0, false, List.of(), List.of(), 0, 0, 0, 0, "", List.of(), 0, dev.garrycraft.combat.DamageScaling.DEFAULTS);
     }
 }

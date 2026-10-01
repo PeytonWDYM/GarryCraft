@@ -4,6 +4,7 @@
 #ifdef GARRYCRAFT_CLIENT
 #include "textures.hpp"
 #include "framerate.hpp"
+#include "meshes.hpp"
 #endif
 
 namespace {
@@ -67,6 +68,7 @@ GMOD_MODULE_OPEN() {
 #ifdef GARRYCRAFT_CLIENT
     registerTextures(LUA);
     registerFramerate(LUA);
+    registerMeshes(LUA);
 #endif
     LUA->PushCFunction(clock);
     LUA->SetField(-2, "clock");
@@ -84,6 +86,7 @@ GMOD_MODULE_OPEN() {
 GMOD_MODULE_CLOSE() {
 #ifdef GARRYCRAFT_CLIENT
     releaseTextures();
+    releaseMeshes(LUA);
 #endif
     bridge.close();
     return 0;

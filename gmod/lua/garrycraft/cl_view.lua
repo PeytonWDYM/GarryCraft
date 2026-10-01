@@ -10,13 +10,7 @@ hook.Add("CreateMove", "GarryCraftSprint", function(command)
     net.WriteBool(down)
     net.SendToServer()
 end)
-local state
 local slot = 0
-
-net.Receive("garrycraft_state", function()
-    state = util.JSONToTable(net.ReadString())
-    GC.State = state
-end)
 
 hook.Add("Move", "GarryCraftMovement", function(player, movement)
     if not player:GetNWBool("GarryCraft") then return end
@@ -53,6 +47,6 @@ hook.Add("HUDPaint", "GarryCraftStatus", function()
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") then return end
     if GC.OverlayReady then return end
     local text = "GarryCraft: waiting for Minecraft"
-    if state then text = string.format("GarryCraft  |  Health %.0f  |  Food %d  |  Slot %d", state.health, state.food, slot + 1) end
+    if GC.State then text = string.format("GarryCraft  |  Health %.0f  |  Food %d  |  Slot %d", GC.State.health, GC.State.food, slot + 1) end
     draw.SimpleText(text, "DermaDefaultBold", 24, ScrH() - 32, color_white)
 end)

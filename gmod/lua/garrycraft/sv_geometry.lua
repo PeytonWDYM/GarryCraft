@@ -1,6 +1,6 @@
 local GC = GarryCraft
 
-local function appendMesh(output, mesh, transform)
+local function appendMesh(output, mesh, transform, sourceEntity)
     for index = 1, #mesh, 3 do
         local triangle = {}
         for vertex = index, index + 2 do
@@ -11,6 +11,7 @@ local function appendMesh(output, mesh, transform)
             triangle[#triangle + 1] = coordinates[2]
             triangle[#triangle + 1] = coordinates[3]
         end
+        if sourceEntity then triangle[10] = sourceEntity end
         output[#output + 1] = triangle
     end
 end
@@ -59,6 +60,7 @@ local function appendBounds(output, entity)
             for _, index in ipairs(order) do
                 for _, coordinate in ipairs(corners[face[index]]) do triangle[#triangle + 1] = coordinate end
             end
+            triangle[10] = entity:EntIndex()
             output[#output + 1] = triangle
         end
     end
@@ -75,16 +77,17 @@ function GC.DynamicGeometry(player)
         local nearby = minimum.x <= point.x + 512 and maximum.x >= point.x - 512
             and minimum.y <= point.y + 512 and maximum.y >= point.y - 512
             and minimum.z <= point.z + 512 and maximum.z >= point.z - 512
-        if nearby and entity ~= player and entity ~= game.GetWorld() and entity:GetClass() ~= "gc_block"
+        if nearby and entity ~= player and not entity.GarryCraftMirror and entity ~= game.GetWorld() and entity:GetClass() ~= "gc_block"
             and entity:IsSolid() and bit.band(entity:GetSolidFlags(), FSOLID_TRIGGER) == 0
             and not excludedGroups[entity:GetCollisionGroup()]
             and not entity:GetNWBool("GarryCraftStatic") then
-            local found = false
-            for index = 0, entity:GetPhysicsObjectCount() - 1 do
+            local found = entity:IsNPC() or entity:GetSolid() == SOLID_BBOX
+            if found then appendBounds(triangles, entity) end
+            for index = 0, (found and 0 or entity:GetPhysicsObjectCount()) - 1 do
                 local physics = entity:GetPhysicsObjectNum(index)
                 if IsValid(physics) and physics:IsCollisionEnabled() then
                     local mesh = physics:GetMesh()
-                    if mesh then appendMesh(triangles, mesh, physics) found = true end
+                    if mesh then appendMesh(triangles, mesh, physics, entity:EntIndex()) found = true end
                 end
             end
             if not found and (entity:GetSolid() == SOLID_BBOX or entity:GetSolid() == SOLID_OBB) then
