@@ -1,0 +1,21 @@
+cmake_minimum_required(VERSION 3.24)
+project(garrycraft LANGUAGES CXX)
+if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+  message(FATAL_ERROR "GarryCraft requires 64-bit Windows")
+endif()
+include(FetchContent)
+FetchContent_Declare(gmod_sdk
+  GIT_REPOSITORY https://github.com/danielga/garrysmod_common.git
+  GIT_TAG f77a18d86f780a59ea30e4237016b05b790d4b70)
+FetchContent_MakeAvailable(gmod_sdk)
+foreach(realm IN ITEMS gmsv gmcl)
+  add_library(${realm}_garrycraft MODULE src/module.cpp src/mailbox.cpp)
+  target_include_directories(${realm}_garrycraft PRIVATE ${gmod_sdk_SOURCE_DIR}/include)
+  target_compile_features(${realm}_garrycraft PRIVATE cxx_std_20)
+  target_compile_definitions(${realm}_garrycraft PRIVATE GMMODULE WIN32_LEAN_AND_MEAN NOMINMAX)
+  set_target_properties(${realm}_garrycraft PROPERTIES PREFIX "" OUTPUT_NAME "${realm}_garrycraft_win64")
+endforeach()
+target_sources(gmcl_garrycraft PRIVATE src/textures.cpp src/framerate.cpp)
+target_include_directories(gmcl_garrycraft PRIVATE ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public
+    ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier0 ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier1)
+target_compile_definitions(gmcl_garrycraft PRIVATE GARRYCRAFT_CLIENT GMOD_USE_SOURCESDK _WIN32 _WINDOWS COMPILER_MSVC COMPILER_MSVC64)

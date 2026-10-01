@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "garrycraft",
+  "version": "${version}",
+  "name": "GarryCraft",
+  "description": "Minecraft gameplay inside 64-bit Garry's Mod.",
+  "authors": ["Peyton"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {"client": ["dev.garrycraft.GarryCraftClient"]},
+  "mixins": ["garrycraft.mixins.json"],
+  "depends": {"fabricloader": ">=0.19.5", "minecraft": "26.3", "java": ">=25", "fabric-api": "*"}
+}

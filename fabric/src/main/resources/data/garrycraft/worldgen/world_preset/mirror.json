@@ -1,0 +1,18 @@
+{
+  "dimensions": {
+    "minecraft:overworld": {
+      "type": "garrycraft:mirror",
+      "generator": {
+        "type": "minecraft:flat",
+        "settings": {
+          "biome": "minecraft:the_void",
+          "features": false,
+          "lakes": false,
+          "layers": [],
+          "structure_overrides": []
+        }
+      }
+    }
+  }
+}
+
