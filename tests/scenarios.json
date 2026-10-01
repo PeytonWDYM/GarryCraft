@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "toleranceBlocks": 1e-06,
+  "cases": [
+    {
+      "name": "walk",
+      "ticks": 80,
+      "forward": true
+    },
+    {
+      "name": "sprint",
+      "ticks": 80,
+      "forward": true,
+      "sprint": true
+    },
+    {
+      "name": "jump",
+      "ticks": 60,
+      "jumpTicks": [
+        1
+      ]
+    },
+    {
+      "name": "sprint-jump",
+      "ticks": 80,
+      "forward": true,
+      "sprint": true,
+      "jumpTicks": [
+        10
+      ]
+    },
+    {
+      "name": "crouch",
+      "ticks": 80,
+      "forward": true,
+      "sneak": true
+    },
+    {
+      "name": "fall",
+      "ticks": 80,
+      "startHeight": 12
+    },
+    {
+      "name": "wall",
+      "ticks": 80,
+      "forward": true,
+      "wall": true
+    },
+    {
+      "name": "ceiling",
+      "ticks": 60,
+      "jumpTicks": [
+        1
+      ],
+      "ceiling": true
+    },
+    {
+      "name": "crouch-edge",
+      "ticks": 80,
+      "forward": true,
+      "sneak": true,
+      "startZOffset": 47.9
+    },
+    {
+      "name": "step",
+      "ticks": 80,
+      "forward": true,
+      "step": true
+    },
+    {
+      "name": "diagonal-wall",
+      "ticks": 80,
+      "forward": true,
+      "right": true,
+      "wall": true
+    }
+  ]
+}

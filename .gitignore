@@ -1,0 +1,17 @@
+.gradle/
+build/
+run/
+out/
+.vs/
+*.log
+*.dmp
+*.mdmp
+*.bin
+*.vtf
+*.png
+*.zip
+*.jar
+!fabric/gradle/wrapper/gradle-wrapper.jar
+local.ps1
+artifacts/
+

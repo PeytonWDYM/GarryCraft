@@ -1,0 +1,28 @@
+{
+  "required": true,
+  "package": "dev.garrycraft.mixin",
+  "compatibilityLevel": "JAVA_25",
+  "client": [
+    "EntityCollisionMixin",
+    "PlayerSupportMixin",
+    "KeyboardMixin",
+    "FrameLimitMixin",
+    "WorldOpenMixin",
+    "RenderFrameMixin",
+    "EntityFluidInteractionMixin",
+    "EntitySwimMixin",
+    "LevelRendererMixin",
+    "RenderTypeAccessor",
+    "RenderSetupAccessor",
+    "TextureBindingAccessor",
+    "TextureManagerAccessor",
+    "SpriteContentsAccessor",
+    "TextureAtlasAccessor",
+    "WindowFocusMixin",
+    "FirstPersonMixin",
+    "MouseTurnMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
