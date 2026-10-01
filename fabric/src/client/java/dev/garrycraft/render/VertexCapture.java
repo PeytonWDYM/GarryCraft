@@ -6,7 +6,7 @@ import java.util.List;
 import net.minecraft.client.renderer.texture.OverlayTexture;
 
 /** Captures Minecraft model quads after its pose transforms, following SkyCraft's collector. */
-final class VertexCapture implements VertexConsumer {
+class VertexCapture implements VertexConsumer {
     record Vertex(float x, float y, float z, float u, float v, int color) {}
     private List<Vertex> destination;
     private boolean pending;

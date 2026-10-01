@@ -48,13 +48,16 @@ public final class PhysicsOracle {
     public static String fixture() { return running ? plan.cases().get(scenarioIndex).name() : ""; }
 
     public static boolean beforeTick(Minecraft mc, HostInput host) {
+        if (host.test() != null && (host.test().startsWith("entities:") || host.test().startsWith("damage:") || host.test().startsWith("terrain:") || host.test().startsWith("lighting:"))) return false;
         if (!running && host.test() != null && !host.test().isEmpty() && !host.test().equals(lastRequest)) {
             lastRequest = host.test();
             sourceX = host.x();
             sourceY = host.y();
             sourceZ = host.z();
             try {
-                plan = JSON.fromJson(Files.readString(Path.of(System.getProperty("garrycraft.scenarios", "../../tests/scenarios.json"))), Plan.class);
+                try (var scenarios = PhysicsOracle.class.getResourceAsStream("/garrycraft/scenarios.json")) {
+                    plan = JSON.fromJson(new java.io.InputStreamReader(scenarios, java.nio.charset.StandardCharsets.UTF_8), Plan.class);
+                }
                 output = Path.of(System.getProperty("garrycraft.artifacts", "../../artifacts/physics"));
                 Files.createDirectories(output);
             } catch (IOException error) { throw new IllegalStateException("Could not load physics scenarios", error); }
@@ -88,7 +91,7 @@ public final class PhysicsOracle {
         if (scenario.jumpTicks() != null) for (int scheduled : scenario.jumpTicks()) if (scheduled == tick) jump = true;
         InputBridge.apply(mc, new HostInput(1, host.session(), host.frame(), true, 0, 0, 0, 0, 0,
                 scenario.forward(), false, false, scenario.right(), jump, scenario.sneak(), scenario.sprint(),
-                false, false, 0, "", 0, host.teleportSeq(), host.damageTotal(), 0, false, false, false, 0, 0, "", host.targetFps(), false, List.of(), List.of(), host.viewportWidth(), host.viewportHeight()));
+                false, false, 0, "", 0, host.teleportSeq(), host.damageTotal(), 0, false, false, false, 0, 0, "", host.targetFps(), false, List.of(), List.of(), host.viewportWidth(), host.viewportHeight(), 0, 0, "", List.of(), host.renderEpoch(), host.damageScaling()));
         return true;
     }
 

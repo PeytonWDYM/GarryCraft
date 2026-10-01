@@ -1,9 +1,11 @@
 local GC = GarryCraft
 local cached
+local cachedHeight
 
 -- Read Source's BSP displacement records. Field layouts follow Valve's bspfile.h.
 function GC.DisplacementGeometry()
-    if cached then return cached end
+    if cached and cachedHeight == GC.GridHeight then return cached end
+    cachedHeight = GC.GridHeight
     local map = assert(file.Open("maps/" .. game.GetMap() .. ".bsp", "rb", "GAME"), "Map BSP is unavailable")
     assert(map:Read(4) == "VBSP" and map:ReadLong() == 20, "Unsupported BSP format")
     local lumps = {}
