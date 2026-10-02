@@ -23,6 +23,7 @@ $env:JAVA_HOME = $JavaHome
 & "$repository/fabric/gradlew.bat" -p "$repository/fabric" prepareRuntime --no-configuration-cache "-PgarrycraftRuntime=$root"
 if ($LASTEXITCODE) { throw 'Minecraft runtime preparation failed.' }
 Copy-Item -LiteralPath "$PSScriptRoot/Runtime.ps1" -Destination "$root/Runtime.ps1" -Force
+Copy-Item -LiteralPath "$PSScriptRoot/RuntimeFiles.ps1" -Destination "$root/RuntimeFiles.ps1" -Force
 New-Item -ItemType Directory -Path "$root/worlds", $SettingsPath -Force | Out-Null
 [IO.File]::WriteAllText("$SettingsPath/setup-path", '')
 $settings = Split-Path -Parent ((& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$SettingsPath/setup-path"))

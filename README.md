@@ -85,6 +85,7 @@ After setup, use `tools/Test-Startup.ps1 -LabPath <lab> -RuntimeRoot <runtime> -
 `tools/Test-Lifecycle.ps1` uses the same arguments and tests missing configuration, startup disconnect, automatic reconnect, and host exit.
 Both scripts write JSON results beside the runtime. The lifecycle test closes its owned GMod process.
 Add `-AbruptExit` to test cleanup after an abrupt host stop.
+Use `tools/Test-RuntimeSharing.ps1 -RuntimeRoot <runtime>` to test locked status and shutdown files with a fresh Minecraft world.
 
 Minecraft mirror profiles share `%LOCALAPPDATA%\GarryCraft\settings\options.txt`.
 Pass `-PgarrycraftSettings=<directory>` to `runClient` for separate test settings.

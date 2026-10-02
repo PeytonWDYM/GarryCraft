@@ -230,3 +230,18 @@ The helper now permits a 120-second heartbeat gap during video initialization an
 A 25-second heartbeat pause retained Java PID 54896 and recovered the same linked session.
 The final video trace remains in the normal runtime's `worlds/gm_construct/artifacts` directory.
 Launcher, heartbeat, and normal-exit reports remain in `startup-final\artifacts`.
+
+## Runtime file-sharing failure
+
+The user reported that GarryCraft stopped on `rp_downtown_tits_v2` at 20:16. GMod PID 30524 remained responsive.
+The launcher log records a Windows file-sharing error in `File.Replace`. Minecraft then saved and exited normally.
+A held reader reproduced Windows sharing violation 32. Source can deny replacement while reading its status file.
+The old launcher rewrote its ready status every 500 milliseconds, creating repeated opportunities for this race.
+
+`tools/Test-RuntimeSharing.ps1` passed all seven checks with launcher PID 60880 and real Minecraft PID 21984.
+The test used a fresh owned world and separate 60 FPS preferences. It held status open through the ready transition.
+Both processes survived. The old JSON remained complete. Releasing the reader published ready status with the same Java PID.
+Unchanged ready status retained its modification time. A locked shutdown control retained launcher ownership until the reader closed.
+Minecraft then saved and exited without an orphan. The test did not open the user's Downtown world.
+Evidence remains in `%LOCALAPPDATA%\GarryCraft\runtime-sharing\20261001-202444`.
+The failed session's original logs remain in the prepared runtime's `diagnostics/20261001-201626` directory.

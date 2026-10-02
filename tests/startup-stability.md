@@ -20,3 +20,13 @@ an orphaned Java process after a host crash, and partial player changes after co
 Pause the map heartbeat for 25 seconds while keeping the host alive, then resume it.
 The same Java process must remain active. Video initialization must not start another world writer.
 These cases do not certify all maps or addons.
+
+## Shared runtime files
+
+Run the launcher with a fresh owned world and separate settings. Hold its status file open without delete sharing before Minecraft is ready.
+Keep the file open for five seconds after the ready marker appears. The launcher and the same Java process must remain alive.
+The old status must remain valid JSON. Releasing the reader must publish the pending ready status.
+An unchanged ready status must retain its modification time. It must not create repeated rename races.
+Hold the shutdown control file open while requesting Disable. The launcher must keep ownership until it can send the save request.
+Release the reader and verify normal save and exit with no orphaned Java process.
+Save the process IDs, checks, launcher log, and Minecraft log as a repeatable artifact.

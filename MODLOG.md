@@ -2,6 +2,12 @@
 
 ## October 1, 2026
 
+The 20:16 Downtown session stopped after the launcher could not replace a JSON file held open by a reader.
+GMod remained running. Minecraft saved and exited after the launcher reported the error.
+Runtime JSON replacement now defers Windows sharing violations (32 and 33) without changing the previous complete snapshot.
+Status changes retry on later polls. Unchanged status is not rewritten. Shutdown retains the world mutex while sending its control request.
+Seven checks with a real Minecraft process passed while status and control readers denied file replacement.
+
 GMod now starts the prepared local Minecraft runtime after single-player map entry.
 A saved enable switch, Spawn Menu panel, and `garrycraft_menu` control startup and normal Source play.
 `GarryCraft.cmd` at the repository root opens the prepared installation and reuses an existing host window.
