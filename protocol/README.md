@@ -85,6 +85,11 @@ Source damage events include the mob UUID and the Source attacker's creation ID.
 Minecraft applies each acknowledged event once through its normal damage API.
 Removed mobs, stopped bridges, and new sessions remove their Source bullseyes.
 
+Lane 1's `gameMode` controls native NPC targeting while linked. In creative mode, Source temporarily neutralizes hostile and fearful player relationships.
+Source clears the player from enemy memory and cancels a schedule that targets the player. Friendly relationships remain available.
+Leaving creative mode or stopping the bridge restores each saved disposition and priority.
+Minecraft mob targeting uses the NPC's original player disposition, so creative protection does not change its allegiance toward mobs.
+
 Source increments `renderEpoch` after a video reset. Minecraft changes its render instance and resends textures and sections.
 Player state and gameplay continue during render resynchronization.
 Mesh metadata includes a center. Source uses that center to sort transparent block faces across sections.

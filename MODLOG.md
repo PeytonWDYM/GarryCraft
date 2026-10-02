@@ -26,6 +26,15 @@ The owned lab passed 15 vanilla movement comparisons, seven prop probes, native 
 See `tests/RESULTS.md` for traces, measured export costs, and limits. These cases do not certify every map surface or improve every FPS bottleneck.
 Creative search passed typing, filtering, Backspace, and text focus checks through the existing input path.
 Update the Source addon and Fabric runtime together because static packets now include the complete batch count.
+Native Source NPCs now stop targeting the player while Minecraft publishes creative mode.
+Existing enemies lose their player target. Newly spawned NPCs receive the same protection.
+Friendly NPCs retain their player relationships and visibility. Native combat with other entities remains available.
+Leaving creative mode or stopping the bridge restores the original relationship dispositions and priorities.
+Hostile NPCs still treat Minecraft mobs according to their original allegiance.
+
+The isolated fresh-world scenario passed 13 checks through both live games. Minecraft damage did not provoke creative retaliation.
+The test records paired snapshots and restores its game mode. It removes its owned NPCs and cow.
+Coverage includes combine soldiers, citizens, and a newly spawned zombie. NextBots and addon-specific target logic require separate tests.
 
 ## October 1, 2026
 

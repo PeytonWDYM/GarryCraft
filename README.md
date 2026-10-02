@@ -84,6 +84,9 @@ Run `garrycraft_test damage` and `tools/Collect-Damage.ps1 -RunRoot <run-directo
 Run `garrycraft_test polish` and `tools/Collect-Gameplay.ps1 -RunRoot <run-directory> -LabPath <owned-lab>` for idle mobs, armor, water animation, and native-wall flow.
 Use bare `garrycraft_test` for the same-input vanilla physics comparisons, including fast descending and elytra cases.
 See [map gameplay tests](tests/gameplay-polish.md) for native prop, footstep, and export benchmarks.
+Use `tools/Test-NpcTargeting.ps1 -GamePid <PID> -LabPath <isolated-lab> -RunRoot <fresh-run-directory>` to check creative NPC targeting.
+The test requires a linked manual session, cheats enabled in both games, and a fresh owned world.
+It saves paired Source and Minecraft snapshots plus `artifacts/npc-targeting-result.json`.
 Use `tools/Test-Resolution.ps1 -RunRoot <run-directory>` for owned video-mode changes.
 Run `garrycraft_test responsiveness` and `tools/Collect-Responsiveness.ps1` to check menu scrolling, creative search, and client input delivery.
 Copy `tests/particle-reload.lua` to the owned lab's DATA directory and load it with client `RunString` before `garrycraft_test reload`.
