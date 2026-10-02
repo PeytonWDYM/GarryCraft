@@ -141,6 +141,8 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
         if valid(header) then
             local name = GC.TextureName(header.id, header.width, header.height)
             local texture = garrycraft_bridge.upload(name, header.width, header.height, rgba)
+            stats.textureUpdates = stats.textureUpdates or {}
+            stats.textureUpdates[header.id] = (stats.textureUpdates[header.id] or 0) + 1
             if not textures[header.id] then
                 local opaque = material(name, texture, "VertexLitGeneric")
                 local translucent = CreateMaterial(name .. "/alpha", "VertexLitGeneric", {['$basetexture'] = texture,
@@ -275,6 +277,8 @@ hook.Add("HUDShouldDraw", "GarryCraftNativeHUD", function(name)
 end)
 
 concommand.Add("garrycraft_render_report", function()
+    stats.session = session
+    stats.polishRequest = GC.State.polishRequest
     stats.fps = GC.FrameStats
     stats.lights = GC.LightReport()
     stats.timing = timing

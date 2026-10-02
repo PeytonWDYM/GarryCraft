@@ -4,15 +4,14 @@ import com.google.gson.JsonObject;
 import com.google.gson.Gson;
 import dev.garrycraft.combat.SourceCombat;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.LinkedHashSet;
 import net.minecraft.world.phys.AABB;
 
 /** Source triangles share the same coordinates as the Minecraft mirror world. */
 public final class CollisionWorld {
-    private volatile Map<Integer, TriangleIndex> batches = Map.of();
+    private volatile TriangleIndex terrain = new TriangleIndex(List.of());
+    private final List<Triangle> pendingStatic = new ArrayList<>();
     private volatile TriangleIndex dynamic = new TriangleIndex(List.of());
     private volatile List<SourceCombat.Actor> actors = List.of();
     private String session = "";
@@ -20,7 +19,8 @@ public final class CollisionWorld {
     private volatile long revision;
 
     public void reset(String nextSession) {
-        batches = Map.of();
+        terrain = new TriangleIndex(List.of());
+        pendingStatic.clear();
         dynamic = new TriangleIndex(List.of());
         actors = List.of();
         acknowledged = -1;
@@ -35,6 +35,7 @@ public final class CollisionWorld {
 
     public void accept(JsonObject message, boolean moving) {
         if (!message.get("session").getAsString().equals(session)) return;
+        if (!moving && message.get("batch").getAsInt() != acknowledged + 1) return;
         List<Triangle> triangles = new ArrayList<>();
         for (var element : message.getAsJsonArray("triangles")) {
             var values = element.getAsJsonArray();
@@ -51,23 +52,26 @@ public final class CollisionWorld {
         }
         else {
             int batch = message.get("batch").getAsInt();
-            Map<Integer, TriangleIndex> next = new HashMap<>(batches);
-            next.put(batch, new TriangleIndex(triangles));
-            batches = Map.copyOf(next);
+            pendingStatic.addAll(triangles);
+            // Publish one immutable map index after the complete, acknowledged stream arrives.
+            if (batch == message.get("total").getAsInt() - 1) {
+                terrain = new TriangleIndex(pendingStatic);
+                pendingStatic.clear();
+                revision++;
+            }
             acknowledged = batch;
-            revision++;
         }
     }
 
     public void trianglesNear(AABB region, List<Triangle> output) {
         var found = new LinkedHashSet<Triangle>();
-        batches.values().forEach(batch -> batch.nearby(region, found));
+        terrain.nearby(region, found);
         dynamic.nearby(region, found);
         output.addAll(found);
     }
     public void staticTrianglesNear(AABB region, List<Triangle> output) {
         var found = new LinkedHashSet<Triangle>();
-        batches.values().forEach(batch -> batch.nearby(region, found));
+        terrain.nearby(region, found);
         output.addAll(found);
     }
 }

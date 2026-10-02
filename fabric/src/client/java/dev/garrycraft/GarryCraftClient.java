@@ -270,6 +270,14 @@ public final class GarryCraftClient implements ClientModInitializer {
             LOG.info("GarryCraft attached to Source session {}", session);
         }
         if (!active && wasLinked) restoreOptions(minecraft);
+        if (!loading && active && PhysicsOracle.beforeTick(minecraft, input)) {
+            wasLinked = active;
+            return;
+        }
+        if (!loading && active && dev.garrycraft.testing.MapProbeOracle.beforeTick(minecraft, input)) {
+            wasLinked = active;
+            return;
+        }
         if (!loading && active && ParityOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
@@ -287,7 +295,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             wasLinked = active;
             return;
         }
-        if (!loading && active && PhysicsOracle.beforeTick(minecraft, input)) {
+        if (!loading && active && dev.garrycraft.testing.GameplayOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
         }

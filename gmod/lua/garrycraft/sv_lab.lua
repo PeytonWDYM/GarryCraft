@@ -2,6 +2,8 @@ local GC = GarryCraft
 local floor
 local obstacle
 local currentCase
+local waterWall
+local polishRequest
 
 local function surface(minimum, maximum, ramp)
     local entity = ents.Create("gc_fixture")
@@ -20,24 +22,45 @@ function GC.LabCase(name)
     if name == "wall" or name == "diagonal-wall" then obstacle = surface(Vector(-96, -288, 0), Vector(160, -256, 160)) end
     if name == "ceiling" then obstacle = surface(Vector(-128, -160, 64), Vector(160, 128, 96)) end
     if name == "step" then obstacle = surface(Vector(-96, -288, 0), Vector(160, -256, 16)) end
+    if name == "fast-low-wall" or name == "elytra-low-wall" then obstacle = surface(Vector(-96, -288, 0), Vector(160, -256, 32)) end
+    if name == "fast-wall" or name == "elytra-wall" then obstacle = surface(Vector(-96, -288, 0), Vector(160, -256, 160)) end
 end
 
 function GC.RunLabTest(caller)
     assert(game.SinglePlayer(), "GarryCraft tests require a local single-player map")
     local owner = IsValid(caller) and caller or player.GetHumans()[1]
     if IsValid(floor) then floor:Remove() end
-    GC.LabOrigin = owner:GetPos()
+    GC.LabOrigin = Vector(16, -16, 8192)
+    owner:SetPos(GC.LabOrigin)
     floor = surface(Vector(-256, -1568, -32), Vector(1312, 256, 0))
     floor:SetNWBool("GarryCraftStatic", true)
     owner:SetEyeAngles(Angle(0, -90, 0))
     GC.BeginTest(owner, tostring(SysTime()))
 end
 concommand.Add("garrycraft_test", function(caller, _, arguments)
-    if arguments[1] == "responsiveness" then GC.BeginTest(caller, "responsiveness:" .. tostring(SysTime()))
+    if arguments[1] == "polish" then
+        if IsValid(waterWall) then waterWall:Remove() end
+        local position = GC.ToMinecraft(caller:GetPos())
+        waterWall = ents.Create("gc_fixture")
+        waterWall:SetPos(GC.ToSource(math.floor(position[1])-2, math.floor(position[2]), math.floor(position[3])+1))
+        waterWall:SetNWVector("Minimum", Vector(0,-160,-32))
+        waterWall:SetNWVector("Maximum", Vector(2,0,64))
+        waterWall:Spawn()
+        polishRequest = "polish:" .. tostring(SysTime())
+        GC.BeginTest(caller, polishRequest)
+    elseif arguments[1] == "responsiveness" then GC.BeginTest(caller, "responsiveness:" .. tostring(SysTime()))
     elseif arguments[1] == "damage" then GC.RunDamageTest(caller)
     elseif arguments[1] == "terrain" then GC.RunTerrainTest(caller)
     elseif arguments[1] == "lighting" then GC.RunLightingTest(caller)
     elseif arguments[1] == "entities" then GC.RunEntityTest(caller) else GC.RunLabTest(caller) end
+end)
+
+function GC.PolishSample(state)
+    if state.polishRequest == polishRequest and state.polishPhase == "done" and IsValid(waterWall) then waterWall:Remove() end
+end
+
+hook.Add("Think", "GarryCraftPolishCleanup", function()
+    if IsValid(waterWall) and not GC.IsActive() then waterWall:Remove() end
 end)
 
 function GC.RunLightingTest(owner)
