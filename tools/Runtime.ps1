@@ -1,6 +1,7 @@
 param([Parameter(Mandatory)][string]$Config, [Parameter(Mandatory)][string]$DataPath,
     [Parameter(Mandatory)][int]$HostPid)
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot/RuntimeFiles.ps1"
 $configuration = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
 $root = Split-Path -Parent $Config
 $requestPath = Join-Path $DataPath 'garrycraft-runtime-request.json'
@@ -17,22 +18,25 @@ $currentRequest = $null
 $failedRequest = $null
 $hostProcess = Get-Process -Id $HostPid
 $hostStarted = $hostProcess.StartTime
+$publishedStatus = $null
 
-function Write-JsonFile($Path, $Value) {
-    $temporary = "$Path.tmp"
-    [IO.File]::WriteAllText($temporary, ($Value | ConvertTo-Json -Compress -Depth 8), (New-Object Text.UTF8Encoding($false)))
-    if (Test-Path -LiteralPath $Path) { [IO.File]::Replace($temporary, $Path, "$Path.previous") }
-    else { [IO.File]::Move($temporary, $Path) }
-}
 function Publish-Status($State, $Message) {
-    Write-JsonFile $statusPath @{id = $currentRequest; state = $State; message = $Message; map = $currentMap;
+    $value = [ordered]@{id = $currentRequest; state = $State; message = $Message; map = $currentMap;
         hostPid = $HostPid; javaPid = $(if ($client) { $client.Id } else { 0 })}
+    $json = $value | ConvertTo-Json -Compress
+    if ($json -eq $publishedStatus) { return }
+    # Status is advisory. A busy reader must not stop Minecraft or discard a pending update.
+    if (Write-JsonFile $statusPath $value) { $script:publishedStatus = $json }
+}
+function Write-Control($Stop) {
+    # Retain the world mutex while a control reader holds the previous file open.
+    while (-not (Write-JsonFile $control @{stop = $Stop})) { Start-Sleep -Milliseconds 50 }
 }
 function Stop-Client {
     if (-not $client) { return }
     if (-not $client.HasExited) {
         Publish-Status 'saving' 'Saving the Minecraft world'
-        Write-JsonFile $control @{stop = $true}
+        Write-Control $true
         if (-not $client.WaitForExit(30000)) {
             # Do not kill Java during a world save or start a second writer.
             throw 'Minecraft has not finished saving. Read its log before restarting.'
@@ -75,7 +79,7 @@ try {
             $control = Join-Path $mapRoot 'control.json'
             $readyPath = Join-Path $mapRoot 'ready.json'
             if (Test-Path -LiteralPath $readyPath) { Remove-Item -LiteralPath $readyPath }
-            Write-JsonFile $control @{stop = $false}
+            Write-Control $false
             # Clear mailboxes only after the previous owner has saved and exited.
             $bridge = Join-Path $mapRoot 'bridge.bin'
             [IO.File]::WriteAllBytes($bridge, (New-Object byte[] 134217728))
@@ -95,10 +99,12 @@ try {
     Stop-Client
     Publish-Status 'off' 'GarryCraft is off'
 } catch {
-    Publish-Status 'error' $_.Exception.Message
-    if ($client -and -not $client.HasExited) {
-        Write-JsonFile $control @{stop = $true}
-        $client.WaitForExit() # Keep the single-owner mutex until Java releases the world.
+    try { Publish-Status 'error' $_.Exception.Message }
+    finally {
+        if ($client -and -not $client.HasExited) {
+            Write-Control $true
+            $client.WaitForExit() # Keep the single-owner mutex until Java releases the world.
+        }
     }
 } finally {
     $hostProcess.Dispose()
