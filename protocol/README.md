@@ -34,7 +34,8 @@ Yaw maps to `-SourceYaw - 90`. Pitch uses the Source pitch.
 Minecraft remains the owner of player position after the initial attachment.
 
 Static geometry uses numbered batches and acknowledgments. Input snapshots must not replace geometry batches.
-Minecraft releases input after one second without Source. Source stops the bridge after five seconds without Minecraft.
+Minecraft releases input after one second without Source. Manual sessions stop after five seconds without Minecraft state.
+Managed sessions allow 120 seconds for loading stalls. The launcher detects Minecraft process exit and stops the bridge independently.
 
 Source issues a monotonically increasing `teleportSeq` on attachment and respawn.
 Input origin remains the chosen spawn until Minecraft publishes its matching `teleportAck`.
@@ -47,7 +48,7 @@ Lane 3 also supplies a 9-by-9 water-surface grid. Minecraft substitutes this wat
 The native client reads lane 1 directly. Player state includes previous/current raw tick positions, tick period, and a Windows performance-counter timestamp.
 The Source camera interpolates the raw tick history on the same clock. It never treats post-gravity velocity as camera displacement.
 Minecraft publishes camera FOV and bob after its render frame. Source converts the vertical FOV to the horizontal 4:3 setting.
-Minecraft releases bridge controls after one second without Source input. Source restores its player after five seconds without Minecraft state.
+Minecraft releases bridge controls after one second without Source input. Source restores its player after the session's state timeout.
 
 ## Sessions and delivery
 

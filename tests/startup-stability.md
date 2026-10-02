@@ -21,6 +21,14 @@ Pause the map heartbeat for 25 seconds while keeping the host alive, then resume
 The same Java process must remain active. Video initialization must not start another world writer.
 These cases do not certify all maps or addons.
 
+## Minecraft stalls
+
+Use a fresh owned world and an isolated Source installation. Suspend only the managed Java process for eight seconds.
+Source must retain the bridge and the launcher must leave the shutdown request false.
+Resume Java. The same process and session must resume player state without another collision export or world restart.
+Disable must still save and exit normally. Save process IDs and Source snapshots before, during, and after the stall.
+Run `tools/Test-Stall.ps1 -LabPath <lab> -RuntimeRoot <prepared-runtime>` to collect `stall-result.json`.
+
 ## Shared runtime files
 
 Run the launcher with a fresh owned world and separate settings. Hold its status file open without delete sharing before Minecraft is ready.

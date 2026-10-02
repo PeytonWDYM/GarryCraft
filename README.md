@@ -30,6 +30,8 @@ The `garrycraft_menu` console command opens the same controls. `garrycraft_enabl
 Disable saves Minecraft, restores Source movement and the previous weapon, and releases the bridge input.
 The choice persists across maps and GMod restarts. Disconnecting or closing GMod also saves and stops the owned Minecraft process.
 A startup or collision error leaves GMod usable and appears in the control panel.
+Managed sessions allow up to two minutes for Minecraft loading stalls before stopping the bridge.
+Disable and GMod exit still request a save immediately. A Minecraft process exit also stops the bridge.
 
 Each map keeps its world and inventory under `<runtime>/worlds/<map>/minecraft/saves/GarryCraft`.
 Minecraft options use `%LOCALAPPDATA%\GarryCraft\settings`. Use `-SettingsPath` for separate test preferences.
