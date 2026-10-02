@@ -72,7 +72,8 @@ hook.Add("Think", "GarryCraftRuntime", function()
                 -- Wait until the current hook has finished before changing player ownership.
                 timer.Simple(0, function()
                     if not request.enabled then return end
-                    local ok, message = pcall(GC.Start, owner)
+                    -- The launcher detects process exit. Allow loading stalls without ordering a healthy process to save and quit.
+                    local ok, message = pcall(GC.Start, owner, 120)
                     if not ok then failed = true disable() status("Cannot load map collision: " .. message) return end
                     attached, startingAt = true, nil
                     status("Loading map collision")
