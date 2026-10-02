@@ -2,6 +2,23 @@
 
 ## October 2, 2026
 
+Moving collision now sends cached local shapes and binary transforms instead of rebuilding JSON world triangles each Source tick.
+Actor bounds use typed binary records. Minecraft decodes and indexes collision on a dedicated worker, then publishes an immutable snapshot.
+Shape acknowledgments survive skipped packets, range return, and reused entity indices.
+
+The verified native client fills Source mesh buffers directly. Mesh creation and rendering retain GMod's normal ownership.
+Render generations move encoding and tile comparison off Minecraft's main thread. Off-range edits retain their dirty state, including last-block removal.
+Video-reset retirement releases old RGBA buffers while keeping callback storage safe for late engine calls.
+
+Creative search clicks now retain text focus. Tab completion no longer triggers Source focus traversal.
+The Windows keyboard and mouse scenario passed typing, filtering, repeated completion, Enter, and reopening chat.
+Physics replay completion now returns both players to the safe fixture origin before restoring protection. Cancellation retains the replacement spawn.
+
+Minecraft exports occlusion shapes separately from collision shapes. Closed rooms block ambient and outside torch contributions; glass admits light.
+Local mesh lights use all exported emitters, independently of Source's world-light budget.
+The first-person Minecraft avatar remains available for planar shadows. Native Source player shadows are suppressed while attached.
+See `docs/ARCHITECTURE.md` and `tests/RESULTS.md` for measured performance and rendering limits.
+
 Atlas uploads now clear live, queued, and extracted particles together. Resource reloads cannot reuse the previous atlas coordinates.
 The paired resize-and-restore test passed. Cancellation restored saved mipmaps, and all ten lighting checks passed after reload.
 
@@ -26,6 +43,11 @@ The owned lab passed 15 vanilla movement comparisons, seven prop probes, native 
 See `tests/RESULTS.md` for traces, measured export costs, and limits. These cases do not certify every map surface or improve every FPS bottleneck.
 Creative search passed typing, filtering, Backspace, and text focus checks through the existing input path.
 Update the Source addon and Fabric runtime together because static packets now include the complete batch count.
+An old manual test request prevented normal Minecraft startup and used a Windows redirected path.
+The manual launcher now passes actual filesystem paths to both games.
+Source deletes each control request before execution, so map entry cannot replay completed or failed commands.
+Six checks passed with both games in a fresh owned world. Paired snapshots confirm attachment and no replay after hook reload.
+
 Native Source NPCs now stop targeting the player while Minecraft publishes creative mode.
 Existing enemies lose their player target. Newly spawned NPCs receive the same protection.
 Friendly NPCs retain their player relationships and visibility. Native combat with other entities remains available.

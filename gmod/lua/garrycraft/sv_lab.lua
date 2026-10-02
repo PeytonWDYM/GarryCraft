@@ -80,6 +80,8 @@ hook.Add("Think", "GarryCraftLabControl", function()
     local request = util.JSONToTable(contents)
     if request.id == GC.ControlRequest or not IsValid(player.GetHumans()[1]) then return end
     GC.ControlRequest = request.id
+    -- Consume each command before execution so map entry cannot replay it, even after an error.
+    file.Delete("garrycraft-control.json")
     if request.command == "start" then
         GetConVar("garrycraft_bridge"):SetString(request.bridge)
         GC.Start(player.GetHumans()[1])

@@ -6,17 +6,34 @@ local view = {colors = {}}
 function GC.PrepareLighting(position, sample)
     sample = sample or view
     local now = RealTime()
-    if not sample.position or now >= sample.time or position:DistToSqr(sample.position) > 16 then
+    if not sample.position or now >= sample.time or position:DistToSqr(sample.position) > 16
+            or sample.geometryRevision ~= GC.LightRevision() then
         sample.position, sample.time = position, now + .25
+        sample.geometryRevision = GC.LightRevision()
+        local exposure = garrycraft_bridge.light_exposure(position)
         for index, normal in ipairs(normals) do
-            sample.colors[index] = render.ComputeLighting(position, normal) - render.ComputeDynamicLighting(position, normal)
+            local color = render.ComputeLighting(position, normal) - render.ComputeDynamicLighting(position, normal)
+            sample.colors[index] = Vector(math.max(0, color.x), math.max(0, color.y), math.max(0, color.z)) * exposure[index]
         end
     end
-    if sample.revision ~= GC.LightRevision() or sample.lightsPosition ~= position then
+    if sample.revision ~= GC.LightRevision() or not sample.lightsPosition or position:DistToSqr(sample.lightsPosition) > 16 then
         sample.lights, sample.revision = GC.ModelLights(position)
         sample.lightsPosition = position
     end
     render.SetLightingOrigin(position)
     render.SetLocalModelLights(sample.lights)
     for index, color in ipairs(sample.colors) do render.SetModelLighting(index - 1, color.x, color.y, color.z) end
+end
+
+-- Do not leave Minecraft's ambient cube or local lights on subsequent Source draws.
+function GC.RestoreLighting()
+    render.SetLocalModelLights({})
+    render.SetLightingOrigin(EyePos())
+    render.ResetModelLighting(1, 1, 1)
+end
+
+function GC.LightingExposure(position)
+    local total = 0
+    for _, value in ipairs(garrycraft_bridge.light_exposure(position)) do total = total + value end
+    return total / 6
 end

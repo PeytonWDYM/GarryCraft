@@ -14,7 +14,7 @@ final class MeshPackets {
         Group avatar, Group hands, Group particles, Group entities, Group cracks, List<double[]> selection,
         List<ItemModel> itemModels, List<ItemInstances.Instance> items) {}
     private record SectionHeader(String session, String instance, long sequence, String key, boolean clear,
-        List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights) {}
+        List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights, List<double[]> occluders) {}
     private final ByteBuffer body;
     private MeshPackets(int vertices) { body = ByteBuffer.allocate(Math.multiplyExact(vertices, 24)).order(ByteOrder.LITTLE_ENDIAN); }
     private static int count(List<ModelCollector.Batch> batches) { return batches.stream().mapToInt(batch -> batch.vertices().size()).sum(); }
@@ -58,7 +58,7 @@ final class MeshPackets {
     static byte[] section(WorldExporter.Section section) {
         var packet = new MeshPackets(count(section.meshes()));
         var header = new SectionHeader(section.session(), section.instance(), section.sequence(), section.key(), section.clear(),
-            packet.meshes(section.meshes(), true), section.boxes(), section.lights());
+            packet.meshes(section.meshes(), true), section.boxes(), section.lights(), section.occluders());
         return RenderTransport.packet(header, packet.body.array());
     }
 }

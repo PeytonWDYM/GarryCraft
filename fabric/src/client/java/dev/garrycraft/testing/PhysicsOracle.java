@@ -38,6 +38,7 @@ public final class PhysicsOracle {
     private static double beforeVx;
     private static double beforeVz;
     private static CompletableFuture<Void> prepare;
+    private static CompletableFuture<Void> cleanup = CompletableFuture.completedFuture(null);
     private static final List<Sample> baseline = new ArrayList<>();
     private static final List<Sample> actual = new ArrayList<>();
     private static final List<Result> results = new ArrayList<>();
@@ -50,14 +51,23 @@ public final class PhysicsOracle {
     public static boolean running() { return running; }
     public static String fixture() { return running ? plan.cases().get(scenarioIndex).name() : ""; }
 
+    /** Finish the previous replay before a replacement test captures its temporary state. */
+    public static boolean cancel(Minecraft mc, HostInput host) {
+        if (running && (!host.active() || !host.test().equals(lastRequest))) {
+            sampling = false;
+            reference = false;
+            if (!prepare.isDone()) return true;
+            prepare.join();
+            running = false;
+            cleanup = restore(mc, false);
+        }
+        if (!cleanup.isDone()) return true;
+        cleanup.join();
+        return false;
+    }
+
     public static boolean beforeTick(Minecraft mc, HostInput host) {
         if (host.test() != null && (host.test().startsWith("reload:") || host.test().startsWith("probe:") || host.test().startsWith("polish:") || host.test().startsWith("entities:") || host.test().startsWith("damage:") || host.test().startsWith("terrain:") || host.test().startsWith("lighting:") || host.test().startsWith("responsiveness:"))) {
-            if (running) {
-                running = false;
-                reference = false;
-                sampling = false;
-                restore(mc);
-            }
             return false;
         }
         if (!running && host.test() != null && !host.test().isEmpty() && !host.test().equals(lastRequest)) {
@@ -78,11 +88,6 @@ public final class PhysicsOracle {
             scenarioIndex = 0;
             results.clear();
             prepare(mc);
-        }
-        if (running && (host.test() == null || host.test().isEmpty())) {
-            running = false;
-            reference = false;
-            restore(mc);
         }
         sampling = false;
         if (!running) return false;
@@ -206,20 +211,37 @@ public final class PhysicsOracle {
         } else {
             running = false;
             reference = false;
-            restore(mc);
+            cleanup = restore(mc, true);
             write(output.resolve("results.json"), results);
             GarryCraftClient.LOG.info("Physics oracle complete: {}", output.toAbsolutePath());
         }
     }
 
-    private static void restore(Minecraft mc) {
+    private static CompletableFuture<Void> restore(Minecraft mc, boolean returnToOrigin) {
+        // The final comparison can end beyond the fixture edge. Remove its fall before ending protection.
+        // Replacement tests retain their new spawn instead of returning to this fixture.
+        if (returnToOrigin) {
+            mc.player.setPos(sourceX, sourceY, sourceZ);
+            mc.player.setDeltaMovement(Vec3.ZERO);
+            mc.player.fallDistance = 0;
+            mc.player.stopFallFlying();
+        }
         mc.player.setPermanentlyInvulnerable(clientInvulnerable);
         var server = mc.getSingleplayerServer();
         var uuid = mc.player.getUUID();
-        server.execute(() -> {
+        var origin = new Vec3(sourceX, sourceY, sourceZ);
+        var savedInvulnerable = serverInvulnerable;
+        var savedChest = chest;
+        return server.submit(() -> {
             var peer = server.getPlayerList().getPlayer(uuid);
-            peer.setPermanentlyInvulnerable(serverInvulnerable);
-            peer.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, chest);
+            if (returnToOrigin) {
+                peer.teleportTo(origin.x, origin.y, origin.z);
+                peer.setDeltaMovement(Vec3.ZERO);
+                peer.fallDistance = 0;
+                peer.stopFallFlying();
+            }
+            peer.setPermanentlyInvulnerable(savedInvulnerable);
+            peer.setItemSlot(net.minecraft.world.entity.EquipmentSlot.CHEST, savedChest);
         });
     }
 

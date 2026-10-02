@@ -12,7 +12,8 @@ The port uses Minecraft game APIs and keeps both games in separate processes.
 | Water and lava | Vanilla grid simulation, native-wall flow blocking, fair animated texture transfers, Source-lit water | Still/flowing animation, native-wall blocking, biome tint, torch lighting, and single-surface export tested. Large floods and curved shorelines need coverage. |
 | Transparent blocks | Opaque depth pass and sorted transparent faces | Transparent faces sort across sections. Native Source glass interleaving still needs coverage. |
 | Mining effects and particles | Selection shapes, destruction stages, vanilla particle quads | Crack and debris exports checked against actual Source draws. Native map geometry cannot be mined. |
-| Torches and block lights | Source world lights, local mesh lights, and self-lit materials | Native floor and wall placement tested. Dark-room lighting holds at both camera distances. Sloped attachment offsets need coverage. |
+| Torches and block lights | Native occlusion index, Source ambient sampling, local mesh lights, and self-lit materials | Closed rooms, interior torches, glass windows, and over-budget emitters have paired checks. Source world lights remain limited to 16. Sloped attachment offsets need coverage. |
+| Minecraft player and block shadows | First-person avatar caster and bounded planar mesh silhouettes | Native player shadow suppression and visible planar receivers are tested in the owned scene. Shadows do not wrap arbitrary walls or replace baked Source lighting. |
 | Minecraft attacks on Source NPCs and props | Acknowledged attacks through server stand-ins | Repeated sword hits, arrows, and TNT impulses tested. Damage uses configurable conversion scales. |
 | Source attacks on Minecraft entities | Player damage bridge and mob bullseyes | Eight damage directions tested. Vanilla armor and damage rules remain active. |
 | Creative player and native NPC targeting | Temporary neutral hostile/fearful relationships, player enemy cleanup, and relationship restoration | Thirteen checks cover mode changes, new spawns, allies, retaliation, other enemies, and mob allegiance. NextBots and custom addon targeting need separate coverage. |
@@ -23,7 +24,7 @@ The port uses Minecraft game APIs and keeps both games in separate processes.
 | Block entities and moving blocks | Minecraft renderer export | Chest rendered in the test scene. Pistons and all block entities need gameplay coverage. |
 | Pressure plates and tripwires | Stand-ins participate in block effects | Not yet tested. |
 | Saved settings and FPS limits | Persistent mirror options, Minecraft Unlimited default, GMod 240 cap | The hidden renderer uses Source's target or a lower saved limit. Stable 240 FPS is not achieved in GMod. |
-| Video resolution changes | Native texture reset and render resynchronization | Repeated changes tested in the isolated installation. Cache storage lasts until restart. |
+| Video resolution changes | Native texture reset and render resynchronization | Repeated changes tested in the isolated installation. Retired callbacks keep their small objects until restart and release old pixel buffers. |
 | Local installation and tests | Prepared one-click launcher, automatic map startup, saved enable switch, trace collectors | Windows x64, Minecraft 26.3, isolated single-player only. Separate worlds per map. Each addon combination needs testing. |
 
 Remaining major work: mine and save native map changes, update Source navigation around placed blocks, classify moving prop tops for mob paths,
@@ -33,5 +34,5 @@ Skyrim quests, skills, furniture, and horses have no direct GMod equivalent.
 See [test results](tests/RESULTS.md) for measured behavior and saved evidence.
 Build success does not prove complete gameplay or perfect physics.
 
-Source mesh draws use up to four nearby point lights. Source world lighting uses the nearest 16 emitters.
-This budget leaves room for native lights. It does not provide unlimited simultaneous world lights or shadows.
+Source mesh draws use up to four visible point lights selected from every exported emitter. Source world lighting uses the nearest 16 emitters.
+This budget leaves room for native lights. Source world point lights do not receive per-pixel shadows from the Minecraft occlusion index.

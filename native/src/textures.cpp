@@ -6,6 +6,7 @@
 #include <materialsystem/itexture.h>
 #include "textures.hpp"
 #include "packets.hpp"
+#include "sdkcompat.hpp"
 #include <cstring>
 #include <memory>
 #include <string>
@@ -14,15 +15,37 @@
 #include <algorithm>
 #include <atomic>
 #include <cmath>
+#include <mutex>
 
 namespace {
     std::atomic_bool needsReset = false;
+    DWORD ownerThread;
     class Pixels final : public ITextureRegenerator {
-    public:
+        std::mutex mutex;
         std::vector<unsigned char> rgba;
-        int width = 0, height = 0;
         bool flip = false;
+    public:
+        int width = 0, height = 0;
+        bool update(std::string_view bytes, bool flipImage) {
+            std::lock_guard lock(mutex);
+            bool changed = rgba.size() != bytes.size() || flip != flipImage
+                || std::memcmp(rgba.data(), bytes.data(), bytes.size()) != 0;
+            if (changed) rgba.assign(bytes.begin(), bytes.end());
+            flip = flipImage;
+            return changed;
+        }
+        void retire() {
+            std::lock_guard lock(mutex);
+            std::vector<unsigned char>().swap(rgba);
+        }
+        size_t bytes() {
+            std::lock_guard lock(mutex);
+            return rgba.size();
+        }
         void RegenerateTextureBits(ITexture*, IVTFTexture* image, Rect_t* rectangle) override {
+            // Serialize an engine callback with upload and retirement, including a late mode-switch callback.
+            std::lock_guard lock(mutex);
+            if (rgba.empty()) return;
             // One mip and one frame. The material system owns the destination buffer.
             auto* destination = image->ImageData(0, 0, 0);
             if (!rectangle) std::memset(destination, 0, static_cast<size_t>(image->Width()) * image->Height() * 4);
@@ -43,32 +66,48 @@ namespace {
                 } else std::memcpy(row, source, static_cast<size_t>(x1 - x0) * 4);
             }
         }
-        // GMod releases regenerators during a video mode change. The module cache retains their pixels.
-        void Release() override { needsReset = true; }
+        // GMod releases regenerators during a video mode change. The next client frame retires their pixels.
+        void Release() override {
+            std::lock_guard lock(mutex);
+            if (!rgba.empty()) needsReset = true;
+        }
     };
     struct Texture { ITexture* texture; std::unique_ptr<Pixels> pixels; int width; int height; std::string name; };
     std::unordered_map<std::string, Texture> textures;
     // Old mode handles are invalid. Keep callback storage until the module exits without calling those handles again.
-    std::vector<Texture> retired;
+    std::vector<std::unique_ptr<Pixels>> retired;
     ULONGLONG textureGeneration = 0;
     void* materialSystem = nullptr;
     using CreateTexture = ITexture* (__fastcall*)(void*, const char*, const char*, int, int, ImageFormat, int);
     CreateTexture createTexture = nullptr;
 
+    void retireTextures() {
+        for (auto& [name, entry] : textures) {
+            entry.pixels->retire();
+            retired.push_back(std::move(entry.pixels));
+        }
+        textures.clear();
+    }
+
     LUA_FUNCTION_STATIC(resetVideo) {
+        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Reset textures on the client thread"), 0;
         bool reset = needsReset.exchange(false);
         LUA->PushBool(reset);
         if (!reset) return 1;
-        for (auto& [name, entry] : textures) retired.push_back(std::move(entry));
-        textures.clear();
+        retireTextures();
         ++textureGeneration;
         return 1;
     }
 
     LUA_FUNCTION_STATIC(upload) {
+        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Upload textures on the client thread"), 0;
         const char* name = LUA->CheckString(1);
-        int width = static_cast<int>(LUA->CheckNumber(2));
-        int height = static_cast<int>(LUA->CheckNumber(3));
+        double widthNumber = LUA->CheckNumber(2), heightNumber = LUA->CheckNumber(3);
+        if (!std::isfinite(widthNumber) || !std::isfinite(heightNumber)
+            || widthNumber <= 0 || heightNumber <= 0 || widthNumber > 4096 || heightNumber > 4096
+            || widthNumber != std::floor(widthNumber) || heightNumber != std::floor(heightNumber))
+            return LUA->ThrowError("Invalid RGBA texture dimensions"), 0;
+        int width = static_cast<int>(widthNumber), height = static_cast<int>(heightNumber);
         auto body = packetBytes(LUA, 4);
         size_t length = body.size();
         const char* data = body.data();
@@ -76,21 +115,17 @@ namespace {
         if (LUA->IsType(6, GarrysMod::Lua::Type::Number)) {
             double offset = LUA->CheckNumber(6);
             double count = LUA->CheckNumber(7);
-            if (offset < 0 || count < 0 || offset > length || count > length - offset
+            if (!std::isfinite(offset) || !std::isfinite(count) || offset < 0 || count < 0 || offset > length || count > length - offset
                 || offset != std::floor(offset) || count != std::floor(count))
                 return LUA->ThrowError("Invalid texture packet range"), 0;
             data += static_cast<size_t>(offset);
             length = static_cast<unsigned>(count);
         }
-        if (width <= 0 || height <= 0 || width > 4096 || height > 4096
-            || static_cast<size_t>(width) * height * 4 != length)
+        if (static_cast<size_t>(width) * height * 4 != length)
             return LUA->ThrowError("Invalid RGBA texture dimensions"), 0;
         if (!materialSystem) {
-            auto module = GetModuleHandleW(L"materialsystem.dll");
-            auto factory = reinterpret_cast<CreateInterfaceFn>(GetProcAddress(module, "CreateInterface"));
-            if (!factory) return LUA->ThrowError("Material system factory unavailable"), 0;
-            materialSystem = factory("VMaterialSystem080", nullptr);
-            if (!materialSystem) return LUA->ThrowError("Material system interface unavailable"), 0;
+            materialSystem = sdkcompat::materialSystem();
+            if (!materialSystem) return LUA->ThrowError("Native texture upload does not support this GMod material-system build"), 0;
             auto** table = *reinterpret_cast<void***>(materialSystem);
             // GMod x86-64 adds four methods before texture creation in VMaterialSystem080.
             // Slot 85 was checked against this build's material-system dispatch table.
@@ -105,19 +140,21 @@ namespace {
             auto pixels = std::make_unique<Pixels>();
             pixels->width = width;
             pixels->height = height;
-            pixels->rgba.assign(data, data + length);
+            pixels->update({data, length}, LUA->GetBool(5));
             auto nativeName = std::string(name) + "/generation" + std::to_string(textureGeneration);
             auto* texture = createTexture(materialSystem, nativeName.c_str(), TEXTURE_GROUP_OTHER, width, height,
                 IMAGE_FORMAT_RGBA8888, TEXTUREFLAGS_NOMIP | TEXTUREFLAGS_NOLOD | TEXTUREFLAGS_CLAMPS
                 | TEXTUREFLAGS_CLAMPT | TEXTUREFLAGS_POINTSAMPLE | TEXTUREFLAGS_EIGHTBITALPHA);
-            pixels->flip = LUA->GetBool(5);
+            if (!texture) {
+                pixels.reset();
+                std::string().swap(nativeName);
+                return LUA->ThrowError("Native texture creation failed"), 0;
+            }
             texture->IncrementReferenceCount();
             texture->SetTextureRegenerator(pixels.get());
             found = textures.emplace(name, Texture{texture, std::move(pixels), width, height, std::move(nativeName)}).first;
         } else {
-            auto& pixels = *found->second.pixels;
-            changed = std::memcmp(pixels.rgba.data(), data, length) != 0;
-            if (changed) pixels.rgba.assign(data, data + length);
+            changed = found->second.pixels->update({data, length}, LUA->GetBool(5));
         }
         // Complete tiles survive skipped mailbox frames. Reuse unchanged tiles without a GPU upload.
         if (changed) found->second.texture->Download();
@@ -125,9 +162,22 @@ namespace {
         LUA->PushString(found->second.name.c_str());
         return 1;
     }
+
+    LUA_FUNCTION_STATIC(stats) {
+        size_t activeBytes = 0, retiredBytes = 0;
+        for (auto& [name, entry] : textures) activeBytes += entry.pixels->bytes();
+        for (auto& pixels : retired) retiredBytes += pixels->bytes();
+        LUA->CreateTable();
+        LUA->PushNumber(static_cast<double>(activeBytes)); LUA->SetField(-2, "activeBytes");
+        LUA->PushNumber(static_cast<double>(retiredBytes)); LUA->SetField(-2, "retiredBytes");
+        LUA->PushNumber(static_cast<double>(textures.size())); LUA->SetField(-2, "activeTextures");
+        LUA->PushNumber(static_cast<double>(retired.size())); LUA->SetField(-2, "retiredCallbacks");
+        return 1;
+    }
 }
 
 void registerTextures(GarrysMod::Lua::ILuaBase* lua) {
+    ownerThread = GetCurrentThreadId();
     // Source retains texture names across map reloads, even when the client Lua module reloads.
     // A new lifetime must not retrieve its predecessor's released procedural texture.
     textureGeneration = GetTickCount64();
@@ -135,9 +185,12 @@ void registerTextures(GarrysMod::Lua::ILuaBase* lua) {
     lua->SetField(-2, "upload");
     lua->PushCFunction(resetVideo);
     lua->SetField(-2, "textures_reset");
+    lua->PushCFunction(stats);
+    lua->SetField(-2, "texture_stats");
 }
 
 void releaseTextures() {
+    if (needsReset.load()) retireTextures();
     for (auto& [name, entry] : textures) {
         entry.texture->SetTextureRegenerator(nullptr);
         entry.texture->DecrementReferenceCount();
@@ -145,4 +198,5 @@ void releaseTextures() {
     textures.clear();
     needsReset = false;
     materialSystem = nullptr;
+    createTexture = nullptr;
 }
