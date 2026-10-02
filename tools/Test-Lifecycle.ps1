@@ -6,7 +6,7 @@ $RuntimeRoot = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File
 $artifacts = Join-Path (Split-Path -Parent $RuntimeRoot) 'artifacts'
 $checks = [ordered]@{}
 function Send($Command) { & "$PSScriptRoot/Send-LabCommand.ps1" -GamePid $GamePid -LabPath $LabPath -Command $Command }
-function Status { Get-Content -LiteralPath "$LabPath/garrysmod/data/garrycraft-runtime-status.json" -Raw | ConvertFrom-Json }
+function Status { & "$PSScriptRoot/Read-JsonSnapshot.ps1" -Path "$LabPath/garrysmod/data/garrycraft-runtime-status.json" }
 function Wait-Until($Description, [scriptblock]$Condition) {
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     do {

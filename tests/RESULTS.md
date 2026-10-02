@@ -67,6 +67,22 @@ Both complete lighting replacements passed all 25 checks. The damage replacement
 The interrupted lighting trace records `completed: false`. Each replacement restored the original game mode.
 Read `candidate7/artifacts/scenario-handoff-result.json`, `candidate7/handoff`, and `candidate7/artifacts/damage-results.json`.
 
+The prepared candidate runtime passed all 16 startup and persistence checks across `gm_construct`, `gm_flatgrass`, and `backrooms_main`.
+The saved diamond block and Minecraft FPS option survived reopening. Source restored its weapon, movement, health, armor, collision group, and FPS limits.
+Only one managed Minecraft process remained during the map cycle. Final disable left no orphan.
+The first attempt stopped on a Windows sharing violation in the test's status reader, while Minecraft saved normally.
+Status collectors now permit atomic replacement while reading an opened file generation. They retry only short Windows sharing conflicts.
+Read `artifacts/startup-result.json`, `artifacts/startup-before-sharing-fix.json`, and the paired persistence logs.
+Six injected collision-import failure checks left Source inactive and preserved movement, health, weapon, and its original shadow flag.
+Read `artifacts/garrycraft-start-failure.json` and `Run-ManagedTests.ps1` for the owned fault scenario.
+All four managed lifecycle checks passed, including startup disconnect, automatic reconnect, and normal host exit.
+The separate fresh-world sharing scenario passed all seven checks with deliberately open status and shutdown files.
+It retained the same Minecraft process, deferred status replacement, and held world ownership until saving finished.
+Read `artifacts/lifecycle-result.json` and `sharing-final/runtime-sharing-result.json`.
+The normal prepared runtime now matches the final native module and client class hashes.
+Launching `GarryCraft.cmd` twice opened one owned host at the menu. No normal Minecraft world loaded during this launch check.
+Existing option and world metadata hashes remained unchanged. Read `cmd-update-result.json` and `normal-files-after.json`.
+
 ## October 2 particle resource reload
 
 The managed launcher update exposed a particle crash during a paused resource reload.
