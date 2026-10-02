@@ -17,6 +17,7 @@ final class SpriteAnimation {
     private final boolean interpolate;
     private final List<Frame> frames;
     private long lastTick = Long.MIN_VALUE;
+    private int lastFrame = -1;
 
     SpriteAnimation(int id, TextureAtlasSprite sprite, NativeImage image) {
         this.id = id;
@@ -42,12 +43,13 @@ final class SpriteAnimation {
 
     void tick(long tick) {
         if (lastTick == tick) return;
-        long previous = lastTick;
         lastTick = tick;
         int time = (int) Math.floorMod(tick, cycle), current = 0;
         while (time >= frames.get(current).duration()) time -= frames.get(current++).duration();
         var frame = frames.get(current);
-        if (!interpolate && previous != Long.MIN_VALUE && time != 0) return;
+        // A slow host can skip the tick at a frame boundary. Compare frame indices instead.
+        if (!interpolate && frame.index() == lastFrame) return;
+        lastFrame = frame.index();
         int next = frames.get((current + 1) % frames.size()).index();
         float fraction = interpolate ? (float) time / frame.duration() : 0;
         int columns = imageWidth / width;

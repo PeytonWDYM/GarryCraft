@@ -230,6 +230,7 @@ hook.Add("Think", "GarryCraftBridge", function()
             GC.ParitySample(state)
             GC.DamageTestSample(owner, state)
             GC.TerrainTestSample(owner, state)
+            GC.PolishSample(state)
             -- Normal play also has an empty request. Only an active lighting test may control the host's look.
             if string.StartWith(testId, "lighting:") and state.lightingTestPhase ~= "done" and state.lightingTestRequest == testId then
                 owner:SetEyeAngles(Angle(state.lightingTestPitch, -state.lightingTestYaw - 90, 0))
@@ -240,6 +241,7 @@ hook.Add("Think", "GarryCraftBridge", function()
             if state.linked and not state.reference and GC.RespawnAccept(state) then
                 pose = state
                 owner:SetPos(GC.ToSource(state.x, state.y, state.z))
+                GC.Footsteps(owner, state)
                 owner:SetViewOffset(Vector(0, 0, state.eye * 32))
                 owner:SetNWFloat("GarryCraftEye", state.eye * 32)
                 GC.LabCase(state.fixture or "")
@@ -278,7 +280,7 @@ hook.Add("Think", "GarryCraftBridge", function()
     if RealTime() < nextSend then return end
     nextSend = RealTime() + 0.05
     if batches[batchIndex] then
-        garrycraft_bridge.send(2, util.TableToJSON({session = session, batch = batchIndex - 1,
+        garrycraft_bridge.send(2, util.TableToJSON({session = session, batch = batchIndex - 1, total = #batches,
             triangles = batches[batchIndex]}))
     end
     garrycraft_bridge.send(3, util.TableToJSON({session = session, triangles = GC.DynamicGeometry(owner),

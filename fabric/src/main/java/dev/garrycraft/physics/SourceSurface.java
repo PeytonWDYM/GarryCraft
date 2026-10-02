@@ -40,4 +40,20 @@ public final class SourceSurface {
         float ground = Math.min(.999f, groundTop(pos) + .002f);
         return ground + height * (1 - ground);
     }
+    /** A native wall between adjacent fluid cells blocks the same transfer as a Minecraft wall. */
+    public static boolean blocksFlow(BlockPos from, BlockPos to) {
+        var start = Vec3.atCenterOf(from); var end = Vec3.atCenterOf(to);
+        var triangles = new ArrayList<Triangle>();
+        SourceWorld.COLLISION.trianglesNear(new AABB(start, end).inflate(.01), triangles);
+        return SourceRay.cast(triangles, start.x, start.y, start.z, end.x, end.y, end.z) != null;
+    }
+    public static boolean supports(AABB volume) {
+        var triangles = new ArrayList<Triangle>();
+        SourceWorld.COLLISION.trianglesNear(volume, triangles);
+        for (var triangle : triangles) {
+            double top = triangle.highestWithin(volume.minX, volume.maxX, volume.minZ, volume.maxZ, volume.maxY);
+            if (top >= volume.minY) return true;
+        }
+        return false;
+    }
 }

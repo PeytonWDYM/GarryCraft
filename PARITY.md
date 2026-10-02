@@ -6,17 +6,17 @@ The port uses Minecraft game APIs and keeps both games in separate processes.
 
 | Feature | Current support | Verification or limit |
 | --- | --- | --- |
-| Player movement on Source geometry | Ported SkyCraft triangle collision | Flat floor and NPC bounds compared with vanilla Minecraft. Native stairs, slopes, and shore transitions need broader comparisons. |
-| Skin, armor, held items, cameras, HUD | Rendered from Minecraft; direct client look and menu input | Yaw wrap, video-list wheel input, creative-search wheel input, and tutorial removal tested. Custom renderers, death poses, and all menu controls need coverage. |
+| Player movement on Source geometry | Vertical-first triangle collision, native crouch support, Source footsteps | Fifteen vanilla comparisons include ledges, walls, ceilings, crouch edges, and fast elytra landings. Native ramp descent and jumping tested. More slopes and shore transitions need coverage. |
+| Skin, armor, held items, cameras, HUD | Rendered from Minecraft; enchanted armor base layers retained | Both third-person armor views tested. Animated enchantment glint overlays, custom renderers, death poses, and all menu controls need coverage. |
 | Placed blocks and collision | Exported Minecraft models and collision shapes | Placement and mining on native ground tested. Source NPCs collide with blocks, but their navmesh does not update. |
-| Water and lava | Vanilla simulation on Source terrain, animated textures; Source-lit water with biome tint and no duplicate reverse faces | Basin lighting, biome tint, and single-surface export tested. Ground placement and NPC lava damage tested. Large fluid floods need performance coverage. |
+| Water and lava | Vanilla grid simulation, native-wall flow blocking, fair animated texture transfers, Source-lit water | Still/flowing animation, native-wall blocking, biome tint, torch lighting, and single-surface export tested. Large floods and curved shorelines need coverage. |
 | Transparent blocks | Opaque depth pass and sorted transparent faces | Transparent faces sort across sections. Native Source glass interleaving still needs coverage. |
 | Mining effects and particles | Selection shapes, destruction stages, vanilla particle quads | Crack and debris exports checked against actual Source draws. Native map geometry cannot be mined. |
 | Torches and block lights | Source world lights, local mesh lights, and self-lit materials | Native floor and wall placement tested. Dark-room lighting holds at both camera distances. Sloped attachment offsets need coverage. |
 | Minecraft attacks on Source NPCs and props | Acknowledged attacks through server stand-ins | Repeated sword hits, arrows, and TNT impulses tested. Damage uses configurable conversion scales. |
 | Source attacks on Minecraft entities | Player damage bridge and mob bullseyes | Eight damage directions tested. Vanilla armor and damage rules remain active. |
 | Source NPC fire and lava damage | Vanilla environmental checks on stand-ins | Repeated native NPC damage tested. Fire can start on native ground. |
-| Minecraft mobs and dropped items | Vanilla entity rendering and Source collision | Fifteen cows, drops, pickup, and ground navigation tested. Complex brains, flying mobs, and bosses need coverage. |
+| Minecraft mobs and dropped items | Vanilla entity rendering, Source collision, and native destination support | Idle golem, villager, and cow movement tested. Complex brains, flying mobs, and bosses need coverage. |
 | Combat between Minecraft mobs and Source NPCs | Minecraft target goals and Source relationships; bounded native sight scans | Zombie approaches a citizen. Both games register damage. A 24-NPC, 15-mob target scan stays within budget. Native NPC behavior varies by class. |
 | Projectiles and TNT | Source triangle ray casts and Minecraft entity hits | Arrow and TNT scenarios tested. Tridents, potions, and modded projectiles need individual checks. |
 | Block entities and moving blocks | Minecraft renderer export | Chest rendered in the test scene. Pistons and all block entities need gameplay coverage. |

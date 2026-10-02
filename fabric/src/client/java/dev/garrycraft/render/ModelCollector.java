@@ -54,8 +54,10 @@ class ModelCollector extends EmptyCollector {
         int light, int overlay, int tint, @Nullable UvMapping mapping, int outline) {
         var type = (RenderTypeAccessor) renderType;
         String name = type.garrycraft$name();
-        if (name.contains("glint") || name.contains("outline") || name.contains("shadow")) return;
-        var binding = ((RenderSetupAccessor) (Object) type.garrycraft$state()).garrycraft$textures().get("Sampler0");
+        var textures = ((RenderSetupAccessor) (Object) type.garrycraft$state()).garrycraft$textures();
+        // Combined glint pipelines still contain the base armor/item texture in Sampler0.
+        if (name.contains("outline") || name.contains("shadow") || name.contains("glint") && !textures.containsKey("GlintSampler")) return;
+        var binding = textures.get("Sampler0");
         if (binding == null) return;
         int texture = Textures.resource(((TextureBindingAccessor) binding).garrycraft$location());
         if (texture < 0) return;
