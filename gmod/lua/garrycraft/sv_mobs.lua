@@ -79,7 +79,7 @@ function GC.MobsAccept(state)
         if targetIndex > #mobTargets then npcIndex = npcIndex + 1 targetIndex = 1 end
         examined = examined + 1
         if IsValid(npc) and IsValid(target) then
-            local hostile = target.GarryCraftEnemy or npc:Disposition(owner) == D_HT
+            local hostile = target.GarryCraftEnemy or GC.NpcPlayerDisposition(npc) == D_HT
             local disposition = hostile and D_HT or D_NU
             if target.GarryCraftRelationships[npc] ~= disposition then
                 npc:AddEntityRelationship(target, disposition, 80)

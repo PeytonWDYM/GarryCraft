@@ -25,6 +25,7 @@ if SERVER then
     include("garrycraft/sv_damage.lua")
     include("garrycraft/sv_entities.lua")
     include("garrycraft/sv_footsteps.lua")
+    include("garrycraft/sv_npc_targeting.lua")
     include("garrycraft/sv_mobs.lua")
     include("garrycraft/sv_blocks.lua")
     include("garrycraft/sv_parity.lua")
