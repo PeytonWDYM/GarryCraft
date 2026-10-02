@@ -39,7 +39,7 @@ Iteration 8 preserved the jump: 12 airborne ticks and a peak gap of 1.49 blocks 
 The harness requires actual downhill travel, so stationary samples cannot pass.
 Read `iteration7/artifacts/slope-jump-before.json` and `iteration8/artifacts/slope-jump-after.json`.
 
-Iterations 5, 7, and 8 passed all 15 same-input vanilla box comparisons. Maximum position error was 3.17e-13 blocks.
+Iterations 5, 7, 8, and 10 passed all 15 same-input vanilla box comparisons. Maximum position error was 3.17e-13 blocks.
 Velocity and grounded state matched in every case. The cases include fast walls, low walls, and actual elytra landings.
 Read each scenario's paired tick traces beside `iteration5/artifacts/results.json`.
 
