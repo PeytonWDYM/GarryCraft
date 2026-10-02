@@ -10,13 +10,15 @@ See [feature coverage and remaining work](PARITY.md) before treating a feature a
 
 ## Start and stop GarryCraft
 
-Prepare the local runtime once with PowerShell 7:
+Use an isolated 64-bit GMod installation with a `.garrycraft-lab` marker at its root.
+Close that installation before setup. Prepare the local runtime once with PowerShell 7:
 
 ```powershell
 .\tools\Setup-Lab.ps1 -LabPath "$env:LOCALAPPDATA\GarryCraft\gmod-lab"
 ```
 
-Double-click **GarryCraft.cmd** in this repository, or open the printed `GarryCraft.lnk` shortcut.
+Double-click [GarryCraft.cmd](GarryCraft.cmd) at the repository root, or open the printed `GarryCraft.lnk` shortcut.
+If the configured GMod installation already runs, the launcher activates its existing window.
 Load a single-player map through GMod's normal menu.
 The shortcut starts the tested 1920×1080 windowed mode. Use GMod's video settings to change it.
 The addon starts Minecraft and reads that map's collision data automatically. Normal launches do not run Gradle or rebuild code.
@@ -46,10 +48,10 @@ It does not replace a daily-driver installation. Rerun setup after rebuilding th
 ## Give your agent this instruction
 
 > Set up GarryCraft with my installed Minecraft Java and 64-bit Garry's Mod.
-> Read AGENTS.md and the protocol first. Use a separate Minecraft Launcher profile and an isolated Source test installation.
-> Build with tools/Build.ps1. Install both native modules and the Lua addon into the test installation.
-> Install the Fabric mod and Fabric API into the new Minecraft profile.
-> Start a local map, set garrycraft_bridge to the shared bridge.bin path, then run garrycraft_start.
+> Read AGENTS.md and the protocol first. Use an isolated Source test installation and separate Minecraft worlds.
+> Run tools/Setup-Lab.ps1 with the isolated installation and Java 25 paths to build, install, and prepare automatic startup.
+> Open GarryCraft.cmd at the repository root, then load a single-player map.
+> Verify that Minecraft starts automatically and that Disable restores normal Source play.
 > Test at the map spawn and use the map's own slopes and water. Save traces before reporting results.
 > Extract any required assets from my installation locally. Never upload game files or account data.
 
