@@ -101,3 +101,95 @@ function GC.DynamicGeometry(player)
     end
     return triangles
 end
+
+local shapeCache = {}
+local geometryStats = {}
+local geometryPeer = {}
+local geometryTrace = false
+local range = Vector(512, 512, 512)
+
+function GC.MovingGeometryStats() return geometryStats end
+function GC.MovingGeometryPeer() return geometryPeer end
+function GC.MovingGeometryTrace(enabled) geometryTrace = enabled end
+
+function GC.GeometryBegin()
+    shapeCache = {}
+    geometryStats = {}
+    geometryPeer = {}
+    geometryTrace = false
+    garrycraft_bridge.geometry_clear()
+end
+
+function GC.GeometryPeer(state) geometryPeer = state.movingGeometry or {} end
+
+-- Keep only bodies in the complete current snapshot. Range exit and removal retire their shapes.
+function GC.DynamicGeometryPacket(player, session, acknowledged)
+    local started = SysTime()
+    local instances, nextCache = {}, {}
+    local meshReads = 0
+    local function instance(entity, part, physics, bounds)
+        local minimum, maximum = entity:GetCollisionBounds()
+        local key = entity:EntIndex() .. ":" .. entity:GetCreationID() .. ":" .. part
+        local previous = shapeCache[key]
+        local model, scale = entity:GetModel(), entity:GetModelScale()
+        local cached = previous and previous.physics == physics and previous.model == model
+            and previous.scale == scale and previous.minimum == minimum and previous.maximum == maximum
+        local shape = cached and previous.shape
+        if not shape then
+            if bounds then shape = garrycraft_bridge.geometry_box(minimum, maximum)
+            else
+                local mesh = physics:GetMesh()
+                meshReads = meshReads + 1
+                if not mesh then return false end
+                shape = garrycraft_bridge.geometry_mesh(mesh)
+            end
+            previous = {physics = physics, model = model, scale = scale, minimum = minimum, maximum = maximum, shape = shape}
+        end
+        nextCache[key] = previous
+        local position = bounds and entity:GetPos() or physics:GetPos()
+        local angles = bounds and (entity:GetSolid() == SOLID_BBOX and angle_zero or entity:GetAngles()) or physics:GetAngles()
+        instances[#instances + 1] = {entity:EntIndex(), entity:GetCreationID(), part, shape, position, angles}
+        return true
+    end
+    local point = player:GetPos()
+    local queryStarted = SysTime()
+    local candidates = ents.FindInBox(point - range, point + range)
+    local queryFinished = SysTime()
+    for _, entity in ipairs(candidates) do
+        if entity ~= player and not entity.GarryCraftMirror and entity ~= game.GetWorld() and entity:GetClass() ~= "gc_block"
+            and entity:IsSolid() and bit.band(entity:GetSolidFlags(), FSOLID_TRIGGER) == 0
+            and not excludedGroups[entity:GetCollisionGroup()] and not entity:GetNWBool("GarryCraftStatic") then
+            local found = entity:IsNPC() or entity:GetSolid() == SOLID_BBOX
+            if found then instance(entity, -1, nil, true) end
+            for index = 0, (found and 0 or entity:GetPhysicsObjectCount()) - 1 do
+                local physics = entity:GetPhysicsObjectNum(index)
+                if IsValid(physics) and physics:IsCollisionEnabled() then
+                    if instance(entity, index, physics, false) then found = true end
+                end
+            end
+            if not found and (entity:GetSolid() == SOLID_BBOX or entity:GetSolid() == SOLID_OBB) then
+                instance(entity, -1, nil, true)
+            end
+        end
+    end
+    shapeCache = nextCache
+    local instancesFinished = SysTime()
+    local water = GC.WaterGrid(player)
+    local waterFinished = SysTime()
+    local actors = GC.EntityTargets(player)
+    local actorsFinished = SysTime()
+    local header = util.TableToJSON({session = session, movingGeometry = 2, gridHeight = GC.GridHeight,
+        geometryTrace = geometryTrace, water = water})
+    local jsonFinished = SysTime()
+    local payload, triangles, pending = garrycraft_bridge.geometry_packet(header, instances, acknowledged, actors)
+    local packed = SysTime()
+    geometryStats = {milliseconds = (packed - started) * 1000, bytes = #payload, candidates = #candidates,
+        queryMilliseconds = (queryFinished - queryStarted) * 1000,
+        instancesMilliseconds = (instancesFinished - queryFinished) * 1000,
+        waterMilliseconds = (waterFinished - instancesFinished) * 1000,
+        actorsMilliseconds = (actorsFinished - waterFinished) * 1000,
+        jsonMilliseconds = (jsonFinished - actorsFinished) * 1000,
+        packMilliseconds = (packed - jsonFinished) * 1000, headerBytes = #header, actorCount = #actors,
+        instances = #instances, triangles = triangles, meshReads = meshReads, pendingShapes = pending}
+    return payload
+end

@@ -4,6 +4,8 @@ local materialTints = {}
 local avatar = {}
 local hands = {}
 local avatarRevision, handsRevision
+local avatarDepthDraws = 0
+local shadowOwner
 local handFov = 70
 local instance
 local session
@@ -69,12 +71,15 @@ function GC.DestroyRenderMeshes(batches)
     for _, batch in ipairs(batches) do batch.mesh:Destroy() end
 end
 
-function GC.DrawRenderMeshes(batches, unlit, position)
+function GC.DrawRenderMeshes(batches, unlit, position, depth)
     local drawn = 0
     for _, batch in ipairs(batches) do
         local texture = textures[batch.texture]
         if texture then
-            if not unlit and not batch.unlit then GC.PrepareLighting(position or batch.center, batch.lighting) end
+            if not depth and not unlit and not batch.unlit then
+                local samplePosition = position or batch.center + (EyePos() - batch.center):GetNormalized() * .5
+                GC.PrepareLighting(samplePosition, batch.lighting)
+            end
             local material = (unlit or batch.unlit) and (batch.translucent and texture.unlit or texture.emissive)
                 or batch.translucent and texture.translucent or texture.opaque
             if materialTints[material] ~= batch.tintId then
@@ -207,6 +212,13 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
     end
 end)
 function GC.RenderTexture(id) return textures[id] end
+function GC.AvatarMeshes() return avatar end
+function GC.AvatarReport()
+    local vertices = 0
+    for _, batch in ipairs(avatar) do vertices = vertices + batch.vertices end
+    return {vertices = vertices, camera = GC.State.camera, depthDraws = avatarDepthDraws,
+        sourceShadowDisabled = LocalPlayer():IsEffectActive(EF_NOSHADOW)}
+end
 
 -- Minecraft supplies the hand animation. Source supplies its camera and lighting.
 hook.Add("PostDrawTranslucentRenderables", "GarryCraftHands", function(depth, skybox)
@@ -237,16 +249,34 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftHands", function(depth, sk
     render.DepthRange(0, 1)
     cam.PopModelMatrix()
     cam.End3D()
+    GC.RestoreLighting()
 end)
 
 hook.Add("PrePlayerDraw", "GarryCraftHideSourceBody", function(player)
     if player:GetNWBool("GarryCraft") then return true end
 end)
 
+-- The server owns EF_NOSHADOW. Remove the existing client shadow handle at bridge transitions.
+hook.Add("Think", "GarryCraftHideSourceShadow", function()
+    local player = LocalPlayer()
+    local linked = IsValid(player) and player:GetNWBool("GarryCraft")
+    if shadowOwner and (shadowOwner ~= player or not linked) then
+        if IsValid(shadowOwner) then
+            shadowOwner:DrawShadow(true)
+        end
+        shadowOwner = nil
+    end
+    if linked and not shadowOwner then
+        player:DrawShadow(false)
+        player:DestroyShadow()
+        shadowOwner = player
+    end
+end)
+
 hook.Add("PostDrawOpaqueRenderables", "GarryCraftAvatar", function(depth, skybox)
-    if depth or skybox or GC.VideoReset or not GC.State or GC.State.camera == 0 or not GC.RenderFeet then return end
+    if skybox or GC.VideoReset or not GC.State or (GC.State.camera == 0 and not depth) or not GC.RenderFeet then return end
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") or not LocalPlayer():Alive() then return end
-    GC.PrepareLighting(GC.RenderFeet)
+    if not depth then GC.PrepareLighting(GC.RenderFeet + Vector(0, 0, 32)) end
     local transform = Matrix()
     transform:SetTranslation(GC.RenderFeet)
     cam.PushModelMatrix(transform)
@@ -257,8 +287,9 @@ hook.Add("PostDrawOpaqueRenderables", "GarryCraftAvatar", function(depth, skybox
         end
     end
     drawMeshes()
-    render.RenderFlashlights(drawMeshes)
+    if depth then avatarDepthDraws = avatarDepthDraws + 1 else render.RenderFlashlights(drawMeshes) end
     cam.PopModelMatrix()
+    GC.RestoreLighting()
 end)
 
 hook.Add("HUDPaint", "GarryCraftMinecraftOverlay", function()
@@ -287,5 +318,8 @@ concommand.Add("garrycraft_render_report", function()
 end)
 
 hook.Add("ShutDown", "GarryCraftRenderCleanup", function()
+    if IsValid(shadowOwner) then
+        shadowOwner:DrawShadow(true)
+    end
     clearMeshes()
 end)

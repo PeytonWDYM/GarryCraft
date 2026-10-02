@@ -14,7 +14,7 @@ import net.minecraft.client.resources.model.geometry.BakedQuad;
 
 /** Minecraft supplies block models, tint, smooth lighting, and fluid surfaces. */
 final class BlockMeshBuilder implements BlockQuadOutput, FluidRenderer.Output {
-    private record Key(int texture, boolean translucent, boolean unlit) {}
+    private record Key(int texture, boolean translucent, boolean unlit, int tileX, int tileY, int tileZ, int face, int plane) {}
     private final LinkedHashMap<Key, List<VertexCapture.Vertex>> batches = new LinkedHashMap<>();
     private final List<VertexCapture.Vertex> waterVertices = new ArrayList<>(), lavaVertices = new ArrayList<>();
     private final VertexCapture fluids = new VertexCapture() {
@@ -33,7 +33,17 @@ final class BlockMeshBuilder implements BlockQuadOutput, FluidRenderer.Output {
 
     @Override public void put(float x, float y, float z, BakedQuad quad, QuadInstance instance) {
         var sprite = quad.materialInfo().sprite();
-        var key = new Key(Textures.sprite(sprite), quad.materialInfo().layer().translucent(), emissive);
+        // A planar four-block tile keeps light samples outside walls without one draw for every block.
+        var a = quad.position(0); var b = quad.position(1); var c = quad.position(2);
+        float nx = (b.y() - a.y()) * (c.z() - a.z()) - (b.z() - a.z()) * (c.y() - a.y());
+        float ny = (b.z() - a.z()) * (c.x() - a.x()) - (b.x() - a.x()) * (c.z() - a.z());
+        float nz = (b.x() - a.x()) * (c.y() - a.y()) - (b.y() - a.y()) * (c.x() - a.x());
+        int axis = Math.abs(nx) > Math.abs(ny) ? 0 : 1;
+        if (Math.abs(nz) > (axis == 0 ? Math.abs(nx) : Math.abs(ny))) axis = 2;
+        float component = axis == 0 ? nx : axis == 1 ? ny : nz;
+        float plane = axis == 0 ? ox + x + a.x() : axis == 1 ? oy + y + a.y() : oz + z + a.z();
+        var key = new Key(Textures.sprite(sprite), quad.materialInfo().layer().translucent(), emissive,
+            (int) x / 4, (int) y / 4, (int) z / 4, axis * 2 + (component < 0 ? 1 : 0), Math.round(plane * 16));
         var vertices = batches.computeIfAbsent(key, ignored -> new ArrayList<>());
         for (int i = 0; i < 4; i++) {
             var pos = quad.position(i);

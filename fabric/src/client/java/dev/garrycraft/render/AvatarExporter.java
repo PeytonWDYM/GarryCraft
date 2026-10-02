@@ -35,7 +35,7 @@ public final class AvatarExporter {
         var cracks = MeshSnapshots.changed("cracks", BlockEffects.cracks(mc));
         var selection = BlockEffects.selection(mc);
         int mode = mc.options.getCameraType().ordinal();
-        if (!camera.isDetached() || mc.player.isDeadOrDying()) {
+        if (mc.player.isDeadOrDying()) {
             RenderTransport.scene(new Scene(session, instance, mode, mc.options.fov().get(), MeshSnapshots.changed("avatar", List.of()),
                 MeshSnapshots.changed("hands", mc.player.isDeadOrDying() ? List.of() : hands), particles, entities, cracks, selection,
                 world.models(), world.items()));
@@ -52,7 +52,7 @@ public final class AvatarExporter {
         var avatar = collector.finish();
         dev.garrycraft.testing.GameplayOracle.avatar(avatar.stream().mapToInt(batch -> batch.vertices().size()).sum());
         RenderTransport.scene(new Scene(session, instance, mode, mc.options.fov().get(), MeshSnapshots.changed("avatar", avatar),
-            MeshSnapshots.changed("hands", List.of()), particles, entities, cracks, selection, world.models(), world.items()));
+            MeshSnapshots.changed("hands", camera.isDetached() ? List.of() : hands), particles, entities, cracks, selection, world.models(), world.items()));
         hands = List.of();
     }
 }
