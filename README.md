@@ -86,6 +86,8 @@ Use bare `garrycraft_test` for the same-input vanilla physics comparisons, inclu
 See [map gameplay tests](tests/gameplay-polish.md) for native prop, footstep, and export benchmarks.
 Use `tools/Test-Resolution.ps1 -RunRoot <run-directory>` for owned video-mode changes.
 Run `garrycraft_test responsiveness` and `tools/Collect-Responsiveness.ps1` to check menu scrolling, creative search, and client input delivery.
+Copy `tests/particle-reload.lua` to the owned lab's DATA directory and load it with client `RunString` before `garrycraft_test reload`.
+Collect paired atlas-resize traces with `tools/Collect-ParticleReload.ps1 -RunRoot <run-directory> -LabPath <owned-lab>`.
 Run `garrycraft_test lighting` in a fresh `gm_construct` world, then use `tools/Collect-Lighting.ps1` for torch checks.
 Run `garrycraft_test_mob_budget`, then `garrycraft_test_mob_cleanup`, and collect both with `tools/Collect-MobBudget.ps1`.
 After setup, use `tools/Test-Startup.ps1 -LabPath <lab> -RuntimeRoot <runtime> -GamePid <PID>` for the managed map cycle.

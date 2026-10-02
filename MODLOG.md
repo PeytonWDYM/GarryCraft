@@ -2,6 +2,9 @@
 
 ## October 2, 2026
 
+Atlas uploads now clear live, queued, and extracted particles together. Resource reloads cannot reuse the previous atlas coordinates.
+The paired resize-and-restore test passed. Cancellation restored saved mipmaps, and all ten lighting checks passed after reload.
+
 Idle Minecraft ground mobs now accept destinations supported by native terrain. Vanilla goals and villager brains still choose their movement.
 BSP static props now export their installed models' collision meshes, including Downtown light poles and fountains.
 Moving geometry uses Source's spatial partition and cached physics meshes. Minecraft publishes one complete immutable map index after static import.

@@ -69,6 +69,8 @@ public final class StatePublisher {
         state.addProperty("parityPhase", ParityOracle.phase());
         state.addProperty("responsivenessPhase", dev.garrycraft.testing.ResponsivenessOracle.phase());
         state.addProperty("responsivenessRequest", dev.garrycraft.testing.ResponsivenessOracle.request());
+        state.addProperty("particleReloadRequest", dev.garrycraft.testing.ParticleReloadOracle.request());
+        state.addProperty("particleReloadPhase", dev.garrycraft.testing.ParticleReloadOracle.phase());
         state.addProperty("parityRequest", ParityOracle.request());
         state.addProperty("parityTick", ParityOracle.tick());
         state.addProperty("damageTestRequest", dev.garrycraft.testing.DamageOracle.request());
