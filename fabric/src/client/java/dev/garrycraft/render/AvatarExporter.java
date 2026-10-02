@@ -49,7 +49,9 @@ public final class AvatarExporter {
         var state = dispatcher.extractEntity(mc.player, partial);
         var cameraState = mc.gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
         dispatcher.submit(state, cameraState, 0, 0, 0, new PoseStack(), collector);
-        RenderTransport.scene(new Scene(session, instance, mode, mc.options.fov().get(), MeshSnapshots.changed("avatar", collector.finish()),
+        var avatar = collector.finish();
+        dev.garrycraft.testing.GameplayOracle.avatar(avatar.stream().mapToInt(batch -> batch.vertices().size()).sum());
+        RenderTransport.scene(new Scene(session, instance, mode, mc.options.fov().get(), MeshSnapshots.changed("avatar", avatar),
             MeshSnapshots.changed("hands", List.of()), particles, entities, cracks, selection, world.models(), world.items()));
         hands = List.of();
     }

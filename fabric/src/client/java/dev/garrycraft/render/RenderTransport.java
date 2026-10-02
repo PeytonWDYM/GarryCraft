@@ -25,6 +25,7 @@ public final class RenderTransport {
     private static final AtomicInteger TRANSFER = new AtomicInteger();
     private record TextureUpdate(int id, int width, int height, byte[] rgba) {}
     private static final ConcurrentHashMap<Integer, TextureUpdate> UPDATES = new ConcurrentHashMap<>();
+    private static final ConcurrentLinkedQueue<Integer> UPDATE_ORDER = new ConcurrentLinkedQueue<>();
     private static byte[] previousScene;
     private record TexturePacket(int id, byte[] bytes) {}
     private record TextureHeader(String session, String instance, int id, int transfer, int width, int height) {}
@@ -44,6 +45,7 @@ public final class RenderTransport {
         instance = process;
         TEXTURES.clear();
         UPDATES.clear();
+        UPDATE_ORDER.clear();
         TRANSFER.set(0);
         SCENE.set(null);
         HUD.set(null);
@@ -66,7 +68,8 @@ public final class RenderTransport {
         return id;
     }
     public static void textureUpdate(int id, int width, int height, byte[] rgba) {
-        UPDATES.put(id, new TextureUpdate(id, width, height, rgba));
+        dev.garrycraft.testing.GameplayOracle.texture(id, rgba);
+        if (UPDATES.put(id, new TextureUpdate(id, width, height, rgba)) == null) UPDATE_ORDER.add(id);
     }
 
     public static byte[] packet(Object header, byte[] body) {
@@ -116,9 +119,11 @@ public final class RenderTransport {
             texture = TEXTURES.peek();
         }
         long now = System.nanoTime();
-        if (texture == null && !UPDATES.isEmpty()) {
-            var update = UPDATES.values().iterator().next();
-            if (UPDATES.remove(update.id(), update)) {
+        if (texture == null) {
+            // Publish the latest pixels in arrival order without blocking Minecraft's render thread.
+            var id = UPDATE_ORDER.poll();
+            if (id != null) {
+                var update = UPDATES.remove(id);
                 int transfer = TRANSFER.incrementAndGet();
                 texture = new TexturePacket(transfer, packet(new TextureHeader(session, instance,
                     update.id(), transfer, update.width(), update.height()), update.rgba()));
