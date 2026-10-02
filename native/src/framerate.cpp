@@ -1,5 +1,6 @@
 #include <GarrysMod/Lua/Interface.h>
 #include <cstring>
+#include <limits>
 #include "framerate.hpp"
 
 namespace {
@@ -14,8 +15,9 @@ namespace {
         const char* name = reinterpret_cast<Name>(methods[6])(variable);
         if (std::strcmp(name, "fps_max") != 0 && std::strcmp(name, "fps_max_nofocus") != 0)
             return LUA->ThrowError("The frame limiter accepts only fps_max and fps_max_nofocus"), 0;
-        int target = static_cast<int>(LUA->CheckNumber(2));
-        if (target < -1 || target > 1000) return LUA->ThrowError("Frame cap must be between -1 and 1000"), 0;
+        double value = LUA->CheckNumber(2);
+        if (value < -1 || value > std::numeric_limits<int>::max()) return LUA->ThrowError("Invalid frame cap"), 0;
+        int target = static_cast<int>(value);
         reinterpret_cast<SetInt>(methods[16])(variable, target);
         return 0;
     }

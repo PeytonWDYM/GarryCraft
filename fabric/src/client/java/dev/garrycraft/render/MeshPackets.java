@@ -7,7 +7,7 @@ import java.util.ArrayList;
 
 /** Packs RGBA vertices on the transport thread. Lua reads only the small metadata header. */
 final class MeshPackets {
-    private record Mesh(int texture, boolean translucent, boolean unlit, int offset, int count, float x, float y, float z) {}
+    private record Mesh(int texture, boolean translucent, boolean unlit, int tint, int offset, int count, float x, float y, float z) {}
     private record Group(long revision, List<Mesh> batches) {}
     private record ItemModel(int id, List<Mesh> batches) {}
     private record SceneHeader(String session, String instance, int camera, float handFov,
@@ -36,7 +36,10 @@ final class MeshPackets {
                     for (int i = 5; i < 9; i++) body.put((byte) vertex[i]);
                 }
                 int count = end - first;
-                result.add(new Mesh(batch.texture(), batch.translucent(), batch.unlit(), offset, count, x / count, y / count, z / count));
+                // VertexLitGeneric ignores vertex colors. Each water face supplies its Minecraft biome tint as a material color.
+                var color = batch.vertices().get(first);
+                int tint = batch.materialTint() ? (int) color[5] << 16 | (int) color[6] << 8 | (int) color[7] : 0xFFFFFF;
+                result.add(new Mesh(batch.texture(), batch.translucent(), batch.unlit(), tint, offset, count, x / count, y / count, z / count));
             }
         }
         return result;

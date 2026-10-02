@@ -28,10 +28,14 @@ public final class RenderTransport {
     private static byte[] previousScene;
     private record TexturePacket(int id, byte[] bytes) {}
     private record TextureHeader(String session, String instance, int id, int transfer, int width, int height) {}
-    public record Tile(int x, int y, int width, int height, int offset) {}
-    public record FrameHeader(String session, String instance, int width, int height, long frame, java.util.List<Tile> tiles) {}
-    private record Overlay(int width, int height, long frame, byte[] rgba) {}
+    public record Tile(int x, int y, int width, int height, int offset, long revision) {}
+    public record FrameHeader(String session, String instance, int width, int height, long frame, double capturedAt, java.util.List<Tile> tiles) {}
+    private record Overlay(int width, int height, long frame, double capturedAt, byte[] rgba) {}
     private static final AtomicReference<Overlay> HUD = new AtomicReference<>();
+    private static Overlay previousOverlay;
+    private static final java.util.Map<Integer, TilePixels> TILE_PIXELS = new java.util.HashMap<>();
+    private record TilePixels(byte[] rgba, long revision) {}
+    private static long tileRevision;
     private RenderTransport() {}
     public static String instance() { return instance; }
 
@@ -43,6 +47,8 @@ public final class RenderTransport {
         TRANSFER.set(0);
         SCENE.set(null);
         HUD.set(null);
+        previousOverlay = null;
+        TILE_PIXELS.clear();
         WORLD.set(null);
         sentWorld = null; worldBytes = null;
         nextTexture = 1;
@@ -71,10 +77,14 @@ public final class RenderTransport {
     }
 
     static void scene(AvatarExporter.Scene scene) { SCENE.set(scene); }
-    public static void overlay(int width, int height, long frame, byte[] rgba) {
-        HUD.set(new Overlay(width, height, frame, rgba));
+    public static void overlay(int width, int height, long frame, double capturedAt, byte[] rgba) {
+        HUD.set(new Overlay(width, height, frame, capturedAt, rgba));
     }
     private static byte[] tiles(Overlay overlay) {
+        if (previousOverlay != null && overlay.width() == previousOverlay.width() && overlay.height() == previousOverlay.height()
+            && Arrays.equals(overlay.rgba(), previousOverlay.rgba())) return null;
+        if (previousOverlay == null || overlay.width() != previousOverlay.width() || overlay.height() != previousOverlay.height()) TILE_PIXELS.clear();
+        previousOverlay = overlay;
         var tiles = new java.util.ArrayList<Tile>();
         var body = new java.io.ByteArrayOutputStream();
         int width = overlay.width(), height = overlay.height();
@@ -85,10 +95,16 @@ public final class RenderTransport {
             for (int row = y; row < y + h && !visible; row++) for (int column = x; column < x + w; column++)
                 if (rgba[(row * width + column) * 4 + 3] != 0) { visible = true; break; }
             if (!visible) continue;
-            tiles.add(new Tile(x, height - y - h, w, h, body.size()));
-            for (int row = y; row < y + h; row++) body.write(rgba, (row * width + x) * 4, w * 4);
+            byte[] pixels = new byte[w * h * 4];
+            for (int row = 0; row < h; row++) System.arraycopy(rgba, ((y + row) * width + x) * 4, pixels, row * w * 4, w * 4);
+            int key = y * width + x;
+            var previous = TILE_PIXELS.get(key);
+            long revision = previous != null && Arrays.equals(previous.rgba(), pixels) ? previous.revision() : ++tileRevision;
+            TILE_PIXELS.put(key, new TilePixels(pixels, revision));
+            tiles.add(new Tile(x, height - y - h, w, h, body.size(), revision));
+            body.writeBytes(pixels);
         }
-        return packet(new FrameHeader(session, instance, width, height, overlay.frame(), tiles), body.toByteArray());
+        return packet(new FrameHeader(session, instance, width, height, overlay.frame(), overlay.capturedAt(), tiles), body.toByteArray());
     }
     static void world(WorldExporter.Section packet) { WORLD.set(packet); }
 
@@ -119,7 +135,10 @@ public final class RenderTransport {
             if (!Arrays.equals(previousScene, bytes)) { previousScene = bytes; mailbox.send(5, bytes); }
         }
         var overlay = HUD.getAndSet(null);
-        if (overlay != null) mailbox.send(6, tiles(overlay));
+        if (overlay != null) {
+            var bytes = tiles(overlay);
+            if (bytes != null) mailbox.send(6, bytes);
+        }
         var world = WORLD.get();
         if (world != null && now >= nextWorldSend) {
             if (world != sentWorld) { worldBytes = MeshPackets.section(world); sentWorld = world; }

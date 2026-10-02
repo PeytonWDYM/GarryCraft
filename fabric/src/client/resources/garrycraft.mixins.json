@@ -3,6 +3,7 @@
   "package": "dev.garrycraft.mixin",
   "compatibilityLevel": "JAVA_25",
   "client": [
+    "CreativeScreenAccessor",
     "EntityCollisionMixin",
     "PlayerSupportMixin",
     "KeyboardMixin",

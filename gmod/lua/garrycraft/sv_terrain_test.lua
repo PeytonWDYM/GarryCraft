@@ -5,15 +5,23 @@ local burns = {fire = 0, lava = 0}
 local health = {}
 local position
 
+function GC.TerrainTestStop()
+    if IsValid(npc) then npc:Remove() end
+    npc = nil
+    request = nil
+end
+
 function GC.RunTerrainTest(owner)
     assert(game.SinglePlayer(), "Terrain tests require local single-player")
     if IsValid(npc) then npc:Remove() end
     if game.GetMap() == "gm_construct" then owner:SetPos(Vector(576, -896, -144)) end
-    request = "terrain:" .. tostring(SysTime())
-    GC.BeginTest(owner, request)
+    local nextRequest = "terrain:" .. tostring(SysTime())
+    GC.BeginTest(owner, nextRequest)
+    request = nextRequest
     npc = ents.Create("npc_citizen")
     npc:SetModel("models/Humans/Group01/male_07.mdl")
     npc:SetName("garrycraft-terrain-npc")
+    npc:SetKeyValue("spawnflags", "1048576")
     position = owner:GetPos() + GC.DirectionToSource(2, 0, 2)
     npc:SetPos(position)
     npc:Spawn()

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.garrycraft.bridge.HostInput;
+import dev.garrycraft.bridge.ClientControls;
 import dev.garrycraft.bridge.InputBridge;
 import dev.garrycraft.bridge.Mailbox;
 import dev.garrycraft.bridge.StatePublisher;
@@ -45,10 +46,14 @@ public final class GarryCraftClient implements ClientModInitializer {
     private static final ConcurrentLinkedQueue<Geometry> GEOMETRY = new ConcurrentLinkedQueue<>();
     private static volatile HostInput input = HostInput.idle();
     private static volatile long receivedAt;
+    private static volatile ClientControls clientControls;
+    private static volatile long controlsReceivedAt;
+    private static volatile boolean transportStopped;
     private static String session = "";
     private static long frame;
     private static boolean wasLinked;
     private static boolean savedVsync;
+    private static boolean savedAutoJump, savedPauseOnLostFocus;
     private static final String INSTANCE = UUID.randomUUID().toString();
     private static boolean resourcesChanged;
     private static long nextScene, nextActors;
@@ -63,14 +68,34 @@ public final class GarryCraftClient implements ClientModInitializer {
         return input.active() && System.nanoTime() - receivedAt < 1_000_000_000L;
     }
     public static int targetFps() { return Math.clamp(input.targetFps(), 10, 1000); }
-    public static int viewportWidth() { return Math.clamp(input.viewportWidth(), 320, 4096); }
-    public static int viewportHeight() { return Math.clamp(input.viewportHeight(), 240, 4096); }
+    public static void restoreOptions(Minecraft minecraft) {
+        if (!wasLinked) return;
+        minecraft.options.enableVsync().set(savedVsync);
+        minecraft.options.autoJump().set(savedAutoJump);
+        minecraft.options.pauseOnLostFocus = savedPauseOnLostFocus;
+    }
+    public static ClientControls controls() {
+        var controls = clientControls;
+        return controls != null && linked() && System.nanoTime() - controlsReceivedAt < 250_000_000L
+            && controls.session().equals(input.session()) && controls.teleportSeq() == input.teleportSeq() ? controls : null;
+    }
+    public static int viewportWidth() {
+        var controls = controls();
+        return Math.clamp(controls == null ? input.viewportWidth() : controls.viewportWidth(), 320, 4096);
+    }
+    public static int viewportHeight() {
+        var controls = controls();
+        return Math.clamp(controls == null ? input.viewportHeight() : controls.viewportHeight(), 240, 4096);
+    }
 
 
     @Override
     public void onInitializeClient() {
         EntityRendererRegistry.register(SourceCombat.TYPE, NoopRenderer::new);
-        Thread.ofPlatform().daemon().name("garrycraft-bridge").start(this::transport);
+        String defaultPath = System.getenv("LOCALAPPDATA") + "\\GarryCraft\\bridge.bin";
+        Path path = Path.of(System.getProperty("garrycraft.bridge", defaultPath));
+        Thread.ofPlatform().daemon().name("garrycraft-bridge").start(() -> transport(path));
+        Thread.ofPlatform().daemon().name("garrycraft-render-transfer").start(() -> renderTransport(path));
         ClientTickEvents.START_CLIENT_TICK.register(GarryCraftClient::beforeTick);
         ClientTickEvents.END_CLIENT_TICK.register(GarryCraftClient::afterTick);
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
@@ -100,11 +125,9 @@ public final class GarryCraftClient implements ClientModInitializer {
         });
     }
 
-    private void transport() {
-        String defaultPath = System.getenv("LOCALAPPDATA") + "\\GarryCraft\\bridge.bin";
-        Path path = Path.of(System.getProperty("garrycraft.bridge", defaultPath));
+    private void transport(Path path) {
         try (var mailbox = new Mailbox(path)) {
-            while (!Thread.currentThread().isInterrupted()) {
+            while (!transportStopped && !Thread.currentThread().isInterrupted()) {
                 String controls = mailbox.receive(0);
                 if (controls != null) {
                     HostInput next = JSON.fromJson(controls, HostInput.class);
@@ -112,18 +135,44 @@ public final class GarryCraftClient implements ClientModInitializer {
                     input = next;
                     receivedAt = System.nanoTime();
                 }
+                String client = mailbox.receive(8);
+                if (client != null) {
+                    var next = JSON.fromJson(client, ClientControls.class);
+                    if (next.version() != 1) throw new IllegalStateException("Unsupported client input protocol");
+                    clientControls = next;
+                    controlsReceivedAt = System.nanoTime();
+                }
                 for (int lane = 2; lane <= 3; lane++) {
                     String payload = mailbox.receive(lane);
-                    if (payload != null) GEOMETRY.add(new Geometry(JsonParser.parseString(payload).getAsJsonObject(), lane == 3));
+                    if (payload != null) {
+                        var message = JsonParser.parseString(payload).getAsJsonObject();
+                        // Reject snapshots from the older actor-free protocol after an upgrade.
+                        if (lane == 3 && !message.has("actors")) continue;
+                        GEOMETRY.add(new Geometry(message, lane == 3));
+                    }
                 }
                 String outgoing = StatePublisher.drain();
                 if (outgoing != null) mailbox.send(1, outgoing);
-                RenderTransport.send(mailbox, input.textureAck(), input.textureInstance());
                 Thread.sleep(2);
             }
         } catch (IOException | InterruptedException | RuntimeException error) {
+            transportStopped = true;
             input = HostInput.idle();
             LOG.error("GarryCraft bridge stopped", error);
+        }
+    }
+
+    private void renderTransport(Path path) {
+        try (var mailbox = new Mailbox(path)) {
+            while (!transportStopped && !Thread.currentThread().isInterrupted()) {
+                var current = input;
+                RenderTransport.send(mailbox, current.textureAck(), current.textureInstance());
+                Thread.sleep(2);
+            }
+        } catch (IOException | InterruptedException | RuntimeException error) {
+            transportStopped = true;
+            input = HostInput.idle();
+            LOG.error("GarryCraft render transfer stopped", error);
         }
     }
 
@@ -147,7 +196,8 @@ public final class GarryCraftClient implements ClientModInitializer {
         }
         if (linked() && minecraft.player != null && !minecraft.player.isDeadOrDying()
                 && input.teleportSeq() == SpawnBridge.acknowledged() && !PhysicsOracle.running() && !ParityOracle.running() && !dev.garrycraft.testing.DamageOracle.running() && !dev.garrycraft.testing.TerrainUseOracle.running()
-                && !dev.garrycraft.testing.LightingOracle.running()) InputBridge.apply(minecraft, input);
+                && !dev.garrycraft.testing.LightingOracle.running()) InputBridge.apply(minecraft, input, controls());
+        dev.garrycraft.testing.ResponsivenessOracle.frame(minecraft);
     }
 
     public static void renderFrame(Minecraft minecraft) {
@@ -162,9 +212,11 @@ public final class GarryCraftClient implements ClientModInitializer {
     }
 
     private static void beforeTick(Minecraft minecraft) {
+        ManagedRuntime.tick(minecraft);
         MirrorWorld.open(minecraft);
         boolean active = linked();
         if (!input.session().equals(session)) {
+            restoreOptions(minecraft);
             session = input.session();
             COLLISION.reset(session);
             RenderTransport.reset(session, UUID.randomUUID().toString());
@@ -208,13 +260,16 @@ public final class GarryCraftClient implements ClientModInitializer {
         }
         if (active && !wasLinked) {
             savedVsync = minecraft.options.enableVsync().get();
+            savedAutoJump = minecraft.options.autoJump().get();
+            savedPauseOnLostFocus = minecraft.options.pauseOnLostFocus;
             minecraft.options.enableVsync().set(false);
             minecraft.options.pauseOnLostFocus = false;
             minecraft.options.autoJump().set(false);
+            minecraft.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
             minecraft.gui.setScreen(null);
             LOG.info("GarryCraft attached to Source session {}", session);
         }
-        if (!active && wasLinked) minecraft.options.enableVsync().set(savedVsync);
+        if (!active && wasLinked) restoreOptions(minecraft);
         if (!loading && active && ParityOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
@@ -236,7 +291,8 @@ public final class GarryCraftClient implements ClientModInitializer {
             wasLinked = active;
             return;
         }
-        if (active || wasLinked) InputBridge.apply(minecraft, active && !loading ? input : HostInput.idle());
+        if (active || wasLinked) InputBridge.apply(minecraft, active && !loading ? input : HostInput.idle(), active && !loading ? controls() : null);
+        if (active && !loading) dev.garrycraft.testing.ResponsivenessOracle.tick(minecraft, input);
         wasLinked = active;
     }
 

@@ -1,6 +1,6 @@
 # Bridge protocol
 
-The bridge uses a local 128 MiB memory-mapped file with eight single-writer mailboxes.
+The bridge uses a local 128 MiB memory-mapped file with nine single-writer mailboxes.
 Each mailbox has a 64-byte header and a fixed payload capacity.
 
 | Lane | Writer | Capacity | Content |
@@ -13,6 +13,7 @@ Each mailbox has a 64-byte header and a fixed payload capacity.
 | 5 | Minecraft | 8 MiB | Scene header and packed meshes |
 | 6 | Minecraft | 64 MiB | HUD header and visible RGBA tiles |
 | 7 | Minecraft | 8 MiB | Block section header, meshes, collision boxes, lights |
+| 8 | Source client | 64 KiB | Render-rate look, cursor, menu buttons, wheel, keys, viewport, and hotbar selection |
 
 All integers use little endian. Each header contains a sequence at byte 0 and payload length at byte 4.
 The writer sets an odd sequence, writes the payload, then publishes the next even sequence.
@@ -20,7 +21,7 @@ The reader copies an even sequence, copies the payload, and checks the sequence 
 A changed or odd sequence means the reader must retry on the next frame.
 Sequence access uses acquire/release ordering across processes.
 
-Lanes 0 through 3 contain UTF-8 JSON. Protocol version 1 rejects other versions.
+Lanes 0 through 3 and lane 8 contain UTF-8 JSON. Protocol version 1 rejects other versions.
 Render lanes contain one JSON header, a newline, and a binary body.
 Each mesh vertex occupies 24 bytes: five float32 values for `x,y,z,u,v`, then four uint8 RGBA values.
 Mesh metadata stores byte offsets and vertex counts. Each mesh contains at most 65,532 triangle vertices.
@@ -59,6 +60,8 @@ Source accepts acknowledgments only from the attached owner and current instance
 Animated sprites replace pending updates with their latest pixels.
 Block sections repeat until both Source realms acknowledge them. Their acknowledgment includes the render instance.
 Scene and HUD snapshots contain complete current state. Skipped mailbox frames must not leave stale items or HUD tiles.
+HUD tiles carry content revisions. Source uploads a tile only when its revision changes.
+HUD capture timestamps use the shared performance counter to measure capture-to-Source delivery.
 Scenes carry cached item model IDs and twelve matrix values per item instance.
 Item transforms come from Minecraft's renderer, including its bob, rotation, and stack offsets.
 
@@ -81,6 +84,7 @@ Removed mobs, stopped bridges, and new sessions remove their Source bullseyes.
 Source increments `renderEpoch` after a video reset. Minecraft changes its render instance and resends textures and sections.
 Player state and gameplay continue during render resynchronization.
 Mesh metadata includes a center. Source uses that center to sort transparent block faces across sections.
+Mesh metadata also includes an RGB material tint. Water passes Minecraft's biome color to the lit material because VertexLitGeneric ignores vertex colors.
 
 ## Thread ownership
 
@@ -88,9 +92,30 @@ Minecraft owns movement, attacks, fluids, projectiles, and mob AI.
 Source owns its map, NPC health, props, input, lighting, and final rendering.
 Minecraft's integrated server and render thread call their own game APIs.
 A transport thread packs snapshots and transfers bytes. It does not call game engine APIs.
+Minecraft uses separate input and render transfer threads. HUD packing cannot delay an input mailbox read.
+The Source client uses a native worker to copy incoming render packets.
+Lua receives the JSON header and an immutable native body handle. It releases the body after upload or mesh construction.
 Source mesh construction uses GMod's public mesh API on the client thread.
 
 GMod defaults to 240 FPS. Minecraft retains its saved limit and defaults to Unlimited in a new mirror profile.
-Render exports follow the Source target rate. HUD captures run at 30 Hz, or 60 Hz while a menu is open.
+While linked, the hidden Minecraft renderer stops at the Source target rate or a lower saved limit.
+Render exports follow the Source target rate. HUD captures run at 30 Hz. Open menus use the Source target rate.
+Lane 8 bypasses the Source server tick for look and menu input. Movement and session authority remain in lane 0.
+Client controls require the active session and teleport sequence. Controls expire after 250 milliseconds without an update.
+Menu events retain IDs until Minecraft acknowledges them. Each event includes its cursor position.
+Wheel events use Minecraft's normal screen handler. Menu wheel input does not change the hotbar.
+Yaw stays continuous across the Source wrap boundary so vanilla hand sway cannot make a full turn.
 This file layout is incompatible with the original four-lane bridge.
 Install matching Fabric, client DLL, server DLL, and Lua versions together.
+
+## Managed local lifecycle
+
+`garrycraft_enabled` persists the single-player enable switch. The server writes a map request and heartbeat to its DATA directory.
+The native server module starts the prepared helper without waiting for Java on the game thread.
+The helper owns one Java process through a runtime mutex. Each map has its own world, mailbox, and shutdown control file.
+Map changes and Disable request a normal Minecraft save and exit before another process opens a world.
+The helper also stops Java when the host exits or its map heartbeat expires.
+It retains ownership if saving takes too long. It does not kill a saving process or permit a second writer.
+Source closes both mappings when disabled. It restores player state, frame limits, and menu input.
+Minecraft restores temporary bridge options before saving its shared options file.
+Local launch files and assets remain outside the source repository.

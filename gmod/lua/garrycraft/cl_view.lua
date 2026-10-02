@@ -10,7 +10,6 @@ hook.Add("CreateMove", "GarryCraftSprint", function(command)
     net.WriteBool(down)
     net.SendToServer()
 end)
-local slot = 0
 
 hook.Add("Move", "GarryCraftMovement", function(player, movement)
     if not player:GetNWBool("GarryCraft") then return end
@@ -32,11 +31,17 @@ end)
 
 hook.Add("PlayerBindPress", "GarryCraftSlots", function(player, bind, pressed)
     if not player:GetNWBool("GarryCraft") or not pressed then return end
+    if GC.ScreenOpen then
+        if bind == "invnext" or bind == "invprev" then GC.QueueWheel(bind == "invnext" and -1 or 1) return true end
+        if string.match(bind, "^slot%d$") then return true end
+    end
+    local slot = GC.SelectedSlot or 0
     local selected = string.match(bind, "^slot(%d)$")
     if selected then slot = tonumber(selected) - 1
     elseif bind == "invnext" then slot = (slot + 1) % 9
     elseif bind == "invprev" then slot = (slot + 8) % 9
     else return end
+    GC.SelectedSlot = slot
     net.Start("garrycraft_slot")
     net.WriteUInt(slot, 4)
     net.SendToServer()
@@ -47,6 +52,6 @@ hook.Add("HUDPaint", "GarryCraftStatus", function()
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") then return end
     if GC.OverlayReady then return end
     local text = "GarryCraft: waiting for Minecraft"
-    if GC.State then text = string.format("GarryCraft  |  Health %.0f  |  Food %d  |  Slot %d", GC.State.health, GC.State.food, slot + 1) end
+    if GC.State then text = string.format("GarryCraft  |  Health %.0f  |  Food %d  |  Slot %d", GC.State.health, GC.State.food, (GC.SelectedSlot or 0) + 1) end
     draw.SimpleText(text, "DermaDefaultBold", 24, ScrH() - 32, color_white)
 end)
