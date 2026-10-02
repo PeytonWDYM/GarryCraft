@@ -16,7 +16,7 @@ import java.nio.file.StandardOpenOption;
 public final class Mailbox implements AutoCloseable {
     private static final int SIZE = 128 * 1024 * 1024;
     private static final int[] CAPACITIES = {64 * 1024, 4 * 1024 * 1024, 16 * 1024 * 1024,
-        8 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024, 64 * 1024 * 1024, 8 * 1024 * 1024};
+        8 * 1024 * 1024, 16 * 1024 * 1024, 8 * 1024 * 1024, 64 * 1024 * 1024, 8 * 1024 * 1024, 64 * 1024};
     private static final VarHandle INT = MethodHandles.byteBufferViewVarHandle(int[].class, ByteOrder.LITTLE_ENDIAN);
     private final FileChannel file;
     private final MappedByteBuffer buffer;

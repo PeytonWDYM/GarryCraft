@@ -30,7 +30,8 @@ import org.jspecify.annotations.Nullable;
 
 /** Minecraft's renderers supply animation, skin, armor, and held-item geometry. */
 class ModelCollector extends EmptyCollector {
-    record Batch(int texture, List<float[]> vertices, boolean translucent, boolean unlit) {
+    record Batch(int texture, List<float[]> vertices, boolean translucent, boolean unlit, boolean materialTint) {
+        Batch(int texture, List<float[]> vertices, boolean translucent, boolean unlit) { this(texture, vertices, translucent, unlit, false); }
         Batch(int texture, List<float[]> vertices, boolean translucent) { this(texture, vertices, translucent, false); }
         Batch(int texture, List<float[]> vertices) { this(texture, vertices, false); }
     }

@@ -48,7 +48,7 @@ public final class PhysicsOracle {
     public static String fixture() { return running ? plan.cases().get(scenarioIndex).name() : ""; }
 
     public static boolean beforeTick(Minecraft mc, HostInput host) {
-        if (host.test() != null && (host.test().startsWith("entities:") || host.test().startsWith("damage:") || host.test().startsWith("terrain:") || host.test().startsWith("lighting:"))) return false;
+        if (host.test() != null && (host.test().startsWith("entities:") || host.test().startsWith("damage:") || host.test().startsWith("terrain:") || host.test().startsWith("lighting:") || host.test().startsWith("responsiveness:"))) return false;
         if (!running && host.test() != null && !host.test().isEmpty() && !host.test().equals(lastRequest)) {
             lastRequest = host.test();
             sourceX = host.x();

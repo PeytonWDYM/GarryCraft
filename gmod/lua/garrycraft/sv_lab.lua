@@ -33,7 +33,8 @@ function GC.RunLabTest(caller)
     GC.BeginTest(owner, tostring(SysTime()))
 end
 concommand.Add("garrycraft_test", function(caller, _, arguments)
-    if arguments[1] == "damage" then GC.RunDamageTest(caller)
+    if arguments[1] == "responsiveness" then GC.BeginTest(caller, "responsiveness:" .. tostring(SysTime()))
+    elseif arguments[1] == "damage" then GC.RunDamageTest(caller)
     elseif arguments[1] == "terrain" then GC.RunTerrainTest(caller)
     elseif arguments[1] == "lighting" then GC.RunLightingTest(caller)
     elseif arguments[1] == "entities" then GC.RunEntityTest(caller) else GC.RunLabTest(caller) end
@@ -62,7 +63,8 @@ hook.Add("Think", "GarryCraftLabControl", function()
 
     elseif request.command == "test" then
         GetConVar("garrycraft_bridge"):SetString(request.bridge)
-        if request.scenario == "damage" then GC.RunDamageTest(player.GetHumans()[1])
+        if request.scenario == "responsiveness" then GC.BeginTest(player.GetHumans()[1], "responsiveness:" .. tostring(SysTime()))
+        elseif request.scenario == "damage" then GC.RunDamageTest(player.GetHumans()[1])
         elseif request.scenario == "terrain" then GC.RunTerrainTest(player.GetHumans()[1])
         elseif request.scenario == "lighting" then GC.RunLightingTest(player.GetHumans()[1])
         elseif request.scenario == "entities" then GC.RunEntityTest(player.GetHumans()[1]) else GC.RunLabTest(player.GetHumans()[1]) end

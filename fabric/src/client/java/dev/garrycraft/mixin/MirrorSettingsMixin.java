@@ -26,7 +26,7 @@ public abstract class MirrorSettingsMixin {
         } catch (IOException failure) { throw new IllegalStateException("Cannot preserve mirror settings", failure); }
         return directory.toFile();
     }
-    @Inject(method = "load", at = @At("TAIL"))
+    @Inject(method = "load", at = @At("RETURN"))
     private void garrycraft$unlimitedDefault(CallbackInfo callback) {
         var options = (Options) (Object) this;
         if (Boolean.getBoolean("garrycraft.autoWorld") && !options.getFile().exists())

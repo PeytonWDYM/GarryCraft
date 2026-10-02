@@ -1,6 +1,7 @@
 #include <GarrysMod/Lua/Interface.h>
 #include <mathlib/vector.h>
 #include "meshes.hpp"
+#include "packets.hpp"
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -16,9 +17,9 @@ namespace {
     // Use GMod's public mesh API. The current game does not expose a compatible SDK IMesh handle.
     LUA_FUNCTION_STATIC(buildMesh) {
         LUA->CheckType(1, GarrysMod::Lua::Type::IMesh);
-        LUA->CheckType(2, GarrysMod::Lua::Type::String);
-        unsigned length;
-        const char* bytes = LUA->GetString(2, &length);
+        auto body = packetBytes(LUA, 2);
+        const char* bytes = body.data();
+        size_t length = body.size();
         auto offset = static_cast<std::int64_t>(LUA->CheckNumber(3));
         auto count = static_cast<std::int64_t>(LUA->CheckNumber(4));
         int space = static_cast<int>(LUA->CheckNumber(5));
