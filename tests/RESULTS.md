@@ -1,5 +1,28 @@
 # Local test record
 
+## October 2 particle resource reload
+
+The managed launcher update exposed a particle crash during a paused resource reload.
+`particle-baseline2` reproduced `No sprite at minecraft:textures/atlas/blocks.png` with live terrain particles and changed atlas packing.
+Clearing only extracted quads still failed during restoration in `particle-final`.
+The fix clears live particles, queued particles, and extracted quads at atlas upload, regardless of bridge input age.
+
+`tools/Build.ps1` passed. `particle-final2` passed all nine paired reload checks.
+The block atlas changed from 2048x2048 to 1024x512, then returned to 2048x2048.
+Minecraft and Source each recorded 96 particle vertices before reload and 1,152 fresh vertices afterward.
+Vanilla reported `T 0` after reload, and the original mipmap setting returned.
+Cancellation during the `after` phase saved mipmap level 4 and completed the next lighting scenario.
+All ten lighting checks passed, including water tint, torch lighting, and a single transparent surface.
+The first post-reload gameplay run passed armor, both water animations, native-wall flow, villager movement, and cow movement.
+Its golem moved 0.49 blocks, below the one-block threshold. The full collector therefore failed that run.
+Read `polish-first-result.json` and its paired traces. Accepted destinations alone do not prove sustained wandering.
+The repeat passed all twelve gameplay checks. Golem, villager, and cow travel reached 18.15, 17.69, and 21.06 blocks.
+This difference shows that the fixed-seed setup does not fix every vanilla AI input or measure typical wandering frequency.
+
+Evidence remains under `%LOCALAPPDATA%\GarryCraft\runtime-update\main-a835199`, outside tracked source.
+Read `particle-final2/artifacts/particle-reload-result.json`, its paired traces, `particle-reload-cancel.json`, and `lighting-results.json`.
+These cases cover vanilla resources and terrain particles. They do not certify third-party resource packs.
+
 ## October 2 map gameplay fixes
 
 Both games ran in the owned single-player lab with fresh Minecraft worlds. `tools/Build.ps1` passed.
