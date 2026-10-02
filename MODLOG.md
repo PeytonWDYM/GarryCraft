@@ -1,5 +1,17 @@
 # GarryCraft mod log
 
+## October 2, 2026
+
+Native Source NPCs now stop targeting the player while Minecraft publishes creative mode.
+Existing enemies lose their player target. Newly spawned NPCs receive the same protection.
+Friendly NPCs retain their player relationships and visibility. Native combat with other entities remains available.
+Leaving creative mode or stopping the bridge restores the original relationship dispositions and priorities.
+Hostile NPCs still treat Minecraft mobs according to their original allegiance.
+
+The isolated fresh-world scenario passed 13 checks through both live games. Minecraft damage did not provoke creative retaliation.
+The test records paired snapshots and restores its game mode. It removes its owned NPCs and cow.
+Coverage includes combine soldiers, citizens, and a newly spawned zombie. NextBots and addon-specific target logic require separate tests.
+
 ## October 1, 2026
 
 The 20:48 Downtown session ended after Source's five-second state timeout requested a normal Minecraft shutdown.

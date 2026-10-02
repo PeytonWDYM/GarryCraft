@@ -81,6 +81,9 @@ Tests and screenshots stay outside tracked source.
 Run `garrycraft_test terrain` to check buckets, fire, native NPC environmental damage, and visible mining effects.
 Collect that scenario with `tools/Collect-Terrain.ps1 -RunRoot <run-directory>`.
 Run `garrycraft_test damage` and `tools/Collect-Damage.ps1 -RunRoot <run-directory>` for eight damage directions.
+Use `tools/Test-NpcTargeting.ps1 -GamePid <PID> -LabPath <isolated-lab> -RunRoot <fresh-run-directory>` to check creative NPC targeting.
+The test requires a linked manual session, cheats enabled in both games, and a fresh owned world.
+It saves paired Source and Minecraft snapshots plus `artifacts/npc-targeting-result.json`.
 Use `tools/Test-Resolution.ps1 -RunRoot <run-directory>` for owned video-mode changes.
 Run `garrycraft_test responsiveness` and `tools/Collect-Responsiveness.ps1` to check menu scrolling and client input delivery.
 Run `garrycraft_test lighting` in a fresh `gm_construct` world, then use `tools/Collect-Lighting.ps1` for torch checks.

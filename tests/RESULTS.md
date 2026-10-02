@@ -1,5 +1,27 @@
 # Local test record
 
+## Creative NPC targeting: October 2, 2026
+
+Evidence: `%LOCALAPPDATA%\GarryCraft\creative-targeting\20261002-final\artifacts`.
+`tools/Test-NpcTargeting.ps1` passed all 13 checks in a fresh owned Minecraft world on single-player `gm_construct`.
+Source PID 5992 and Minecraft PID 44524 ran in the separate responsiveness lab, with isolated Minecraft preferences.
+The baseline in `creative-targeting/20261002-red` reproduced targeting by hostile and fearful NPCs in creative mode.
+
+The final run checked creative neutralization, existing enemy cleanup, a newly spawned zombie, and injected stale enemy memory.
+An allied citizen retained `D_LI`, priority 71, and visibility of the player. Source did not apply `FL_NOTARGET`.
+Minecraft's damage command applied a player attack through the bridge. The combine soldier lost health without targeting the creative player.
+A frozen control soldier retained its other NPC enemy. Hostile soldiers retained hate toward Minecraft cow bullseyes.
+Adventure, survival, and bridge stop restored all saved dispositions and priorities, including the soldier's priority 137.
+
+The script saves per-phase Source and Minecraft snapshots and `npc-targeting-result.json`.
+It removes its owned NPCs and tagged cow, reattaches the bridge, and restores the previous Minecraft mode.
+The other-enemy control freezes native scheduling so AI cannot select a different enemy between snapshots.
+The initial unfrozen control changed its enemy before sampling. A reused test world also retained an earlier cow.
+Neither partial run counts as the final passing result. The final run started with a fresh world and includes cow cleanup.
+
+`tools/Build.ps1` built both native modules and the Fabric mod with the explicit Java 25 path.
+These tests cover combine soldiers, citizens, and zombies. They do not certify NextBots or every addon's target-selection rules.
+
 October 1, 2026. Windows x64 GMod `2026.09.22 (10174)`, `gm_construct`, Minecraft Java 26.3, and Java 25.
 Fabric Loader 0.19.5 and Fabric API 0.161.0+26.3.
 Both games ran in owned, isolated single-player installations.
