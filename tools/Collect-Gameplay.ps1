@@ -7,6 +7,7 @@ $source = Get-Content -LiteralPath "$LabPath/garrysmod/data/garrycraft-render.js
 $checks = [ordered]@{
     pairedRequest = $minecraft.request -eq $source.polishRequest
     completed = $minecraft.completed
+    cleanedUp = $minecraft.cleanup.mobsRemoved -and $minecraft.cleanup.blocksRemoved -and $minecraft.cleanup.armorRestored -and $minecraft.cleanup.remainingMobs -eq 0
     golemWandered = $minecraft.mobTravel[0] -gt 1
     villagerWandered = $minecraft.mobTravel[1] -gt 1
     cowWandered = $minecraft.mobTravel[2] -gt 1

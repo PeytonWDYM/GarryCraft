@@ -141,6 +141,8 @@ public final class PhysicsOracle {
         settle = 30;
         if (reference) baseline.clear(); else actual.clear();
         Scenario scenario = plan.cases().get(scenarioIndex);
+        boolean referencePass = reference;
+        boolean captureState = scenarioIndex == 0 && referencePass;
         var server = mc.getSingleplayerServer();
         prepare = server.submit(() -> {
             var level = server.overworld();
@@ -161,7 +163,7 @@ public final class PhysicsOracle {
                 level.setBlock(new BlockPos(x, 66, z), scenario.ceiling() ? Blocks.STONE.defaultBlockState() : Blocks.AIR.defaultBlockState(), 3);
             }
             var peer = server.getPlayerList().getPlayer(mc.player.getUUID());
-            if (scenarioIndex == 0 && reference) {
+            if (captureState) {
                 serverInvulnerable = peer.isPermanentlyInvulnerable();
                 chest = peer.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).copy();
             }
@@ -169,8 +171,8 @@ public final class PhysicsOracle {
                 scenario.gliding() ? new net.minecraft.world.item.ItemStack(net.minecraft.world.item.Items.ELYTRA)
                     : net.minecraft.world.item.ItemStack.EMPTY);
             peer.stopFallFlying();
-            peer.teleportTo(reference ? 128.5 : sourceX, (reference ? 64 : sourceY) + scenario.startHeight(),
-                    (reference ? 128.5 : sourceZ) + scenario.startZOffset());
+            peer.teleportTo(referencePass ? 128.5 : sourceX, (referencePass ? 64 : sourceY) + scenario.startHeight(),
+                    (referencePass ? 128.5 : sourceZ) + scenario.startZOffset());
             peer.setDeltaMovement(Vec3.ZERO);
             peer.fallDistance = 0;
             peer.setHealth(20);
