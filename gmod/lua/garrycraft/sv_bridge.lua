@@ -13,6 +13,7 @@ local owner
 local session
 local frame = 0
 local lastPeer = 0
+local peerTimeout = 5
 local lastFrame = -1
 local peerInstance
 local renderInstance
@@ -60,7 +61,7 @@ local function stop()
     session = nil
 end
 
-local function start(player)
+local function start(player, timeout)
     if not game.SinglePlayer() then error("GarryCraft currently supports local single-player only") end
     if IsValid(owner) then stop() end
     local path = bridgePath:GetString()
@@ -75,6 +76,7 @@ local function start(player)
     GC.BlocksBegin(player, session)
     batchIndex = 1
     lastPeer = RealTime()
+    peerTimeout = timeout or 5
     lastFrame = -1
     peerInstance = nil
     renderInstance = nil
@@ -246,7 +248,11 @@ hook.Add("Think", "GarryCraftBridge", function()
             end
         end
     end
-    if RealTime() - lastPeer > (peerInstance and 5 or 20) then stop() return end
+    if RealTime() - lastPeer > (peerInstance and peerTimeout or 20) then
+        print("GarryCraft: Minecraft state timed out in session " .. session .. " after " .. tostring(RealTime() - lastPeer) .. " seconds")
+        stop()
+        return
+    end
     frame = frame + 1
     GC.BlocksPoll(renderInstance)
     local position = GC.ToMinecraft(owner:GetPos())

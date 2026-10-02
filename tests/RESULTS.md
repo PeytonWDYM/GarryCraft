@@ -8,6 +8,18 @@ Both games ran in owned, isolated single-player installations.
 The test scripts used game APIs and the local bridge. They did not send keyboard or mouse input.
 Generated worlds, screenshots, traces, and game assets remain outside tracked source.
 
+## Managed Minecraft stall recovery
+
+The 20:48 Downtown shutdown followed Source's five-second state timeout. Minecraft completed a normal save.
+The original logs remain under `runtime/diagnostics/20261001-204820` outside tracked source.
+An eight-second Java process pause reproduced the shutdown in a fresh `gm_construct` world before the fix.
+
+After the fix, `tools/Test-Stall.ps1` passed six checks in `stall/20261001-210153/stall-result.json`.
+Source retained the bridge during the pause. The shutdown control stayed false.
+Java PID 35180 resumed the same Source session, then saved and exited after Disable.
+Source PID 54268 also exited at test cleanup. The test saved Source snapshots before, during, and after the pause.
+This test proves recovery from the injected pause. It does not identify what caused Minecraft's original stall.
+
 ## Gameplay
 
 Evidence directory: `%LOCALAPPDATA%\GarryCraft\parity-lab33\artifacts`.

@@ -2,6 +2,12 @@
 
 ## October 1, 2026
 
+The 20:48 Downtown session ended after Source's five-second state timeout requested a normal Minecraft shutdown.
+Minecraft saved its world. No Minecraft crash report appeared. An eight-second process pause reproduced the shutdown in a fresh world.
+Managed sessions now allow 120 seconds for temporary loading stalls. Manual test sessions retain their five-second timeout.
+The launcher still detects process exit. Disable and host exit still request a normal save immediately.
+Source logs the session and elapsed time when its state timeout expires.
+
 The 20:16 Downtown session stopped after the launcher could not replace a JSON file held open by a reader.
 GMod remained running. Minecraft saved and exited after the launcher reported the error.
 Runtime JSON replacement now defers Windows sharing violations (32 and 33) without changing the previous complete snapshot.
