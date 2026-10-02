@@ -16,6 +16,7 @@ Physics replay completion now returns both players to the safe fixture origin be
 
 Minecraft exports occlusion shapes separately from collision shapes. Closed rooms block ambient and outside torch contributions; glass admits light.
 Local mesh lights use all exported emitters, independently of Source's world-light budget.
+Their cached visibility refreshes with ambient sampling, so native brush doors can block and reveal stationary torch lights.
 The first-person Minecraft avatar remains available for planar shadows. Native Source player shadows are suppressed while attached.
 See `docs/ARCHITECTURE.md` and `tests/RESULTS.md` for measured performance and rendering limits.
 

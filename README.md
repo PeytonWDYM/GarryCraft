@@ -103,6 +103,14 @@ Copy `tests/moving-geometry.lua` to the lab DATA directory and execute it on the
 Copy `tests/native-meshes.lua` to DATA and execute it on the client to compare native and public mesh pixels and construction costs.
 Use `tools/Test-Architecture.ps1` with the same arguments to check off-range block removal.
 Use `tools/Test-LightingCleanup.ps1` to cancel the lighting scenario while shadows are disabled and verify restoration of the archived shadow setting and native player flag.
+To check stationary torch visibility through moving native brushes, copy `tests/native-light-visibility.lua` to the owned lab's DATA directory as `garrycraft-native-light-visibility.lua`.
+Use a fresh linked single-player `gm_construct` session with cheats enabled. Run this server console command:
+
+```text
+lua_run do GarryCraft.Stop() local p=Entity(1) p:SetMoveType(MOVETYPE_NOCLIP) p:SetPos(Vector(1200,-200,1024)) RunString(file.Read("garrycraft-native-light-visibility.lua","DATA")) p:SendLua('RunString(file.Read("garrycraft-native-light-visibility.lua","DATA"))') end
+```
+
+This stops the bridge and moves the test player near an owned brush fixture. After four seconds, read DATA's `garrycraft-native-light-visibility.json` for five checks and per-frame engine traces.
 Run `garrycraft_test_mob_budget`, then `garrycraft_test_mob_cleanup`, and collect both with `tools/Collect-MobBudget.ps1`.
 After setup, use `tools/Test-Startup.ps1 -LabPath <lab> -RuntimeRoot <runtime> -GamePid <PID>` for the managed map cycle.
 `tools/Test-Lifecycle.ps1` uses the same arguments and tests missing configuration, startup disconnect, automatic reconnect, and host exit.

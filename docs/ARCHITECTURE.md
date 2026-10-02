@@ -55,6 +55,8 @@ Off-range edits to previously exported sections retain their dirty state. Return
 Minecraft exports vanilla occlusion shapes separately from collision shapes. Glass collision does not become an opaque lighting wall.
 A native spatial index tests ambient rays and torch visibility. Source mesh lighting uses these results with Source's sampled ambient light.
 Mesh lights use the nearest four visible emitters. Source world lights retain a separate limit of 16.
+Ambient and local visibility caches refresh every 250 ms, or sooner after movement or a Minecraft lighting revision.
+The timed refresh includes native brush movement, which does not change Minecraft's section revision.
 
 The avatar remains available as a shadow caster in first person. The addon suppresses the native Source player shadow while attached.
 Planar shadows use the actual Minecraft mesh silhouette and a traced Source plane or an indexed Minecraft floor surface.

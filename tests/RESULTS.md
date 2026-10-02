@@ -9,6 +9,7 @@ The baseline is the installed runtime before this run. Its native hashes are rec
 The same fixture kept 0, 32, 96, and 192 small physics props awake with gravity disabled and repeated forces.
 Each count used three seconds of warmup and twelve seconds of frame measurement. Source retained its 240 FPS cap.
 The runs used the same machine, map, settings, and fixture. These are frame intervals, not GPU timestamps.
+Fresh sessions had different player positions, so this comparison does not hold the exact rendered view constant.
 
 | Awake props | Baseline Source p99 | Candidate3 Source p99 | Baseline maximum | Candidate3 maximum |
 | --- | ---: | ---: | ---: | ---: |
@@ -22,6 +23,9 @@ Geometry packing p99 changed from 41.35 ms to 6.64 ms. The candidate read no cac
 Its binary body was 27,250 bytes, with a 653-byte JSON header and 192 actors.
 Read `baseline/artifacts/performance/result.json`, `baseline/artifacts/baseline-manifest.json`, and `candidate3/artifacts/performance/result.json`.
 The unchanged no-prop case still has occasional hitches. These short runs do not certify stable 240 FPS or every physics addon.
+After the final lighting fix, candidate8 repeated the 192-prop case: p99 was 9.37 ms, maximum was 16.07 ms,
+and none of 2,608 frames exceeded 16.667 ms. Geometry packing p99 was 7.01 ms, with no cached mesh reads.
+Read `candidate8/artifacts/performance/result.json`.
 
 Candidate4 passed 58 moving collision and actor checks against Source's actual APIs.
 Coverage includes translation, rotation, physics recreation, collision toggles, range return, entity-index reuse, and three skipped shape packets.
@@ -46,6 +50,15 @@ At the matched pose, avatar brightness changed from 228.78 to 171.20, and block 
 Adjacent floor-seam receiver probes passed. Read `candidate4/artifacts/lighting-results.json` and the `shadowOff` and `shadowOn` screenshots.
 Five cancellation checks restored the archived planar-shadow setting and the original Source player shadow flag.
 Read `candidate4/artifacts/lighting-cleanup-result.json`.
+
+Final review found a stale local-light cache when a native brush moved while the Minecraft revision and sample position stayed fixed.
+The owned Source fixture cloned a map brush, then opened and closed its line of sight to a synthetic torch emitter.
+Before the fix, all 144 samples in the settled open window retained zero lights despite a clear engine trace.
+Local light visibility now refreshes on the existing 250 ms ambient schedule.
+Candidate8 passed all five fixed-position brush checks after the fix, with no settled-window mismatches.
+This Source fixture isolates cache invalidation; it does not test Minecraft's emitter export.
+The complete paired lighting scenario then repeated all 25 checks successfully.
+Read `candidate8/artifacts/native-light-before-brush.json`, `native-light-after-brush.json`, and `lighting-results.json`.
 
 These are bounded planar shadows. They use one receiver plane per caster, without clipping at height changes or wrapping arbitrary walls.
 Their direction follows the map sun or a fixed fallback. They do not check whether a roof blocks that directional light.
@@ -79,7 +92,7 @@ All four managed lifecycle checks passed, including startup disconnect, automati
 The separate fresh-world sharing scenario passed all seven checks with deliberately open status and shutdown files.
 It retained the same Minecraft process, deferred status replacement, and held world ownership until saving finished.
 Read `artifacts/lifecycle-result.json` and `sharing-final/runtime-sharing-result.json`.
-The normal prepared runtime now matches the final native module and client class hashes.
+The normal prepared runtime now matches the final native module, client class, and lighting addon hashes.
 Launching `GarryCraft.cmd` twice opened one owned host at the menu. No normal Minecraft world loaded during this launch check.
 Existing option and world metadata hashes remained unchanged. Read `cmd-update-result.json` and `normal-files-after.json`.
 

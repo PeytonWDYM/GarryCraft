@@ -6,8 +6,9 @@ local view = {colors = {}}
 function GC.PrepareLighting(position, sample)
     sample = sample or view
     local now = RealTime()
-    if not sample.position or now >= sample.time or position:DistToSqr(sample.position) > 16
-            or sample.geometryRevision ~= GC.LightRevision() then
+    local refresh = not sample.position or now >= sample.time or position:DistToSqr(sample.position) > 16
+        or sample.geometryRevision ~= GC.LightRevision()
+    if refresh then
         sample.position, sample.time = position, now + .25
         sample.geometryRevision = GC.LightRevision()
         local exposure = garrycraft_bridge.light_exposure(position)
@@ -16,7 +17,8 @@ function GC.PrepareLighting(position, sample)
             sample.colors[index] = Vector(math.max(0, color.x), math.max(0, color.y), math.max(0, color.z)) * exposure[index]
         end
     end
-    if sample.revision ~= GC.LightRevision() or not sample.lightsPosition or position:DistToSqr(sample.lightsPosition) > 16 then
+    -- Native brush movement does not change the Minecraft section revision. Reuse the ambient cache's bounded refresh.
+    if refresh or sample.revision ~= GC.LightRevision() or not sample.lightsPosition or position:DistToSqr(sample.lightsPosition) > 16 then
         sample.lights, sample.revision = GC.ModelLights(position)
         sample.lightsPosition = position
     end
