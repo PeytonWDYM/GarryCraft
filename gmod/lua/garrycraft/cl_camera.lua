@@ -42,10 +42,15 @@ end
 
 hook.Add("PreRender", "GarryCraftNativeCamera", function()
     local player = LocalPlayer()
-    if not IsValid(player) or not player:GetNWBool("GarryCraft") then history = {} latest = nil path = nil return end
+    if not IsValid(player) or not player:GetNWBool("GarryCraft") then
+        if path then garrycraft_bridge.close() end
+        history = {} latest = nil path = nil GC.BridgePath = nil GC.State = nil
+        return
+    end
     local bridge = player:GetNWString("GarryCraftBridge")
     if bridge == "" then return end
     if path ~= bridge then garrycraft_bridge.open(bridge) path = bridge history = {} end
+    GC.BridgePath = path
     local payload = garrycraft_bridge.receive(1)
     if payload then
         local state = util.JSONToTable(payload)
@@ -57,6 +62,8 @@ end)
 hook.Add("CalcView", "GarryCraftCamera", function(player, origin, angles, fov)
     if not player:GetNWBool("GarryCraft") or #history == 0 then return end
     if not player:Alive() or latest.teleportAck ~= player:GetNWInt("GarryCraftTeleport") then return end
+    -- Source supplies its current render angle. The next client packet carries this same unsmoothed look.
+    GC.InputAngles = angles
     local now = garrycraft_bridge.clock()
     if lastFrame ~= 0 and #due > 0 then
         local worst = -math.huge

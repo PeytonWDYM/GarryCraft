@@ -5,6 +5,7 @@
 #include <texture_group_names.h>
 #include <materialsystem/itexture.h>
 #include "textures.hpp"
+#include "packets.hpp"
 #include <cstring>
 #include <memory>
 #include <string>
@@ -12,6 +13,7 @@
 #include <vector>
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 
 namespace {
     std::atomic_bool needsReset = false;
@@ -67,9 +69,19 @@ namespace {
         const char* name = LUA->CheckString(1);
         int width = static_cast<int>(LUA->CheckNumber(2));
         int height = static_cast<int>(LUA->CheckNumber(3));
-        LUA->CheckType(4, GarrysMod::Lua::Type::String);
-        unsigned length;
-        const char* data = LUA->GetString(4, &length);
+        auto body = packetBytes(LUA, 4);
+        size_t length = body.size();
+        const char* data = body.data();
+        // Overlay tiles refer directly to their packet. Lua does not make pixel substrings.
+        if (LUA->IsType(6, GarrysMod::Lua::Type::Number)) {
+            double offset = LUA->CheckNumber(6);
+            double count = LUA->CheckNumber(7);
+            if (offset < 0 || count < 0 || offset > length || count > length - offset
+                || offset != std::floor(offset) || count != std::floor(count))
+                return LUA->ThrowError("Invalid texture packet range"), 0;
+            data += static_cast<size_t>(offset);
+            length = static_cast<unsigned>(count);
+        }
         if (width <= 0 || height <= 0 || width > 4096 || height > 4096
             || static_cast<size_t>(width) * height * 4 != length)
             return LUA->ThrowError("Invalid RGBA texture dimensions"), 0;

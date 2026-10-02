@@ -12,6 +12,10 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 public abstract class FrameLimitMixin {
     @Inject(method = "getFramerateLimit", at = @At("HEAD"), cancellable = true)
     private void garrycraft$backgroundTick(CallbackInfoReturnable<Integer> result) {
-        if (GarryCraftClient.linked()) result.setReturnValue(Minecraft.getInstance().options.framerateLimit().get());
+        if (!GarryCraftClient.linked()) return;
+        int saved = Minecraft.getInstance().options.framerateLimit().get();
+        int target = GarryCraftClient.targetFps();
+        // Extra hidden frames cannot reach Source. Keep a lower saved cap, but bound Unlimited to the host rate.
+        result.setReturnValue(saved >= net.minecraft.client.Options.UNLIMITED_FRAMERATE_CUTOFF ? target : Math.min(saved, target));
     }
 }

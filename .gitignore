@@ -13,5 +13,5 @@ out/
 *.jar
 !fabric/gradle/wrapper/gradle-wrapper.jar
 local.ps1
+.garrycraft-local.json
 artifacts/
-

@@ -19,12 +19,14 @@ import net.minecraft.world.level.block.WallTorchBlock;
 /** Repeats a fixed dark-room view with floor, wall, distant, and over-budget lights. */
 public final class LightingOracle {
     public static final BlockPos PROBE = new BlockPos(35, -3, -1);
+    private static final BlockPos WATER = PROBE.south().below();
     private static String request = "", phase = "waiting";
     private static boolean running;
     private static int tick;
     private static CompletableFuture<?> pending = CompletableFuture.completedFuture(null);
     private static GameType mode;
     private static ItemStack held;
+    private static int fixtureSize;
     private static final ArrayList<BlockPos> owned = new ArrayList<>();
     private static final BlockPos FLOOR = PROBE.east().below(), WALL = PROBE.east();
     private LightingOracle() {}
@@ -44,6 +46,11 @@ public final class LightingOracle {
                 for (var pos : new BlockPos[]{PROBE, PROBE.below()}) {
                     peer.level().setBlock(pos, Blocks.STONE.defaultBlockState(), 3); owned.add(pos);
                 }
+                for (var pos : new BlockPos[]{WATER.below(), WATER.north(), WATER.south(), WATER.east(), WATER.west()}) {
+                    peer.level().setBlock(pos, Blocks.STONE.defaultBlockState(), 3); owned.add(pos);
+                }
+                peer.level().setBlock(WATER, Blocks.WATER.defaultBlockState(), 3); owned.add(WATER);
+                fixtureSize = owned.size();
             });
         }
         if (!running) return false;
@@ -53,8 +60,9 @@ public final class LightingOracle {
         if (!host.test().equals(request)) { finish(mc); return false; }
         tick++;
         double x = phase.equals("far") ? 39.5 : 37.5;
-        mc.player.setPos(x, -4, -.5); mc.player.setDeltaMovement(0, 0, 0);
-        mc.player.setYRot(90); mc.player.setXRot((float) Math.toDegrees(Math.atan2(.62, x - 35.5)));
+        // Look down into the basin so screenshots prove water shading, not only the material flag.
+        mc.player.setPos(x, -2, .5); mc.player.setDeltaMovement(0, 0, 0);
+        mc.player.setYRot(90); mc.player.setXRot((float) Math.toDegrees(Math.atan2(2.73, x - 35.5)));
         mc.player.yRotO = mc.player.getYRot(); mc.player.xRotO = mc.player.getXRot();
         mc.player.getInventory().setSelectedSlot(0);
         if (tick == 40) phase = "dark";
@@ -83,8 +91,7 @@ public final class LightingOracle {
             var server = mc.getSingleplayerServer(); var uuid = mc.player.getUUID();
             pending = server.submit(() -> {
                 var level = server.getPlayerList().getPlayer(uuid).level();
-                for (var pos : owned) if (!pos.equals(PROBE) && !pos.equals(PROBE.below()))
-                    level.setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
+                for (int i = fixtureSize; i < owned.size(); i++) level.setBlock(owned.get(i), Blocks.AIR.defaultBlockState(), 3);
             });
         }
         if (tick == 520) finish(mc);

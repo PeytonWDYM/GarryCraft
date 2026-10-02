@@ -2,6 +2,42 @@
 
 ## October 1, 2026
 
+GMod now starts the prepared local Minecraft runtime after single-player map entry.
+A saved enable switch, Spawn Menu panel, and `garrycraft_menu` control startup and normal Source play.
+`GarryCraft.cmd` at the repository root opens the prepared installation and reuses an existing host window.
+Each map has a separate world. Options remain shared. The launcher uses a mutex, map heartbeat, and host process lifetime.
+Disable and map changes ask Minecraft to save and exit before another world starts.
+Video initialization can pause the map heartbeat for up to 120 seconds. Expired requests cannot restart against an open Source mapping.
+The prepared runtime launches Java directly. It contains local dependency copies and uses the existing asset cache.
+Source restores player movement, health, armor, the previous weapon, and frame limits after Disable.
+Client workers close their mappings when inactive. Repeated sessions reuse texture names and refresh material bindings after video resets.
+
+The October 1 18:26 Source dump records an access violation at `server.dll+0x2A126F`.
+Its caller at `server.dll+0x5D59B5` passes a null citizen squad into the member-count routine.
+The instruction sequence matches `CNPC_Citizen::FixupPlayerSquad` and `AddToPlayerSquad` in Valve's Source SDK.
+The later Windows `engine.dll` invalid-argument failure occurred in crash reporting, after that original fault.
+Owned test citizens now use `SF_CITIZEN_NOT_COMMANDABLE` (1048576), and finished scenarios remove their test entities.
+Ordinary addon NPC squad rules remain unchanged. Dump evidence stays outside tracked source.
+
+The Source client now publishes look and menu input directly to Minecraft at the render rate.
+Acknowledged cursor events preserve short clicks and deliver wheel input to vanilla menus.
+Continuous yaw prevents full-turn hand sway at the Source angle boundary. Attached clients disable the Minecraft movement tutorial.
+
+A native Source worker copies render packets. Lua receives small headers and native handles instead of large binary strings.
+Menu captures follow the Source target rate. The Minecraft transport thread compares pixels and assigns tile revisions.
+Source reuses unchanged tiles. Source NPC targeting examines at most 32 pairs and issues at most 12 sight traces per update.
+Minecraft keeps input transfer separate from render packing. The hidden renderer stops at Source's target rate or a lower saved limit.
+
+Water uses Source ambient and point lighting through its transparent material. Duplicate reverse fluid faces are removed before export,
+so each two-sided water surface draws once with one lighting normal. Lava retains its emitted light.
+Water also passes Minecraft's biome tint through the lit material, which otherwise ignores vertex colors and renders gray water.
+New mirror profiles now apply the Unlimited FPS default even when Minecraft returns early from its options loader.
+The camera uses Source's current render angle. The responsiveness and lighting collectors save repeatable evidence.
+Responsiveness tests no longer enter the physics oracle's reference replay.
+Empty lighting-test requests no longer reset Source's view angle during normal play.
+Frame percentiles remain separate from correctness checks.
+The crowd scenario verifies target selection for 24 native NPCs against 15 Minecraft mobs, bounded scans, and test cleanup.
+
 GarryCraft keeps Minecraft Java 26.3 and Windows x64 Garry's Mod in separate processes.
 The Fabric mod owns player movement, game rules, fluids, projectiles, and mob AI.
 Source supplies collision geometry, native NPCs, props, input, lighting, and final rendering.

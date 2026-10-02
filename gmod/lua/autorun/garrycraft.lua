@@ -1,5 +1,6 @@
 GarryCraft = GarryCraft or {}
 if SERVER then
+    AddCSLuaFile("garrycraft/cl_runtime.lua")
     AddCSLuaFile("garrycraft/cl_view.lua")
     AddCSLuaFile("garrycraft/cl_camera.lua")
     AddCSLuaFile("garrycraft/cl_render.lua")
@@ -10,6 +11,7 @@ if SERVER then
     AddCSLuaFile("garrycraft/cl_blocks.lua")
     AddCSLuaFile("garrycraft/cl_effects.lua")
     AddCSLuaFile("garrycraft/cl_input.lua")
+    AddCSLuaFile("garrycraft/cl_responsiveness_test.lua")
     AddCSLuaFile("garrycraft/cl_framerate.lua")
     AddCSLuaFile("garrycraft/sh_coordinates.lua")
     include("garrycraft/sh_coordinates.lua")
@@ -24,9 +26,11 @@ if SERVER then
     include("garrycraft/sv_mobs.lua")
     include("garrycraft/sv_blocks.lua")
     include("garrycraft/sv_parity.lua")
+    include("garrycraft/sv_mob_budget_test.lua")
     include("garrycraft/sv_damage_test.lua")
     include("garrycraft/sv_terrain_test.lua")
     include("garrycraft/sv_bridge.lua")
+    include("garrycraft/sv_runtime.lua")
     include("garrycraft/sv_lab.lua")
 else
     include("garrycraft/sh_coordinates.lua")
@@ -40,5 +44,7 @@ else
     include("garrycraft/cl_blocks.lua")
     include("garrycraft/cl_effects.lua")
     include("garrycraft/cl_input.lua")
+    include("garrycraft/cl_responsiveness_test.lua")
     include("garrycraft/cl_framerate.lua")
+    include("garrycraft/cl_runtime.lua")
 end

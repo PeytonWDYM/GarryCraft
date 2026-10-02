@@ -118,3 +118,115 @@ Use a separate fresh `gm_construct` world for `garrycraft_test lighting`, then r
 The lighting scenario owns its fixed fixture cells. Do not run it in an existing world.
 
 See [feature coverage](../PARITY.md) for untested gameplay and remaining work.
+
+## Input, menu, and water follow-up
+
+Evidence directory: `%LOCALAPPDATA%\GarryCraft\polish-run8\artifacts`.
+This run used one isolated GMod process and one owned Minecraft world at 1920×1080.
+Each restart closed the previous test pair. Test settings used a separate directory.
+
+Request `responsiveness:77.3336226` passed all five correctness checks.
+Direct client input age was 6.007 ms at p99. HUD capture-to-Source age was 35.979 ms at p99.
+These measure different parts of delivery. Neither measures complete physical mouse-to-display latency.
+The video list moved 216 pixels. The creative-search scroll offset reached 0.076923.
+The largest consecutive yaw change was 8.511 degrees across repeated wrap boundaries.
+Minecraft disabled its movement tutorial and retained `maxFps:260` in the saved options.
+Its linked renderer ran near the Source target instead of producing thousands of unused hidden frames.
+
+| Phase | Source p50 / p99 / max, ms |
+| --- | --- |
+| Look | 4.182 / 5.750 / 43.029 |
+| Video options | 4.212 / 7.082 / 81.855 |
+| Creative search | 4.198 / 7.167 / 60.736 |
+| Fifteen cows | 4.660 / 10.211 / 15.506 |
+| Cow drops | 4.575 / 9.896 / 16.593 |
+| After pickup | 4.240 / 6.661 / 13.148 |
+| Mob combat | 4.269 / 7.540 / 22.941 |
+
+The menu scenarios include automatic screenshots, which can produce long frames.
+Source still exceeds the 4.167 ms p99 budget. These results do not prove stable 240 FPS.
+The earlier run 33 measured 11.048 ms p99 for fifteen cows. The new run measured 10.211 ms.
+That comparison used separate worlds and renderer settings. It does not isolate each optimization.
+
+Request `lighting:7.8870289` passed all nine lighting checks.
+The basin exported one lit, two-sided water surface instead of two coincident reverse surfaces.
+Its local light count changed from zero to two with the torches and returned to zero after removal.
+Dark, floor, wall, far, budget, and removed screenshots accompany the paired traces.
+The screenshots do not measure temporal flicker during a large flowing-water flood.
+That build still rendered gray water because VertexLitGeneric ignored the exported vertex tint.
+The follow-up tint check uses `%LOCALAPPDATA%\GarryCraft\polish-run9\artifacts`.
+Request `lighting:13.8078448` passed all ten lighting checks, including the material tint check.
+Source received Minecraft's RGB tint of 63, 118, 228. Torch screenshots show blue, transparent water.
+The user confirmed that the water color and stability now work.
+The terrain follow-up passed all nine checks after the tint change.
+
+Request `entities:171.372266` completed the vanilla comparison and combat scenario.
+Maximum position error was 0.0001 blocks. Placement, removal, floor torches, and wall torches passed.
+The zombie targeted the Source NPC and traveled 8.661 blocks. Source return fire reduced its health to 97.462.
+The Source NPC took 240 damage during mob combat.
+Native targeting examined at most 15 pairs and issued one sight trace per update in this scene.
+The code limits each update to 32 pairs and 12 traces.
+The follow-up crowd request `entities:308.8281582` exercised 24 native NPCs against 15 Minecraft cows.
+It reached both limits, completed its scan, and gave all 24 NPCs a mob target.
+The test removed all 24 NPCs after the crowd phase. Its traces remain in the run 9 artifact directory.
+This fixture freezes unarmed NPCs and removes their solid collision. It measures target selection and bounded bridge work.
+The separate zombie combat phase measures live movement and damage.
+The repeated run 9 world failed one placement check. That result does not count as a passing placement comparison.
+Fresh-world request `entities:40.9725973` repeated the crowd and combat tests in `polish-run10\artifacts`.
+Collision, placement, mining, both torch attachments, mob targeting, and damage in both directions passed.
+Maximum position error was 0.0001 blocks. The zombie traveled 8.891 blocks and ended with 97.208 health.
+The native NPC took 240 damage. All 24 crowd NPCs selected mobs, and the final cleanup found zero owned bullseyes or test NPCs.
+With 24 additional native NPCs, Source frame intervals were 5.083 / 11.304 / 16.829 ms at p50 / p99 / maximum.
+The combat phase measured 4.287 / 7.473 / 18.882 ms. Stable 240 FPS remains unproven.
+
+All eight damage directions passed. The terrain scenario passed all nine checks, including water, lava, and visible mining effects.
+Six windowed video changes between 1920×1080 and 1280×720 passed.
+GMod PID 40020 and Minecraft PID 20164 survived every change. Both games continued to publish frames.
+The six screenshots show the recovered HUD, held item, placed blocks, and glass at the requested dimensions.
+
+## Normal-play mouse override
+
+The user reported that slow mouse movement stayed locked after the test returned to normal play.
+An empty lighting request matched normal play's empty test ID. The server therefore reset the view angle on each update.
+A temporary Source API probe recorded 134 `SetEyeAngles` calls during two seconds of normal play.
+The fix restricts that camera override to a matching `lighting:` test request.
+The same probe then recorded zero calls during two seconds. Minecraft remained linked with an empty lighting request.
+Both captures remain in `polish-run10\artifacts`. Each capture restored the original API afterward.
+The fix was loaded into the running isolated Source build. No camera-locking scenario ran during this check.
+
+## Managed startup and crash follow-up
+
+The original October 1 18:26 dump records a null citizen squad access at `server.dll+0x2A126F`.
+The later Windows dump records a secondary failure in crash reporting. The original call chain matches citizen player-squad recruitment.
+Test citizens now cannot join player squads. Completed scenarios remove their owned NPCs and props.
+The repeat request `entities:125.4207581` passed collision, placement, mining, both torch attachments, and mob targeting.
+Its crowd test targeted all 24 native NPCs within the 32-pair and 12-trace budgets.
+Cleanup found zero owned NPCs, props, or bullseyes. Normal play remained active afterward without another crash.
+Evidence remains under `%LOCALAPPDATA%\GarryCraft\startup-lab\artifacts` and its map artifact directory.
+This addresses the observed test-citizen crash path. It does not certify all native NPC classes.
+
+`startup-final\artifacts\startup-result.json` passed all 16 managed startup checks.
+The map cycle used `gm_construct`, `gm_flatgrass`, and the installed custom map `backrooms_main`.
+Each map loaded collision geometry and linked. Repeated enable requests retained one Java process.
+A diamond block placed through Minecraft chat survived save, exit, and reopening.
+Minecraft's saved 180 FPS limit survived the complete map cycle. Temporary bridge options restored before saving.
+Disable restored Source movement, health, armor, collision group, and the previous addon weapon, `weapon_projectile` from `crossbowboltgun`.
+It removed bridge entities and client state, restored Source limits to the test's 144/72 FPS values, and left no owned Java process.
+The addon check covers loading and weapon restoration. It does not certify every addon hook or native weapon behavior while attached.
+
+`startup-final\artifacts\lifecycle-result.json` passed all four lifecycle checks.
+Missing configuration left the bridge inactive and showed setup instructions.
+Disconnecting during Minecraft startup saved and stopped Java. Reconnecting started and linked automatically.
+An abrupt stop of owned Source PID 64464 also caused Java PID 38120 to save and exit.
+These tests used isolated preferences and owned worlds. Their JSON reports and persistence log provide repeatable evidence.
+Build.ps1 compiled both native modules and the Fabric mod successfully.
+
+The root `GarryCraft.cmd` launcher opened the prepared installation with Workshop support enabled.
+Reopening it retained one host. Normal exit saved and stopped its Minecraft process.
+The shortcut uses the tested 1920×1080 windowed mode. A default-video launch stalled in Source's material-system initialization.
+The follow-up video test passed six mode changes with Source PID 44700 and Java PID 54896.
+Source paused longer than the collector's original three-second wait. Recovery took about ten seconds per changed mode.
+The helper now permits a 120-second heartbeat gap during video initialization and never restarts an expired request against an open mapping.
+A 25-second heartbeat pause retained Java PID 54896 and recovered the same linked session.
+The final video trace remains in the normal runtime's `worlds/gm_construct/artifacts` directory.
+Launcher, heartbeat, and normal-exit reports remain in `startup-final\artifacts`.

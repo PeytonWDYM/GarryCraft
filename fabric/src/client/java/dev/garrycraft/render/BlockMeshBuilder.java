@@ -52,8 +52,8 @@ final class BlockMeshBuilder implements BlockQuadOutput, FluidRenderer.Output {
         fluids.flush();
         var result = new ArrayList<ModelCollector.Batch>();
         batches.forEach((key, vertices) -> result.add(new ModelCollector.Batch(key.texture(), VertexCapture.triangles(vertices), key.translucent(), key.unlit())));
-        for (var batch : AtlasQuads.convert(waterVertices, TextureAtlas.LOCATION_BLOCKS, ox, oy, oz, true))
-            result.add(new ModelCollector.Batch(batch.texture(), batch.vertices(), true, true));
+        for (var batch : AtlasQuads.convert(WaterFaces.surfaces(waterVertices), TextureAtlas.LOCATION_BLOCKS, ox, oy, oz, true))
+            result.add(new ModelCollector.Batch(batch.texture(), batch.vertices(), true, false, true));
         for (var batch : AtlasQuads.convert(lavaVertices, TextureAtlas.LOCATION_BLOCKS, ox, oy, oz, false))
             result.add(new ModelCollector.Batch(batch.texture(), batch.vertices(), false, true));
         return result;

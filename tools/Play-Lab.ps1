@@ -9,6 +9,8 @@ $ErrorActionPreference = 'Stop'
 $repository = Split-Path -Parent $PSScriptRoot
 & "$PSScriptRoot\Build.ps1" -JavaHome $JavaHome
 & "$PSScriptRoot\Install-Lab.ps1" -LabPath $LabPath
+# This developer harness owns Java. Do not also start the prepared map runtime.
+Set-Content -LiteralPath "$LabPath/garrysmod/data/garrycraft-runtime-manual.txt" -Value 'Play-Lab'
 $root = [IO.Path]::GetFullPath($RunRoot)
 if ($FreshWorld) { $root = Join-Path $root ([DateTime]::Now.ToString('yyyyMMdd-HHmmss')) }
 New-Item -ItemType Directory -Path "$root\minecraft","$root\artifacts" -Force | Out-Null

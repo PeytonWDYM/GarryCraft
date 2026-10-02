@@ -17,6 +17,7 @@ loom {
             vmArgs '--enable-native-access=ALL-UNNAMED', '-Dgarrycraft.autoWorld=true'
             if (project.hasProperty('garrycraftBridge')) vmArgs "-Dgarrycraft.bridge=${project.property('garrycraftBridge')}"
             if (project.hasProperty('garrycraftArtifacts')) vmArgs "-Dgarrycraft.artifacts=${project.property('garrycraftArtifacts')}"
+            if (project.hasProperty('garrycraftSettings')) vmArgs "-Dgarrycraft.settings=${project.property('garrycraftSettings')}"
         }
     }
 }
@@ -40,4 +41,42 @@ processResources {
 }
 processClientResources {
     from('../tests/scenarios.json') { into 'garrycraft' }
+}
+
+// Prepare a Java launch file once. Map loading never invokes Gradle or the compiler.
+tasks.register('prepareRuntime') {
+    notCompatibleWithConfigurationCache('Copies the configured Loom client launch into a local runtime')
+    def client = tasks.named('runClient')
+    dependsOn { def run = client.get(); run.taskDependencies.getDependencies(run) }
+    doLast {
+        def run = client.get()
+        def destination = file(project.property('garrycraftRuntime'))
+        destination.mkdirs()
+        def paths = [:]
+        def copyDependency = { File source ->
+            if (!paths.containsKey(source.absolutePath)) {
+                def target = new File(destination, "lib/${paths.size()}-${source.name}")
+                if (source.isDirectory()) project.copy { from source; into target }
+                else { target.parentFile.mkdirs(); java.nio.file.Files.copy(source.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
+                paths[source.absolutePath] = target.toPath().toRealPath().toString()
+            }
+            paths[source.absolutePath]
+        }
+        def classpath = run.classpath.files.collect { copyDependency(it) }.join(File.pathSeparator)
+        def launch = file('.gradle/loom-cache/launch.cfg').text
+        launch.eachLine { line ->
+            if (line.contains('fabric.gameJarPath') || line.contains('log4j.configurationFile')) {
+                copyDependency(file(line.substring(line.indexOf('=') + 1)))
+            }
+        }
+        paths.each { before, after -> launch = launch.replace(before, after) }
+        def launchFile = new File(destination, 'launch.cfg')
+        launchFile.text = launch
+        def jvm = run.allJvmArgs.findAll { !it.startsWith('@') }.collect {
+            it.startsWith('-Dfabric.dli.config=') ? "-Dfabric.dli.config=${launchFile.toPath().toRealPath()}" : it
+        }
+        def values = jvm + ['-cp', classpath, run.mainClass.get()] + loom.runs.client.programArguments.get()
+        def quoted = values.collect { '"' + it.toString().replace('\\', '\\\\').replace('"', '\\"') + '"' }
+        new File(destination, 'java.args').text = quoted.join(System.lineSeparator()) + System.lineSeparator()
+    }
 }

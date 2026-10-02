@@ -8,6 +8,41 @@ Placed blocks, fluids, projectiles, particles, torches, and Minecraft mobs now r
 Minecraft weapons can hit Source NPCs and props. Source NPCs can target and damage Minecraft mobs.
 See [feature coverage and remaining work](PARITY.md) before treating a feature as complete.
 
+## Start and stop GarryCraft
+
+Prepare the local runtime once with PowerShell 7:
+
+```powershell
+.\tools\Setup-Lab.ps1 -LabPath "$env:LOCALAPPDATA\GarryCraft\gmod-lab"
+```
+
+Double-click **GarryCraft.cmd** in this repository, or open the printed `GarryCraft.lnk` shortcut.
+Load a single-player map through GMod's normal menu.
+The shortcut starts the tested 1920×1080 windowed mode. Use GMod's video settings to change it.
+The addon starts Minecraft and reads that map's collision data automatically. Normal launches do not run Gradle or rebuild code.
+The prepared runtime contains local copies of its classes and libraries. It still uses the downloaded Minecraft asset cache and Java installation.
+Do not upload this generated runtime or game assets.
+
+Use **Spawn Menu > Utilities > GarryCraft** to enable or disable the bridge.
+The `garrycraft_menu` console command opens the same controls. `garrycraft_enable` and `garrycraft_disable` also work directly.
+Disable saves Minecraft, restores Source movement and the previous weapon, and releases the bridge input.
+The choice persists across maps and GMod restarts. Disconnecting or closing GMod also saves and stops the owned Minecraft process.
+A startup or collision error leaves GMod usable and appears in the control panel.
+
+Each map keeps its world and inventory under `<runtime>/worlds/<map>/minecraft/saves/GarryCraft`.
+Minecraft options use `%LOCALAPPDATA%\GarryCraft\settings`. Use `-SettingsPath` for separate test preferences.
+Repeated enable requests reuse the existing process. Map changes save the old world before starting the next one.
+Read `<runtime>/launcher-<GMod PID>.log` and the map's `minecraft-stderr.log` if startup fails.
+
+The play shortcut permits Workshop addons. Test commands use `-noworkshop` and explicitly copied addons.
+Source weapons remain installed, and Disable restores the selected weapon. Minecraft controls the equipped weapon while the bridge runs.
+Physics, camera, or HUD addons can conflict with the same hooks. Compatibility requires testing each addon combination.
+Map collision discovery has no map allowlist. A map must expose readable Source collision geometry.
+These features do not certify every map, game mode, or addon. GarryCraft currently supports Windows x64 single-player.
+
+`Setup-Lab.ps1` requires the isolated installation's `.garrycraft-lab` marker.
+It does not replace a daily-driver installation. Rerun setup after rebuilding the mod to update the prepared runtime.
+
 ## Give your agent this instruction
 
 > Set up GarryCraft with my installed Minecraft Java and 64-bit Garry's Mod.
@@ -37,14 +72,22 @@ Add `-Test` to run the bounded entity, world, TNT, and AI scenario.
 Collect paired JSON traces with `tools/Collect-Lab.ps1 -RunRoot <printed-run-directory>`.
 The collector rejects incomplete or mismatched Source and Minecraft traces.
 Tests and screenshots stay outside tracked source.
+`Play-Lab.ps1` selects manual test mode. Rerun `Setup-Lab.ps1` to restore automatic startup.
 
 Run `garrycraft_test terrain` to check buckets, fire, native NPC environmental damage, and visible mining effects.
 Collect that scenario with `tools/Collect-Terrain.ps1 -RunRoot <run-directory>`.
 Run `garrycraft_test damage` and `tools/Collect-Damage.ps1 -RunRoot <run-directory>` for eight damage directions.
 Use `tools/Test-Resolution.ps1 -RunRoot <run-directory>` for owned video-mode changes.
+Run `garrycraft_test responsiveness` and `tools/Collect-Responsiveness.ps1` to check menu scrolling and client input delivery.
 Run `garrycraft_test lighting` in a fresh `gm_construct` world, then use `tools/Collect-Lighting.ps1` for torch checks.
+Run `garrycraft_test_mob_budget`, then `garrycraft_test_mob_cleanup`, and collect both with `tools/Collect-MobBudget.ps1`.
+After setup, use `tools/Test-Startup.ps1 -LabPath <lab> -RuntimeRoot <runtime> -GamePid <PID>` for the managed map cycle.
+`tools/Test-Lifecycle.ps1` uses the same arguments and tests missing configuration, startup disconnect, automatic reconnect, and host exit.
+Both scripts write JSON results beside the runtime. The lifecycle test closes its owned GMod process.
+Add `-AbruptExit` to test cleanup after an abrupt host stop.
 
 Minecraft mirror profiles share `%LOCALAPPDATA%\GarryCraft\settings\options.txt`.
+Pass `-PgarrycraftSettings=<directory>` to `runClient` for separate test settings.
 Fresh worlds retain your saved settings. New profiles default to Unlimited FPS.
 GMod defaults to 240 FPS while the bridge runs. Frame reports record percentiles and long frames in both games.
 Current measurements do not prove stable 240 FPS. See [the test record](tests/RESULTS.md).
