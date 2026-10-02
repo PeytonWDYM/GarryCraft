@@ -10,6 +10,8 @@ Collision resolves vertical movement before horizontal movement. Short elytra po
 Flat ledges use Minecraft's falling behavior. Crouching uses native support instead of bypassing vanilla edge checks.
 Downhill contact uses the supporting footprint sample instead of the ramp's center height.
 The physics replay now starts initial velocity after settling. It records actual elytra cases and restores test armor and invulnerability.
+Test cancellation now restores gameplay fixtures on link loss or session replacement. Restarts wait for queued cleanup.
+Physics preparation retains its captured reference mode when cancellation changes the active pass.
 
 Grounded player movement now plays the native Source surface's footstep sounds. Sneaking, flying, gliding, swimming, and open menus suppress them.
 Enchanted armor retains its base texture in third person. The separate animated enchantment glint overlay remains unsupported.
@@ -19,6 +21,7 @@ Native walls block fluid transfers between adjacent cells. Water retains its Min
 
 The owned lab passed 15 vanilla movement comparisons, seven prop probes, native footsteps, idle mob movement, armor, water, lighting, and terrain checks.
 See `tests/RESULTS.md` for traces, measured export costs, and limits. These cases do not certify every map surface or improve every FPS bottleneck.
+Creative search passed typing, filtering, Backspace, and text focus checks through the existing input path.
 Update the Source addon and Fabric runtime together because static packets now include the complete batch count.
 
 ## October 1, 2026

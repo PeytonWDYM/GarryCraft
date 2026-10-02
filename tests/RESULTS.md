@@ -63,6 +63,20 @@ Its paired reports record the new native generations. The normal HUD screenshots
 The same Source and Java processes also retained correct HUD and hand textures through 1280x720 and 1920x1080 video modes.
 Read `iteration8/artifacts/texture-video-1280.png` for the smaller mode.
 
+Review found cancellation races in the gameplay and physics harnesses. Gameplay now cancels on link loss or session replacement.
+It waits for queued setup and cleanup before another run replaces shared state. Physics preparation captures its reference mode before queuing.
+Iteration 10 passed all 12 paired gameplay checks, including final cleanup with zero remaining test mobs.
+Stopping, replacing the session, and immediately restarting each produced an incomplete trace with successful mob, block, and armor cleanup.
+Read `iteration10/artifacts/cancel-*-minecraft.json` and their matching Source request records.
+The subsequent complete run also found zero leftover mobs. These checks do not force the transport thread's exception path.
+
+The user reported that creative search worked during investigation. The existing input path passed all eight responsiveness checks.
+Iteration 9 typed `stone` through the Source text-entry callback and received 94 matching vanilla inventory items.
+Backspace changed the query to `ston` and returned 96 items. Both mouse-release focus checks passed.
+Read `iteration9/artifacts/responsiveness-results.json` and its paired Source and Minecraft traces.
+The test selects the search tab through the vanilla API. It does not exercise a physical tab click or operating-system text input.
+No production input change was needed.
+
 October 1, 2026. Windows x64 GMod `2026.09.22 (10174)`, `gm_construct`, Minecraft Java 26.3, and Java 25.
 Fabric Loader 0.19.5 and Fabric API 0.161.0+26.3.
 Both games ran in owned, isolated single-player installations.

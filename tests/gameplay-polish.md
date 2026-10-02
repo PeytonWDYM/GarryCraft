@@ -14,6 +14,19 @@ Write these failure cases before changing physics:
 9. Downhill ramp contact compares the center height with the footprint height and makes the player hop.
 10. A jump starts while the prior tick remains grounded. Downhill snapping cancels its upward movement.
 11. A map reload reuses an old procedural texture name. HUD tiles and hands draw a pink checkerboard.
+12. Stop the bridge during polish setup, replace its session, or disconnect transport. Each path must remove mobs and blocks and restore armor.
+13. Restart polish while cleanup is queued. The old run must finish cleanup before the new run replaces its state.
+14. Cancel the first vanilla physics pass before preparation finishes. Its saved armor must still be captured and restored.
+15. Click a creative inventory tab, then type in search. Source must retain text-entry focus after each click.
+16. Search for `stone` and edit it with Backspace. Vanilla must filter items after each change.
+
+Run `garrycraft_test responsiveness` for the creative search cases. The paired traces must contain the query and matching items.
+This scripted check covers Source text callbacks and focus after mouse release. Also check tab clicks and physical typing during manual play.
+
+Load `tests/cancel-polish.lua` from the owned lab's DATA directory.
+Run `garrycraft_test_cancel_polish`, then repeat with `replace` and `restart`.
+Save each incomplete Minecraft report before the next run overwrites it. Its cleanup fields must pass with zero remaining mobs.
+The restart must subsequently complete the ordinary polish scenario.
 
 Run `garrycraft_test polish` on native flat terrain. Observe idle mobs for at least 600 server ticks.
 Compare walking, sprinting, wall contact, and fast descending movement against vanilla on equivalent box geometry.

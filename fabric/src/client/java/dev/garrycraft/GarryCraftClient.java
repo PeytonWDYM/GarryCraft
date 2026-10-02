@@ -216,6 +216,7 @@ public final class GarryCraftClient implements ClientModInitializer {
         MirrorWorld.open(minecraft);
         boolean active = linked();
         if (!input.session().equals(session)) {
+            dev.garrycraft.testing.GameplayOracle.cancel(minecraft);
             restoreOptions(minecraft);
             session = input.session();
             COLLISION.reset(session);
@@ -269,7 +270,10 @@ public final class GarryCraftClient implements ClientModInitializer {
             minecraft.gui.setScreen(null);
             LOG.info("GarryCraft attached to Source session {}", session);
         }
-        if (!active && wasLinked) restoreOptions(minecraft);
+        if (!active && wasLinked) {
+            restoreOptions(minecraft);
+            dev.garrycraft.testing.GameplayOracle.cancel(minecraft);
+        }
         if (!loading && active && PhysicsOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;

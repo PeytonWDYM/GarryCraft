@@ -85,7 +85,7 @@ Run `garrycraft_test polish` and `tools/Collect-Gameplay.ps1 -RunRoot <run-direc
 Use bare `garrycraft_test` for the same-input vanilla physics comparisons, including fast descending and elytra cases.
 See [map gameplay tests](tests/gameplay-polish.md) for native prop, footstep, and export benchmarks.
 Use `tools/Test-Resolution.ps1 -RunRoot <run-directory>` for owned video-mode changes.
-Run `garrycraft_test responsiveness` and `tools/Collect-Responsiveness.ps1` to check menu scrolling and client input delivery.
+Run `garrycraft_test responsiveness` and `tools/Collect-Responsiveness.ps1` to check menu scrolling, creative search, and client input delivery.
 Run `garrycraft_test lighting` in a fresh `gm_construct` world, then use `tools/Collect-Lighting.ps1` for torch checks.
 Run `garrycraft_test_mob_budget`, then `garrycraft_test_mob_cleanup`, and collect both with `tools/Collect-MobBudget.ps1`.
 After setup, use `tools/Test-Startup.ps1 -LabPath <lab> -RuntimeRoot <runtime> -GamePid <PID>` for the managed map cycle.

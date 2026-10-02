@@ -20,6 +20,7 @@ import net.minecraft.world.phys.Vec3;
 /** Observes vanilla idle AI and actual render exports in a fresh, owned world. */
 public final class GameplayOracle {
     private record MobSample(int tick, String type, Vec3 position, boolean pathDone, boolean target, int destinations) {}
+    private record Cleanup(boolean mobsRemoved, boolean blocksRemoved, boolean armorRestored, int remainingMobs) {}
     private static final List<PathfinderMob> MOBS = new ArrayList<>();
     private static final List<Vec3> STARTS = new ArrayList<>();
     private static final List<MobSample> SAMPLES = new ArrayList<>();
@@ -39,6 +40,9 @@ public final class GameplayOracle {
     private GameplayOracle() {}
     public static String request() { return request; }
     public static String phase() { return phase; }
+    public static void cancel(Minecraft mc) {
+        if (running) finish(mc, false);
+    }
     public static void avatar(int vertices) {
         // Allow the real equipment update to reach the client before measuring each phase.
         if (running && tick >= 20 && (tick < 80 || tick >= 100 && tick < 160 || tick >= 180))
@@ -49,6 +53,9 @@ public final class GameplayOracle {
     }
 
     public static boolean beforeTick(Minecraft mc, HostInput host) {
+        // Setup, sampling, and cleanup own the shared run state until their server task completes.
+        if (!pending.isDone()) return running;
+        pending.join();
         if (!running && host.test().startsWith("polish:") && !host.test().equals(request)) {
             request = host.test(); phase = "plain-armor"; tick = 0; running = true;
             x = host.x(); y = host.y(); z = host.z(); camera = mc.options.getCameraType();
@@ -119,9 +126,15 @@ public final class GameplayOracle {
             }
             for (var pos : BLOCKS) peer.level().setBlock(pos, Blocks.AIR.defaultBlockState(), 3);
             peer.setItemSlot(EquipmentSlot.CHEST, chest);
+            var cleanup = new Cleanup(MOBS.stream().allMatch(Entity::isRemoved),
+                BLOCKS.stream().allMatch(pos -> peer.level().getChunkAt(pos).getBlockState(pos).isAir()),
+                ItemStack.matches(peer.getItemBySlot(EquipmentSlot.CHEST), chest),
+                peer.level().getEntitiesOfClass(PathfinderMob.class, peer.getBoundingBox().inflate(64),
+                    mob -> mob.getType() == EntityTypes.IRON_GOLEM || mob.getType() == EntityTypes.VILLAGER
+                        || mob.getType() == EntityTypes.COW).size());
             var report = Map.of("request", request, "completed", complete, "mobTravel", travel, "mobs", SAMPLES,
                 "sourceWater", sourceWater, "nativeWallDry", blockedWater,
-                "avatarVertices", AVATAR, "textureFrames", TEXTURES.entrySet().stream()
+                "cleanup", cleanup, "avatarVertices", AVATAR, "textureFrames", TEXTURES.entrySet().stream()
                     .collect(java.util.stream.Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().size())));
             try {
                 var output = Path.of(System.getProperty("garrycraft.artifacts")); Files.createDirectories(output);
