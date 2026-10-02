@@ -68,6 +68,42 @@
       "step": true
     },
     {
+      "name": "fast-wall",
+      "ticks": 20,
+      "startHeight": 2,
+      "startZOffset": 5,
+      "velocity": [0, -2, 6],
+      "wall": true
+    },
+    {
+      "name": "fast-low-wall",
+      "ticks": 20,
+      "startHeight": 2,
+      "startZOffset": 5,
+      "velocity": [0, -2, 6],
+      "wall": true,
+      "wallHeight": 1
+    },
+    {
+      "name": "elytra-wall",
+      "ticks": 20,
+      "startHeight": 2,
+      "startZOffset": 5,
+      "velocity": [0, -2, 6],
+      "gliding": true,
+      "wall": true
+    },
+    {
+      "name": "elytra-low-wall",
+      "ticks": 20,
+      "startHeight": 2,
+      "startZOffset": 5,
+      "velocity": [0, -2, 6],
+      "gliding": true,
+      "wall": true,
+      "wallHeight": 1
+    },
+    {
       "name": "diagonal-wall",
       "ticks": 80,
       "forward": true,

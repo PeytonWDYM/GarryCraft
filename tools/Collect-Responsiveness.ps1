@@ -15,6 +15,10 @@ $inputP99 = $ages[[Math]::Ceiling($ages.Count * .99) - 1]
 $checks = [ordered]@{
     videoScroll = $minecraft.videoScroll -gt 0
     creativeSearchScroll = $minecraft.creativeScroll -gt 0
+    creativeSearchTyping = $minecraft.searches[0].query -eq 'stone' -and $minecraft.searches[0].items.Count -gt 0 -and
+        @($minecraft.searches[0].items | Where-Object { $_ -notmatch 'stone' }).Count -eq 0
+    creativeSearchEditing = $minecraft.searches[1].query -eq 'ston' -and $minecraft.searches[1].items.Count -gt $minecraft.searches[0].items.Count
+    creativeSearchFocus = $source.textFocus.Count -eq 2 -and @($source.textFocus | Where-Object { -not $_.focused }).Count -eq 0
     continuousYaw = $minecraft.maxYawStep -lt 30
     tutorialDisabled = $minecraft.tutorialDisabled
     inputDelivery = $inputP99 -lt 25

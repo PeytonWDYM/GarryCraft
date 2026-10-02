@@ -55,6 +55,9 @@ public final class StatePublisher {
         state.addProperty("grounded", player.onGround());
         state.addProperty("health", player.getHealth());
         state.addProperty("sprinting", player.isSprinting());
+        state.addProperty("sneaking", player.isShiftKeyDown());
+        state.addProperty("flying", player.getAbilities().flying);
+        state.addProperty("gliding", player.isFallFlying());
         state.addProperty("sprintInput", input.sprint());
         state.addProperty("forwardInput", input.forward());
         state.addProperty("swimming", player.isSwimming());
@@ -80,6 +83,8 @@ public final class StatePublisher {
         state.addProperty("lightingTestYaw", player.getYRot());
         state.addProperty("lightingTestPitch", player.getXRot());
         state.addProperty("fixture", PhysicsOracle.fixture());
+        state.addProperty("polishRequest", dev.garrycraft.testing.GameplayOracle.request());
+        state.addProperty("polishPhase", dev.garrycraft.testing.GameplayOracle.phase());
         state.add("entityHits", JSON.toJsonTree(SourceCombat.hits()));
         state.add("mobs", JSON.toJsonTree(dev.garrycraft.combat.SourceMobs.states()));
         state.addProperty("mobDamageAck", dev.garrycraft.combat.SourceMobs.acknowledged());

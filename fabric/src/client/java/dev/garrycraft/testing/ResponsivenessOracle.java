@@ -28,6 +28,7 @@ public final class ResponsivenessOracle {
     private static CameraType savedCamera;
     private static final ArrayList<Map<String, Object>> samples = new ArrayList<>();
     private static final ArrayList<Double> ages = new ArrayList<>();
+    private static final ArrayList<Map<String, Object>> searches = new ArrayList<>();
     private static float previousYaw, maxYawStep;
     private static long previousFrame;
     private static double videoScroll, creativeScroll;
@@ -40,6 +41,7 @@ public final class ResponsivenessOracle {
         if (!running && input.test().startsWith("responsiveness:") && !input.test().equals(request)) {
             request = input.test(); phase = "look"; tick = 0; running = true;
             samples.clear(); ages.clear(); maxYawStep = 0; previousFrame = 0; videoScroll = 0; creativeScroll = 0;
+            searches.clear();
             previousYaw = mc.player.getYRot();
             savedMode = mc.gameMode.getPlayerMode();
             savedCamera = mc.options.getCameraType();
@@ -64,10 +66,17 @@ public final class ResponsivenessOracle {
             mc.gui.setScreen(screen);
             ((CreativeScreenAccessor) screen).garrycraft$tab(CreativeModeTabs.searchTab());
         }
+        if (tick == 180) phase = "search";
+        if (tick == 220) phase = "edit-search";
         if (phase.equals("creative")) creativeScroll = Math.max(creativeScroll,
             ((CreativeScreenAccessor) mc.gui.screen()).garrycraft$scroll());
+        if (tick == 215 || tick == 255) {
+            var screen = (CreativeModeInventoryScreen) mc.gui.screen();
+            searches.add(Map.of("phase", phase, "query", ((CreativeScreenAccessor) screen).garrycraft$searchBox().getValue(),
+                "items", screen.getMenu().items.stream().map(stack -> stack.getHoverName().getString()).toList()));
+        }
         samples.add(Map.of("tick", tick, "phase", phase, "videoScroll", videoScroll, "creativeScroll", creativeScroll));
-        if (tick == 220) finish(mc, true);
+        if (tick == 260) finish(mc, true);
     }
 
     public static void frame(Minecraft mc) {
@@ -89,7 +98,8 @@ public final class ResponsivenessOracle {
             Files.writeString(output.resolve("responsiveness-minecraft.json"), new Gson().toJson(Map.of(
                 "request", request, "completed", completed, "videoScroll", videoScroll, "creativeScroll", creativeScroll,
                 "maxYawStep", maxYawStep, "inputAgesMs", ages, "samples", samples,
-                "tutorialDisabled", mc.options.tutorialStep == TutorialSteps.NONE, "fpsLimit", mc.options.framerateLimit().get())));
+                "tutorialDisabled", mc.options.tutorialStep == TutorialSteps.NONE, "fpsLimit", mc.options.framerateLimit().get(),
+                "searches", searches)));
             FrameTimings.save(output);
         } catch (IOException failure) { throw new IllegalStateException("Cannot save responsiveness trace", failure); }
     }

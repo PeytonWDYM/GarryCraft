@@ -50,7 +50,7 @@ namespace {
     std::unordered_map<std::string, Texture> textures;
     // Old mode handles are invalid. Keep callback storage until the module exits without calling those handles again.
     std::vector<Texture> retired;
-    unsigned videoGeneration = 0;
+    ULONGLONG textureGeneration = 0;
     void* materialSystem = nullptr;
     using CreateTexture = ITexture* (__fastcall*)(void*, const char*, const char*, int, int, ImageFormat, int);
     CreateTexture createTexture = nullptr;
@@ -61,7 +61,7 @@ namespace {
         if (!reset) return 1;
         for (auto& [name, entry] : textures) retired.push_back(std::move(entry));
         textures.clear();
-        ++videoGeneration;
+        ++textureGeneration;
         return 1;
     }
 
@@ -106,7 +106,7 @@ namespace {
             pixels->width = width;
             pixels->height = height;
             pixels->rgba.assign(data, data + length);
-            auto nativeName = std::string(name) + "/video" + std::to_string(videoGeneration);
+            auto nativeName = std::string(name) + "/generation" + std::to_string(textureGeneration);
             auto* texture = createTexture(materialSystem, nativeName.c_str(), TEXTURE_GROUP_OTHER, width, height,
                 IMAGE_FORMAT_RGBA8888, TEXTUREFLAGS_NOMIP | TEXTUREFLAGS_NOLOD | TEXTUREFLAGS_CLAMPS
                 | TEXTUREFLAGS_CLAMPT | TEXTUREFLAGS_POINTSAMPLE | TEXTUREFLAGS_EIGHTBITALPHA);
@@ -128,6 +128,9 @@ namespace {
 }
 
 void registerTextures(GarrysMod::Lua::ILuaBase* lua) {
+    // Source retains texture names across map reloads, even when the client Lua module reloads.
+    // A new lifetime must not retrieve its predecessor's released procedural texture.
+    textureGeneration = GetTickCount64();
     lua->PushCFunction(upload);
     lua->SetField(-2, "upload");
     lua->PushCFunction(resetVideo);
