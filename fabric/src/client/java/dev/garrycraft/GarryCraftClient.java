@@ -241,6 +241,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             return;
         }
         boolean loading = active && COLLISION.acknowledged() < input.geometryBatches() - 1;
+        if (!loading) dev.garrycraft.testing.ParticleReloadOracle.tick(minecraft, input);
         SourceWorld.active = active && !loading && !PhysicsOracle.reference;
         if (!loading && (active || dev.garrycraft.testing.DamageOracle.running())) dev.garrycraft.testing.DamageOracle.update(minecraft, input);
         if (active && !loading && !minecraft.player.connection.hasClientLoaded()) {
