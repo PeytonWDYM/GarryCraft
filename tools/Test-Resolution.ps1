@@ -4,13 +4,16 @@ param(
     [switch]$Screenshots
 )
 $ErrorActionPreference = 'Stop'
-$executable = [IO.Path]::GetFullPath("$LabPath\bin\win64\gmod.exe")
 if (-not (Test-Path -LiteralPath "$LabPath\.garrycraft-lab")) { throw 'Resolution tests require an isolated lab installation.' }
+$LabPath = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$LabPath/.garrycraft-lab")
+$RunRoot = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$RunRoot/bridge.bin")
+$executable = [IO.Path]::GetFullPath("$LabPath\bin\win64\gmod.exe")
 $owned = @(Get-CimInstance Win32_Process | Where-Object { $_.ExecutablePath -eq $executable } |
     ForEach-Object { Get-Process -Id $_.ProcessId } | Where-Object { $_.MainWindowHandle -ne 0 })
 if ($owned.Count -ne 1) { throw 'Expected one window in the isolated GMod installation.' }
 $game = $owned[0]
-$minecraft = @(Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'java.exe' -and $_.CommandLine -like "*-Dgarrycraft.bridge=$RunRoot*" })
+$minecraft = @(Get-CimInstance Win32_Process -Filter "name='java.exe'" |
+    Where-Object { $_.CommandLine.Replace('/', '\').Contains($RunRoot) })
 if ($minecraft.Count -ne 1) { throw 'Expected one Minecraft process for this run directory.' }
 
 # Source accepts console commands through the same WM_COPYDATA message as its -hijack launcher flag.
@@ -45,15 +48,22 @@ for ($round = 1; $round -le 3; $round++) {
         Start-Sleep -Seconds 3
         $game.Refresh()
         if ($game.HasExited) { throw 'GMod exited during the resolution test.' }
-        $state = & "$PSScriptRoot\Observe.ps1" -Bridge "$RunRoot\bridge.bin"
-        if (-not $state.linked) { throw 'The bridge lost Minecraft during the resolution test.' }
+        $recoveryStarted = [DateTime]::UtcNow
+        $deadline = $recoveryStarted.AddSeconds(120)
+        do {
+            $state = & "$PSScriptRoot\Observe.ps1" -Bridge "$RunRoot\bridge.bin"
+            if ($state.linked -and $state.frame -gt $before.frame) { break }
+            Start-Sleep -Milliseconds 500
+        } while ([DateTime]::UtcNow -lt $deadline)
+        if (-not $state.linked) { throw 'The bridge did not recover after the video reset.' }
         if ($state.frame -le $before.frame -or -not (Get-Process -Id $minecraft[0].ProcessId -ErrorAction SilentlyContinue)) {
             throw 'Minecraft stopped publishing during the resolution test.'
         }
         $shot = "$artifacts\resolution-$round-$($size[0])x$($size[1]).png"
         if ($Screenshots) { & um win shot $shot --exe gmod.exe --scale 0.5 }
         $samples += @{round=$round; width=$size[0]; height=$size[1]; pid=$game.Id; minecraftPid=$minecraft[0].ProcessId;
-            frame=$state.frame; linked=$state.linked; renderInstance=$state.renderInstance; screenshot=$shot}
+            frame=$state.frame; linked=$state.linked; renderInstance=$state.renderInstance; screenshot=$shot;
+            recoverySeconds=([DateTime]::UtcNow-$recoveryStarted).TotalSeconds}
     }
 }
 $samples | ConvertTo-Json | Set-Content -LiteralPath "$artifacts\resolution-changes.json"

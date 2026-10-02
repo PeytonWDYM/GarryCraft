@@ -64,6 +64,8 @@ public final class StatePublisher {
         state.addProperty("gameMode", mc.gameMode.getPlayerMode().getName());
         state.addProperty("reference", PhysicsOracle.sampledReference);
         state.addProperty("parityPhase", ParityOracle.phase());
+        state.addProperty("responsivenessPhase", dev.garrycraft.testing.ResponsivenessOracle.phase());
+        state.addProperty("responsivenessRequest", dev.garrycraft.testing.ResponsivenessOracle.request());
         state.addProperty("parityRequest", ParityOracle.request());
         state.addProperty("parityTick", ParityOracle.tick());
         state.addProperty("damageTestRequest", dev.garrycraft.testing.DamageOracle.request());
@@ -100,6 +102,10 @@ public final class StatePublisher {
         state.addProperty("targetFps", GarryCraftClient.targetFps());
         state.addProperty("renderInstance", GarryCraftClient.renderInstance());
         state.addProperty("uiAck", InputBridge.acknowledged());
+        state.addProperty("clientUiAck", InputBridge.clientAcknowledged());
+        var controls = GarryCraftClient.controls();
+        state.addProperty("clientInputFrame", controls == null ? 0 : controls.frame());
+        state.addProperty("clientInputAgeMs", controls == null ? -1 : (BridgeClock.seconds() - controls.time()) * 1000);
         state.addProperty("damageAck", DamageBridge.acknowledged());
         state.addProperty("screenType", mc.gui.screen() == null ? "" : mc.gui.screen().getClass().getSimpleName());
         OUTGOING.set(JSON.toJson(state));

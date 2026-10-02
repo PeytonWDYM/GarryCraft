@@ -7,6 +7,7 @@ import net.minecraft.client.input.KeyEvent;
 import net.minecraft.client.input.MouseButtonInfo;
 import net.minecraft.client.input.CharacterEvent;
 import org.lwjgl.sdl.SDLKeyboard;
+import net.minecraft.util.Mth;
 
 /** Replays host transitions through Minecraft's handlers, as SkyCraft does for its hidden client. */
 public final class InputBridge {
@@ -15,8 +16,10 @@ public final class InputBridge {
     private static int selectedSlot = -1;
     private static long acknowledged;
     private static String session = "";
+    private static long clientAcknowledged;
     private InputBridge() {}
     public static long acknowledged() { return acknowledged; }
+    public static long clientAcknowledged() { return clientAcknowledged; }
 
     public static boolean isKeyDown(int scancode) {
         return scancode >= 0 && scancode < KEYS.length && KEYS[scancode];
@@ -49,10 +52,15 @@ public final class InputBridge {
     }
 
     public static void apply(Minecraft mc, HostInput input) {
+        apply(mc, input, null);
+    }
+
+    public static void apply(Minecraft mc, HostInput input, ClientControls controls) {
         if (!session.equals(input.session()) && input.active()) {
             session = input.session();
             acknowledged = 0;
             selectedSlot = -1;
+            clientAcknowledged = 0;
         }
         var options = mc.options;
         key(mc, options.keyUp, input.forward());
@@ -62,15 +70,32 @@ public final class InputBridge {
         key(mc, options.keyJump, input.jump());
         key(mc, options.keyShift, input.sneak());
         key(mc, options.keySprint, input.sprint());
-        key(mc, options.keyTogglePerspective, input.camera());
-        key(mc, options.keyInventory, input.inventory());
-        key(mc, options.keyChat, input.chat());
+        key(mc, options.keyTogglePerspective, controls == null ? input.camera() : controls.camera());
+        key(mc, options.keyInventory, controls == null ? input.inventory() : controls.inventory());
+        key(mc, options.keyChat, controls == null ? input.chat() : controls.chat());
+        key(mc, 226, mc.gui.screen() != null && controls != null && controls.alt());
         if (mc.gui.screen() != null) {
-            var window = mc.getWindow();
-            mc.mouseHandler.onMove(window.handle(), input.mouseX() * window.getScreenWidth(), input.mouseY() * window.getScreenHeight(), 0, 0);
+            if (controls != null) {
+                key(mc, 225, controls.shift());
+                key(mc, 224, controls.control());
+            }
+            move(mc, controls == null ? input.mouseX() : controls.mouseX(), controls == null ? input.mouseY() : controls.mouseY());
         }
-        mouse(mc, 1, input.attack());
-        mouse(mc, 3, input.use());
+        if (controls == null || mc.gui.screen() == null) {
+            mouse(mc, 1, controls == null ? input.attack() : controls.attack());
+            mouse(mc, 3, controls == null ? input.use() : controls.use());
+        }
+        if (controls != null) for (var event : controls.events()) {
+            if (event.id() <= clientAcknowledged) continue;
+            move(mc, event.mouseX(), event.mouseY());
+            if (event.key() != 0) {
+                key(mc, event.key(), true);
+                key(mc, event.key(), false);
+            } else if (event.button() != 0) mouse(mc, event.button(), event.down());
+            else if (event.scroll() != 0) mc.mouseHandler.onScroll(mc.getWindow().handle(), 0, event.scroll());
+            else event.text().codePoints().forEach(point -> mc.keyboardHandler.charTyped(mc.getWindow().handle(), new CharacterEvent(point)));
+            clientAcknowledged = event.id();
+        }
         if (input.uiEvents() != null) for (var event : input.uiEvents()) {
             if (event.id() <= acknowledged) continue;
             if (event.key() != 0) {
@@ -80,14 +105,23 @@ public final class InputBridge {
             acknowledged = event.id();
         }
         if (mc.player != null) {
-            mc.player.setYRot(input.yaw());
-            mc.player.setXRot(input.pitch());
-            mc.player.yRotO = input.yaw();
-            mc.player.xRotO = input.pitch();
-            if (selectedSlot != input.slot()) {
-                selectedSlot = input.slot();
+            // Keep yaw continuous so vanilla hand sway never interpolates across a 360-degree discontinuity.
+            float yaw = controls == null ? input.yaw() : controls.yaw();
+            float pitch = controls == null ? input.pitch() : controls.pitch();
+            mc.player.setYRot(mc.player.getYRot() + Mth.wrapDegrees(yaw - mc.player.getYRot()));
+            mc.player.setXRot(pitch);
+            mc.player.yRotO = mc.player.getYRot();
+            mc.player.xRotO = pitch;
+            int slot = controls == null ? input.slot() : controls.slot();
+            if (selectedSlot != slot) {
+                selectedSlot = slot;
                 mc.player.getInventory().setSelectedSlot(selectedSlot);
             }
         }
+    }
+
+    private static void move(Minecraft mc, double x, double y) {
+        var window = mc.getWindow();
+        mc.mouseHandler.onMove(window.handle(), x * window.getScreenWidth(), y * window.getScreenHeight(), 0, 0);
     }
 }

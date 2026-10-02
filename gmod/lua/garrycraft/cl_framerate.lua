@@ -6,19 +6,28 @@ local frameIndex = 0
 local phases = {}
 local previousFrame
 
-garrycraft_bridge.cap(GetConVar("fps_max"), 240)
-garrycraft_bridge.cap(GetConVar("fps_max_nofocus"), 240)
+local savedCaps
+local function restoreCaps()
+    if not savedCaps then return end
+    for name, value in pairs(savedCaps) do garrycraft_bridge.cap(GetConVar(name), value) end
+    savedCaps = nil
+    previousFrame = nil
+end
+hook.Add("ShutDown", "GarryCraftFrameRestore", restoreCaps)
 
 -- Keep the requested ceiling fixed. A temporary slowdown must not lower both games' caps.
 hook.Add("PreRender", "GarryCraftFrameTarget", function()
-    if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") then return end
+    if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") then restoreCaps() return end
+    if not savedCaps then savedCaps = {fps_max = GetConVar("fps_max"):GetInt(), fps_max_nofocus = GetConVar("fps_max_nofocus"):GetInt()} end
     local now = SysTime()
     local frame = previousFrame and now - previousFrame or 1 / 240
     previousFrame = now
     frameIndex = frameIndex + 1
     local index = (frameIndex - 1) % 25000 + 1
     frames[index] = frame * 1000
-    phases[index] = GC.State and GC.State.parityPhase or "waiting"
+    phases[index] = GC.State and (string.StartWith(GC.State.responsivenessRequest or "", "responsiveness:")
+        and GC.State.responsivenessPhase ~= "done" and GC.State.responsivenessPhase ~= "waiting"
+        and GC.State.responsivenessPhase or GC.State.parityPhase) or "waiting"
     average = Lerp(0.04, average, frame)
     if GetConVar("fps_max"):GetInt() ~= 240 then garrycraft_bridge.cap(GetConVar("fps_max"), 240) end
     if GetConVar("fps_max_nofocus"):GetInt() ~= 240 then garrycraft_bridge.cap(GetConVar("fps_max_nofocus"), 240) end

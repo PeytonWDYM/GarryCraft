@@ -13,18 +13,31 @@ local request
 local armed = false
 local testOrigin
 
+function GC.ParityStop()
+    for _, entity in ipairs(targets) do if IsValid(entity) then entity:Remove() end end
+    targets = {}
+    if IsValid(looseProp) then looseProp:Remove() end
+    looseProp = nil
+    finished = true
+end
+
 function GC.RunEntityTest(caller)
     assert(game.SinglePlayer(), "GarryCraft tests require local single-player")
     for _, entity in ipairs(targets) do if IsValid(entity) then entity:Remove() end end
     local owner = IsValid(caller) and caller or player.GetHumans()[1]
     if game.GetMap() == "gm_construct" then owner:SetPos(Vector(576, -896, -144)) end
     local origin = owner:GetPos()
+    local nextRequest = "entities:" .. tostring(SysTime())
+    GC.BeginTest(owner, nextRequest)
+    request = nextRequest
     testOrigin = origin
     owner:SetEyeAngles(Angle(0, -90, 0))
     local npc = ents.Create("npc_citizen")
     npc:SetPos(origin + Vector(0, -96, 0))
     npc:SetName("garrycraft-test-npc")
     npc:SetModel("models/Humans/Group01/male_07.mdl")
+    -- Test citizens have no player squad. Keep their combat AI out of the citizen recruitment path.
+    npc:SetKeyValue("spawnflags", "1048576")
     npc:Spawn()
     npc:SetCollisionBounds(Vector(-16, -16, 0), Vector(16, 16, 64))
     npc:SetNPCState(NPC_STATE_IDLE)
@@ -58,8 +71,6 @@ function GC.RunEntityTest(caller)
     phase = nil
     aiHealth = nil
     armed = false
-    request = "entities:" .. tostring(SysTime())
-    GC.BeginTest(owner, request)
     owner:ConCommand("garrycraft_fps_reset\n")
 end
 
@@ -117,11 +128,9 @@ function GC.ParitySample(state)
         file.Write("garrycraft-parity-source.json", util.TableToJSON({request = request, trace = trace, finalHealth = health,
             applied = GC.EntitiesApplied(), completed = state.parityPhase == "done",
             blastSpeed = largestImpulse, blastDisplacement = IsValid(looseProp) and looseProp:GetPos():Distance(looseStart) or -1,
-            aiDamage = aiHealth and aiHealth - health[1] or 0}))
+            aiDamage = aiHealth and aiHealth - health[1] or 0, mobScans = GC.MobScanReport()}))
         print("GarryCraft parity trace saved")
         player.GetHumans()[1]:ConCommand("garrycraft_render_report\ngarrycraft_world_report\ngarrycraft_blocks_report\ngarrycraft_frame_report\n")
-        for _, entity in ipairs(targets) do
-            if IsValid(entity) then entity:SetHealth(entity.GarryCraftTestHealth) end
-        end
+        GC.ParityStop()
     end
 end

@@ -29,6 +29,9 @@ local uiSequence = 0
 local bridgePath = CreateConVar("garrycraft_bridge", "", FCVAR_ARCHIVE, "Absolute path to GarryCraft bridge.bin")
 
 local function stop()
+    GC.ParityStop()
+    GC.TerrainTestStop()
+    GC.MobBudgetStop()
     GC.DamageTestStop()
     GC.RespawnStop()
     GC.DamageStop()
@@ -42,14 +45,19 @@ local function stop()
         owner:SetViewOffset(saved.eye)
         owner:SetViewOffsetDucked(saved.duckEye)
         owner:SetCollisionGroup(saved.collisionGroup)
+        owner:SetHealth(saved.health)
+        owner:SetArmor(saved.armor)
         owner:SelectWeapon(saved.weapon)
+        if not saved.hadBridgeWeapon then owner:StripWeapon("weapon_garrycraft") end
         owner:ChatPrint("GarryCraft stopped")
     end
-    if session then
+    if owner and session then
         garrycraft_bridge.send(0, util.TableToJSON({version = 1, session = session, active = false, frame = frame}))
+        garrycraft_bridge.close()
     end
     owner = nil
     pose = nil
+    session = nil
 end
 
 local function start(player)
@@ -80,6 +88,7 @@ local function start(player)
     saved = {moveType = player:GetMoveType(), hullMin = hullMin, hullMax = hullMax,
         duckMin = duckMin, duckMax = duckMax, eye = player:GetViewOffset(),
         duckEye = player:GetViewOffsetDucked(), collisionGroup = player:GetCollisionGroup(),
+        health = player:Health(), armor = player:Armor(), hadBridgeWeapon = player:HasWeapon("weapon_garrycraft"),
         weapon = IsValid(player:GetActiveWeapon()) and player:GetActiveWeapon():GetClass() or "weapon_physgun"}
     player:Give("weapon_garrycraft")
     player:SelectWeapon("weapon_garrycraft")
@@ -100,6 +109,8 @@ end
 
 GC.Start = start
 GC.Stop = stop
+function GC.IsActive() return IsValid(owner) end
+function GC.IsLinked() return pose ~= nil end
 
 concommand.Add("garrycraft_start", function(caller)
     if IsValid(caller) then start(caller) else
@@ -213,10 +224,12 @@ hook.Add("Think", "GarryCraftBridge", function()
             if state.damageAck then GC.DamageAcknowledge(state.damageAck) end
             GC.EntitiesHit(owner, state)
             GC.MobsAccept(state)
+            GC.MobBudgetSample(owner, state)
             GC.ParitySample(state)
             GC.DamageTestSample(owner, state)
             GC.TerrainTestSample(owner, state)
-            if state.lightingTestPhase and state.lightingTestPhase ~= "done" and state.lightingTestRequest == testId then
+            -- Normal play also has an empty request. Only an active lighting test may control the host's look.
+            if string.StartWith(testId, "lighting:") and state.lightingTestPhase ~= "done" and state.lightingTestRequest == testId then
                 owner:SetEyeAngles(Angle(state.lightingTestPitch, -state.lightingTestYaw - 90, 0))
             end
             lastFrame = state.frame
@@ -233,7 +246,7 @@ hook.Add("Think", "GarryCraftBridge", function()
             end
         end
     end
-    if peerInstance and RealTime() - lastPeer > 5 then stop() return end
+    if RealTime() - lastPeer > (peerInstance and 5 or 20) then stop() return end
     frame = frame + 1
     GC.BlocksPoll(renderInstance)
     local position = GC.ToMinecraft(owner:GetPos())

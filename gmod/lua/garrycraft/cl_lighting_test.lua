@@ -12,6 +12,8 @@ hook.Add("Think", "GarryCraftLightingTest", function()
     local model = GC.ModelLights(probe)
     local floor = render.ComputeDynamicLighting(GC.ToSource(36.5, -3.99, -.5), Vector(0, 0, 1))
     samples[phase] = {lights = GC.LightReport(), modelLights = #model, floorLight = {floor.x, floor.y, floor.z},
-        camera = {state.x, state.y, state.z}, probe = tostring(probe)}
+        camera = {state.x, state.y, state.z}, view = tostring(GC.ViewOrigin), angles = tostring(GC.ViewAngles),
+        probe = tostring(probe), water = GC.WaterLightingReport(GC.ToSource(35.5, -3.5, .5))}
     file.Write("garrycraft-lighting-source.json", util.TableToJSON({request = request, samples = samples}))
+    RunConsoleCommand("jpeg")
 end)

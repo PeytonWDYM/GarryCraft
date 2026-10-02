@@ -1,5 +1,6 @@
 local GC = GarryCraft
 local textures = {}
+local materialTints = {}
 local avatar = {}
 local hands = {}
 local avatarRevision, handsRevision
@@ -9,6 +10,7 @@ local session
 local overlay
 local overlayAt = 0
 local overlayMaterials = {}
+local overlayRevisions = {}
 local waitingVideo
 local stats = {textures = 0, vertices = 0, frames = 0}
 local timing = {}
@@ -26,20 +28,25 @@ local function clearMeshes()
     avatarRevision, handsRevision = nil, nil
 end
 
+function GC.TextureName(id, width, height)
+    return "garrycraft/runtime/" .. id .. "/" .. width .. "x" .. height
+end
+
 local function valid(header)
     local state = GC.State
     return state and header.session == state.session and header.instance == state.renderInstance
 end
 
-local function packet(payload)
-    local boundary = assert(string.find(payload, "\n", 1, true), "Missing render packet header")
-    return util.JSONToTable(string.sub(payload, 1, boundary - 1)), string.sub(payload, boundary + 1)
+local function packet(lane)
+    local header, body = garrycraft_bridge.receive_render(lane)
+    if header then return util.JSONToTable(header), body end
 end
 
 local function material(name, texture, shader)
     local result = CreateMaterial(name, shader, {['$basetexture'] = texture, ['$model'] = 1,
         ['$vertexcolor'] = 1, ['$vertexalpha'] = 0, ['$nocull'] = 1,
         ['$alphatest'] = 1, ['$alphatestreference'] = 0.1})
+    result:SetTexture("$basetexture", texture)
     return result
 end
 
@@ -49,11 +56,13 @@ local function buildMeshes(batches, viewmodel, world, body)
         local mesh = Mesh(batch.unlit and colorFormat or meshFormat)
         garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
         result[#result + 1] = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
+            tintId = batch.tint,
+            tint = Vector(bit.rshift(batch.tint, 16) / 255, bit.band(bit.rshift(batch.tint, 8), 255) / 255, bit.band(batch.tint, 255) / 255),
             vertices = batch.count, center = GC.ToSource(batch.x, batch.y, batch.z), lighting = {colors = {}}}
     end
     return result
 end
-GC.RenderPacket = packet
+GC.ReceiveRenderPacket = packet
 GC.BuildRenderMeshes = buildMeshes
 
 function GC.DestroyRenderMeshes(batches)
@@ -66,8 +75,13 @@ function GC.DrawRenderMeshes(batches, unlit, position)
         local texture = textures[batch.texture]
         if texture then
             if not unlit and not batch.unlit then GC.PrepareLighting(position or batch.center, batch.lighting) end
-            render.SetMaterial((unlit or batch.unlit) and (batch.translucent and texture.unlit or texture.emissive)
-                or batch.translucent and texture.translucent or texture.opaque)
+            local material = (unlit or batch.unlit) and (batch.translucent and texture.unlit or texture.emissive)
+                or batch.translucent and texture.translucent or texture.opaque
+            if materialTints[material] ~= batch.tintId then
+                material:SetVector("$color2", batch.tint)
+                materialTints[material] = batch.tintId
+            end
+            render.SetMaterial(material)
             batch.mesh:Draw()
             drawn = drawn + batch.vertices
         end
@@ -93,6 +107,7 @@ end
 
 hook.Add("PreRender", "GarryCraftRenderTransfers", function()
     if garrycraft_bridge.textures_reset() then
+        overlayRevisions = {}
         waitingVideo = GC.State and GC.State.renderInstance
         GC.VideoReset = true
         overlay = nil
@@ -101,6 +116,8 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
         end
     end
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") or not GC.State then
+        if instance then clearMeshes() GC.ClearWorldScene() GC.ClearBlockEffects() instance = nil end
+        GC.OverlayReady = false
         overlay = nil waitingVideo = nil return
     end
     if waitingVideo == GC.State.renderInstance then return end
@@ -111,17 +128,18 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
         instance = GC.State.renderInstance
         session = GC.State.session
         textures = {}
+        materialTints = {}
+        overlayRevisions = {}
         overlay = nil
         stats = {textures = 0, vertices = 0, frames = 0}
         timing = {}
         GC.ClearWorldScene()
         GC.ClearBlockEffects()
     end
-    local pixels = garrycraft_bridge.receive(4)
-    if pixels then
-        local header, rgba = packet(pixels)
+    local header, rgba = packet(4)
+    if header then
         if valid(header) then
-            local name = "garrycraft/" .. instance .. "/" .. util.CRC(session) .. "/" .. header.id
+            local name = GC.TextureName(header.id, header.width, header.height)
             local texture = garrycraft_bridge.upload(name, header.width, header.height, rgba)
             if not textures[header.id] then
                 local opaque = material(name, texture, "VertexLitGeneric")
@@ -131,7 +149,10 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
                     ['$translucent'] = 1, ['$model'] = 1, ['$vertexcolor'] = 1, ['$vertexalpha'] = 1, ['$nocull'] = 1})
                 local emissive = CreateMaterial(name .. "/emissive", "UnlitGeneric", {['$basetexture'] = texture,
                     ['$model'] = 1, ['$vertexcolor'] = 1, ['$alphatest'] = 1, ['$alphatestreference'] = 0.1})
-                textures[header.id] = {opaque = opaque, translucent = translucent, unlit = unlit, emissive = emissive}
+                translucent:SetTexture("$basetexture", texture)
+                unlit:SetTexture("$basetexture", texture)
+                emissive:SetTexture("$basetexture", texture)
+                textures[header.id] = {opaque = opaque, translucent = translucent, unlit = unlit, emissive = emissive, name = name}
                 stats.textures = stats.textures + 1
             end
             net.Start("garrycraft_texture_ack")
@@ -139,41 +160,51 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
             net.WriteString(instance)
             net.SendToServer()
         end
+        garrycraft_bridge.release_packet(rgba)
     end
-    local snapshot = garrycraft_bridge.receive(5)
-    if snapshot then
+    local scene, body = packet(5)
+    if scene then
         local before = SysTime()
-        local scene, body = packet(snapshot)
         if valid(scene) then acceptAvatar(scene, body) end
+        garrycraft_bridge.release_packet(body)
         stats.sceneMs = (stats.sceneMs or 0) * 0.9 + (SysTime() - before) * 100
         stats.poses = (stats.poses or 0) + 1
     end
-    local frame = garrycraft_bridge.receive(6)
-    if frame then
+    local header, rgba = packet(6)
+    if header then
         local before = SysTime()
-        local header, rgba = packet(frame)
         if valid(header) then
             overlay = {}
             for _, tile in ipairs(header.tiles) do
-                local name = "garrycraft/overlay/" .. instance .. "/" .. header.width .. "x" .. header.height .. "/" .. tile.x .. "/" .. tile.y
-                local texture = garrycraft_bridge.upload(name, tile.width, tile.height,
-                    string.sub(rgba, tile.offset + 1, tile.offset + tile.width * tile.height * 4), true)
+                local name = "garrycraft/overlay/runtime/" .. header.width .. "x" .. header.height .. "/" .. tile.x .. "/" .. tile.y
                 local material = overlayMaterials[name]
-                if not material then
-                    material = CreateMaterial(name, "UnlitGeneric", {['$basetexture'] = texture,
-                        ['$translucent'] = 1, ['$vertexcolor'] = 1, ['$vertexalpha'] = 1, ['$ignorez'] = 1})
-                    overlayMaterials[name] = material
+                if overlayRevisions[name] ~= tile.revision then
+                    local texture = garrycraft_bridge.upload(name, tile.width, tile.height,
+                        rgba, true, tile.offset, tile.width * tile.height * 4)
+                    overlayRevisions[name] = tile.revision
+                    stats.tileUploads = (stats.tileUploads or 0) + 1
+                    if not material then
+                        material = CreateMaterial(name, "UnlitGeneric", {['$basetexture'] = texture,
+                            ['$translucent'] = 1, ['$vertexcolor'] = 1, ['$vertexalpha'] = 1, ['$ignorez'] = 1})
+                        overlayMaterials[name] = material
+                    end
+                    material:SetTexture("$basetexture", texture)
                 end
                 overlay[#overlay + 1] = {material = material, x = tile.x, y = tile.y, width = tile.width, height = tile.height}
             end
             overlayAt = RealTime()
             stats.width, stats.height = header.width, header.height
             stats.frames = stats.frames + 1
+            GC.OverlayFrame = header.frame
+            GC.OverlayAgeMs = (garrycraft_bridge.clock() - header.capturedAt) * 1000
+            stats.overlayAgeMs = GC.OverlayAgeMs
             stats.overlayMs = (stats.overlayMs or 0) * 0.9 + (SysTime() - before) * 100
             GC.OverlayReady = true
         end
+        garrycraft_bridge.release_packet(rgba)
     end
 end)
+function GC.RenderTexture(id) return textures[id] end
 
 -- Minecraft supplies the hand animation. Source supplies its camera and lighting.
 hook.Add("PostDrawTranslucentRenderables", "GarryCraftHands", function(depth, skybox)

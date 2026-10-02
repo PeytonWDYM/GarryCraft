@@ -34,10 +34,9 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
         session, instance = GC.State.session, GC.State.renderInstance
         acknowledged = 0
     end
-    local payload = garrycraft_bridge.receive(7)
-    if not payload then return end
-    local section, body = GC.RenderPacket(payload)
-    if section.session ~= session or section.instance ~= instance then return end
+    local section, body = GC.ReceiveRenderPacket(7)
+    if not section then return end
+    if section.session ~= session or section.instance ~= instance then garrycraft_bridge.release_packet(body) return end
     if section.sequence > acknowledged then
         if section.clear then clear() else
             local previous = sections[section.key]
@@ -47,6 +46,7 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
         end
         acknowledged = section.sequence
     end
+    garrycraft_bridge.release_packet(body)
     -- Repeat acknowledgments because the server may receive the clear packet after the client does.
     net.Start("garrycraft_world_ack")
     net.WriteUInt(acknowledged, 32)
@@ -83,6 +83,23 @@ function GC.BlockRenderReport()
         for _, batch in ipairs(section.meshes) do report.vertices = report.vertices + batch.vertices end
     end
     return report
+end
+
+-- The owned lighting scenario places only water inside this probe radius.
+function GC.WaterLightingReport(position)
+    local faces, unlit, twoSided = 0, 0, 0
+    local tints = {}
+    for _, mesh in ipairs(transparent) do
+        if mesh.center:DistToSqr(position) < 20 * 20 then
+            faces = faces + 1
+            if mesh.unlit then unlit = unlit + 1 end
+            local material = GC.RenderTexture(mesh.texture).translucent
+            if bit.band(material:GetInt("$flags"), 8192) ~= 0 then twoSided = twoSided + 1 end
+            local tint = material:GetVector("$color2")
+            tints[#tints + 1] = {expected = {mesh.tint.x, mesh.tint.y, mesh.tint.z}, actual = {tint.x, tint.y, tint.z}}
+        end
+    end
+    return {faces = faces, unlit = unlit, twoSided = twoSided, tints = tints, modelLights = #GC.ModelLights(position)}
 end
 concommand.Add("garrycraft_blocks_report", function()
     file.Write("garrycraft-blocks.json", util.TableToJSON(GC.BlockRenderReport()))

@@ -40,8 +40,8 @@ public final class FrameTimings {
         long now = System.nanoTime();
         if (previous != 0) {
             lastMs = (now - previous) / 1_000_000.0;
-            if (ParityOracle.running()) {
-                String phase = ParityOracle.phase();
+            if (ParityOracle.running() || ResponsivenessOracle.running()) {
+                String phase = ResponsivenessOracle.running() ? ResponsivenessOracle.phase() : ParityOracle.phase();
                 PHASES.computeIfAbsent(phase, ignored -> new Distribution()).add(lastMs);
                 if (SAMPLES.size() < 20000) SAMPLES.add(new Sample(lastMs, phase));
             }

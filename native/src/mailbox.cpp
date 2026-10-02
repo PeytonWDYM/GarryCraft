@@ -40,7 +40,7 @@ void Mailbox::open(const std::wstring& path) {
 
 char* Mailbox::header(unsigned lane) {
     if (!data_) throw std::runtime_error("Bridge is closed");
-    if (lane >= capacities.size()) throw std::out_of_range("Bridge lane must be 0 through 6");
+    if (lane >= capacities.size()) throw std::out_of_range("Bridge lane must be 0 through 8");
     size_t offset = 0;
     for (unsigned i = 0; i < lane; ++i) offset += 64 + capacities[i];
     return data_ + offset;
