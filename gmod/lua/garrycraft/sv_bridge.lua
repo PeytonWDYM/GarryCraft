@@ -38,6 +38,7 @@ local function stop()
     GC.DamageStop()
     GC.BlocksStop()
     GC.MobsStop()
+    GC.NpcTargetingStop()
     if IsValid(owner) then
         owner:SetNWBool("GarryCraft", false)
         owner:SetMoveType(saved.moveType)
@@ -72,6 +73,7 @@ local function start(player, timeout)
     owner = player
     session = game.GetMap() .. ":" .. tostring(SysTime())
     GC.EntitiesBegin(session)
+    GC.NpcTargetingBegin(player)
     GC.MobsBegin(player)
     GC.BlocksBegin(player, session)
     batchIndex = 1
@@ -206,6 +208,7 @@ hook.Add("Think", "GarryCraftBridge", function()
             if peerInstance then
                 GC.RespawnNewPeer()
                 GC.DamageBegin(owner)
+                GC.NpcTargetingBegin(owner)
                 GC.MobsBegin(owner)
                 GC.EntitiesBegin(session)
                 GC.BlocksBegin(owner, session)
@@ -225,6 +228,7 @@ hook.Add("Think", "GarryCraftBridge", function()
             if state.uiAck then while uiEvents[1] and uiEvents[1].id <= state.uiAck do table.remove(uiEvents, 1) end end
             if state.damageAck then GC.DamageAcknowledge(state.damageAck) end
             GC.EntitiesHit(owner, state)
+            GC.NpcTargetingAccept(state)
             GC.MobsAccept(state)
             GC.MobBudgetSample(owner, state)
             GC.ParitySample(state)
