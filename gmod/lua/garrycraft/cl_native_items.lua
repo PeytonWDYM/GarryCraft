@@ -1,13 +1,7 @@
 local GC = GarryCraft
 local items = {}
 local pending = {}
-local leftArm, rightArm = {}, {}
-local leftRevision, rightRevision
-local lastGrips = {}
-local lastGripAt = 0
-local lastGunBones = {}
 local removals = {}
-local retiredMeshes = {}
 local pendingSession, pendingInstance
 local class = "garrycraft_native_item"
 
@@ -43,8 +37,6 @@ local function removeRetired()
         if IsValid(model) then model:Remove() end
         removals[model] = nil
     end
-    for _, batches in ipairs(retiredMeshes) do GC.DestroyRenderMeshes(batches) end
-    retiredMeshes = {}
 end
 
 local function clearItems()
@@ -55,27 +47,13 @@ end
 
 function GC.ClearNativeItems()
     clearItems()
-    retiredMeshes[#retiredMeshes + 1] = leftArm
-    retiredMeshes[#retiredMeshes + 1] = rightArm
-    leftArm, rightArm = {}, {}
-    leftRevision, rightRevision = nil, nil
-    lastGrips, lastGripAt = {}, 0
-    lastGunBones = {}
+    GC.ClearPhysgunArms()
 end
 
 function GC.AcceptNativeItems(scene, body)
     pending = scene.nativeItems
     pendingSession, pendingInstance = scene.session, scene.instance
-    if leftRevision ~= scene.leftArm.revision then
-        retiredMeshes[#retiredMeshes + 1] = leftArm
-        leftArm = GC.BuildRenderMeshes(scene.leftArm.batches, false, false, body)
-        leftRevision = scene.leftArm.revision
-    end
-    if rightRevision ~= scene.rightArm.revision then
-        retiredMeshes[#retiredMeshes + 1] = rightArm
-        rightArm = GC.BuildRenderMeshes(scene.rightArm.batches, false, false, body)
-        rightRevision = scene.rightArm.revision
-    end
+    GC.AcceptPhysgunArms(scene, body)
 end
 
 -- Create runtime model entities outside render hooks. Model files stay in the user's installed game.
@@ -161,77 +139,7 @@ function GC.UpdateNativeItemPosition(feet)
     end
 end
 
--- The native gun contains a left-hand skeleton. Its rear grip uses the animated gun bone,
--- since c_hands' unmerged right-hand bones remain in their resting pose.
-hook.Add("PreDrawPlayerHands", "GarryCraftMinecraftPhysgunArms", function(hands, viewmodel, player, weapon)
-    if not GC.PhysgunActive(player) or #leftArm == 0 or #rightArm == 0 then return end
-    hands:SetupBones()
-    lastGunBones = {}
-    for _, name in ipairs({"Base", "square"}) do
-        local bone = viewmodel:LookupBone(name)
-        local transform = bone and viewmodel:GetBoneMatrix(bone)
-        if transform then lastGunBones[name] = {position = tostring(transform:GetTranslation()), angles = tostring(transform:GetAngles())} end
-    end
-    local grips = {}
-    for _, side in ipairs({{name = "L", batches = leftArm}, {name = "R", batches = rightArm}}) do
-        local wrist, elbow, tip, roll
-        if side.name == "L" then
-            local handBone = hands:LookupBone("ValveBiped.Bip01_L_Hand")
-            local forearmBone = hands:LookupBone("ValveBiped.Bip01_L_Forearm")
-            if not handBone or not forearmBone then return end
-            local handMatrix, forearmMatrix = hands:GetBoneMatrix(handBone), hands:GetBoneMatrix(forearmBone)
-            if not handMatrix or not forearmMatrix then return end
-            wrist, elbow = handMatrix:GetTranslation(), forearmMatrix:GetTranslation()
-            tip = wrist + handMatrix:GetAngles():Forward() * 2.5
-            roll = forearmMatrix:GetAngles().r
-        else
-            local rearBone = viewmodel:LookupBone("square")
-            local rearMatrix = rearBone and viewmodel:GetBoneMatrix(rearBone)
-            if not rearMatrix then return end
-            tip = rearMatrix:GetTranslation()
-            local view = GC.ViewAngles
-            elbow = GC.ViewOrigin + view:Forward() * 16 + view:Right() * 14 - view:Up() * 14
-            wrist = tip - (tip - elbow):GetNormalized() * 2.5
-            roll = view.r
-        end
-        local direction = tip - elbow
-        local angles = direction:Angle()
-        angles.r = roll
-        local minimum, maximum = math.huge, -math.huge
-        for _, batch in ipairs(side.batches) do
-            minimum = math.min(minimum, batch.minimum.x)
-            maximum = math.max(maximum, batch.maximum.x)
-        end
-        grips[#grips + 1] = {side = side.name, batches = side.batches, wrist = wrist, elbow = elbow,
-            tip = tip, angles = angles, scale = Vector(direction:Length() / (maximum - minimum), .45, .45)}
-    end
-    lastGrips = {}
-    for _, grip in ipairs(grips) do
-        local transform = Matrix()
-        transform:SetTranslation(grip.tip)
-        transform:SetAngles(grip.angles)
-        transform:Scale(grip.scale)
-        cam.PushModelMatrix(transform)
-        GC.DrawRenderMeshes(grip.batches, false, grip.wrist)
-        cam.PopModelMatrix()
-        lastGrips[#lastGrips + 1] = {side = grip.side, wrist = tostring(grip.wrist), elbow = tostring(grip.elbow),
-            tip = tostring(grip.tip), angles = tostring(grip.angles), scale = tostring(grip.scale)}
-    end
-    lastGripAt = RealTime()
-    GC.RestoreLighting()
-    return true
-end)
-
 function GC.NativeItemReport()
-    local function armReport(batches)
-        local result = {vertices = 0, batches = {}}
-        for _, batch in ipairs(batches) do
-            result.vertices = result.vertices + batch.vertices
-            result.batches[#result.batches + 1] = {texture = batch.texture, vertices = batch.vertices,
-                minimum = tostring(batch.minimum), maximum = tostring(batch.maximum)}
-        end
-        return result
-    end
     local function appearance(entity)
         local materials, slots = entity:GetMaterials(), {}
         for slot = 0, #materials - 1 do slots[#slots + 1] = {slot = slot, material = entity:GetSubMaterial(slot)} end
@@ -246,13 +154,12 @@ function GC.NativeItemReport()
             appearance = appearance(item), owner = item:GetOwner():EntIndex(),
             noDraw = item:GetNoDraw(), shadowEnabled = item.GarryCraftShadows, entity = item:EntIndex()}
     end
-    return {worldModel = "models/weapons/w_physics.mdl", viewmodel = LocalPlayer():GetViewModel():GetModel(),
-        nativeWeapon = appearance(LocalPlayer():GetActiveWeapon()), weaponColor = tostring(LocalPlayer():GetWeaponColor()),
-        leftArmBatches = #leftArm, rightArmBatches = #rightArm, items = #items, grips = lastGrips, world = world,
-        leftArm = armReport(leftArm), rightArm = armReport(rightArm),
-        gunBones = lastGunBones, viewOrigin = tostring(GC.ViewOrigin), viewAngles = tostring(GC.ViewAngles),
-        sourceHandsSuppressed = #lastGrips == 2 and RealTime() - lastGripAt < .5,
-        retiring = table.Count(removals), retiredMeshes = #retiredMeshes}
+    local report = GC.PhysgunArmReport()
+    report.worldModel, report.viewmodel = "models/weapons/w_physics.mdl", LocalPlayer():GetViewModel():GetModel()
+    report.nativeWeapon, report.weaponColor = appearance(LocalPlayer():GetActiveWeapon()), tostring(LocalPlayer():GetWeaponColor())
+    report.items, report.world, report.retiring = #items, world, table.Count(removals)
+    report.viewOrigin, report.viewAngles = tostring(GC.ViewOrigin), tostring(GC.ViewAngles)
+    return report
 end
 
 concommand.Add("garrycraft_native_items_report", function()

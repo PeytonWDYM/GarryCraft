@@ -60,8 +60,10 @@ final class SectionBuilder {
                 for (var box : state.getCollisionShape(level, pos).toAabbs()) boxes.add(new double[]{
                     pos.getX() + box.minX, pos.getY() + box.minY, pos.getZ() + box.minZ,
                     pos.getX() + box.maxX, pos.getY() + box.maxY, pos.getZ() + box.maxZ});
-                // Glass can collide without blocking light. Use Minecraft's separate occlusion contract.
-                if (state.canOcclude()) for (var box : state.getOcclusionShape().toAabbs()) occluders.add(new double[]{
+                // Full light dampening blocks even when the material disables face culling, as tinted glass does.
+                if (state.getLightDampening() >= 15) occluders.add(new double[]{
+                    pos.getX(), pos.getY(), pos.getZ(), pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1});
+                else if (state.useShapeForLightOcclusion()) for (var box : state.getOcclusionShape().toAabbs()) occluders.add(new double[]{
                     pos.getX() + box.minX, pos.getY() + box.minY, pos.getZ() + box.minZ,
                     pos.getX() + box.maxX, pos.getY() + box.maxY, pos.getZ() + box.maxZ});
                 int emission = state.getLightEmission();
@@ -82,6 +84,7 @@ final class SectionBuilder {
 
     WorldExporter.Section finish(String session, String instance, long sequence) {
         return new WorldExporter.Section(session, instance, sequence,
-            SectionPos.x(key) + "," + SectionPos.y(key) + "," + SectionPos.z(key), false, mesh.finish(), boxes, lights, occluders);
+            SectionPos.x(key) + "," + SectionPos.y(key) + "," + SectionPos.z(key), false, mesh.finish(), boxes, lights, occluders,
+            VoxelLighting.capture(level, origin, mc.level), VoxelLighting.brightness(mc.level.dimensionType()));
     }
 }

@@ -27,12 +27,13 @@ public abstract class FirstPersonMixin {
             original.call(renderer, partial, pose, collector, player, hands);
             return;
         }
-        // Source renders its native gun and hands. The full Minecraft avatar still supplies player shadows.
-        if (PhysicsGun.equipped(Minecraft.getInstance().player)) return;
         // Remove camera rotation. Source draws this pose relative to its current view, without transport yaw lag.
         var camera = Minecraft.getInstance().gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
         var local = new PoseStack();
         local.mulPose(new Matrix4f(camera.viewRotationMatrix).mul(pose.last().pose()));
+        // Source applies this same vanilla transform to its installed gun and captured skin arms.
+        dev.garrycraft.bridge.StatePublisher.nativeViewmodelPose(local.last().pose());
+        if (PhysicsGun.equipped(Minecraft.getInstance().player)) return;
         AvatarExporter.hands(renderer, partial, local, player, hands);
     }
 }

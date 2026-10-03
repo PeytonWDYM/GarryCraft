@@ -4,9 +4,14 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
 import java.util.ArrayList;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
 /** Packs RGBA vertices on the transport thread. Lua reads only the small metadata header. */
 final class MeshPackets {
+    private static final com.google.gson.Gson GEOMETRY_JSON = new com.google.gson.Gson();
     private record Mesh(int texture, boolean translucent, boolean unlit, int tint, int offset, int count, float x, float y, float z) {}
     private record Group(long revision, List<Mesh> batches) {}
     private record ItemModel(int id, List<Mesh> batches) {}
@@ -17,9 +22,12 @@ final class MeshPackets {
         List<ItemModel> itemModels, List<ItemInstances.Instance> items, List<NativeItems.Item> nativeItems,
         Group leftArm, Group rightArm, PhysicsBlocks physicsBlocks) {}
     private record SectionHeader(String session, String instance, long sequence, String key, boolean clear,
-        List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights, List<double[]> occluders) {}
+        List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights, List<double[]> occluders,
+        VoxelLight voxelLighting, String geometry) {}
+    private record VoxelLight(int offset, int count, int width, float[] brightness) {}
     private final ByteBuffer body;
-    private MeshPackets(int vertices) { body = ByteBuffer.allocate(Math.multiplyExact(vertices, 24)).order(ByteOrder.LITTLE_ENDIAN); }
+    private MeshPackets(int vertices) { this(vertices, 0); }
+    private MeshPackets(int vertices, int extra) { body = ByteBuffer.allocate(Math.addExact(Math.multiplyExact(vertices, 24), extra)).order(ByteOrder.LITTLE_ENDIAN); }
     private static int count(List<ModelCollector.Batch> batches) { return batches.stream().mapToInt(batch -> batch.vertices().size()).sum(); }
     private List<Mesh> meshes(List<ModelCollector.Batch> batches) {
         return meshes(batches, false);
@@ -48,6 +56,17 @@ final class MeshPackets {
         return result;
     }
     private Group group(MeshSnapshots.Snapshot snapshot) { return new Group(snapshot.revision(), meshes(snapshot.batches())); }
+    // Light-engine callbacks resend section packets. Their irradiance must not rebuild unchanged Source meshes.
+    private String geometry(List<Mesh> meshes) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256");
+            digest.update(GEOMETRY_JSON.toJson(meshes).getBytes(StandardCharsets.UTF_8));
+            digest.update(body.array(), 0, body.position());
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new AssertionError("The Java runtime must provide SHA-256", exception);
+        }
+    }
     static byte[] scene(AvatarExporter.Scene scene) {
         var groups = List.of(scene.avatar(), scene.hands(), scene.particles(), scene.entities(), scene.cracks(), scene.leftArm(), scene.rightArm());
         var packet = new MeshPackets(groups.stream().mapToInt(group -> count(group.batches())).sum()
@@ -64,9 +83,13 @@ final class MeshPackets {
         return RenderTransport.packet(header, packet.body.array());
     }
     static byte[] section(WorldExporter.Section section) {
-        var packet = new MeshPackets(count(section.meshes()));
+        var packet = new MeshPackets(count(section.meshes()), section.voxelLighting().length);
+        var meshes = packet.meshes(section.meshes(), true);
+        var geometry = packet.geometry(meshes);
+        var voxel = new VoxelLight(packet.body.position(), section.voxelLighting().length, VoxelLighting.WIDTH, section.lightBrightness());
+        packet.body.put(section.voxelLighting());
         var header = new SectionHeader(section.session(), section.instance(), section.sequence(), section.key(), section.clear(),
-            packet.meshes(section.meshes(), true), section.boxes(), section.lights(), section.occluders());
+            meshes, section.boxes(), section.lights(), section.occluders(), voxel, geometry);
         return RenderTransport.packet(header, packet.body.array());
     }
 }

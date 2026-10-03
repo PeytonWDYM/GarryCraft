@@ -9,6 +9,7 @@ import net.minecraft.client.Minecraft;
 import dev.garrycraft.combat.SourceCombat;
 import dev.garrycraft.testing.ParityOracle;
 import dev.garrycraft.item.PhysicsGun;
+import org.joml.Matrix4f;
 
 /** Publishes raw ticks and Minecraft's camera state. The Source renderer interpolates the raw ticks. */
 public final class StatePublisher {
@@ -19,8 +20,19 @@ public final class StatePublisher {
     private static long frame;
     private static float eye;
     private static String instance = "";
+    private static final float[] nativeViewmodelPose = {1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0};
     private StatePublisher() {}
     public static String drain() { return OUTGOING.getAndSet(null); }
+
+    /** Capture vanilla's hand pose after camera bob and hurt tilt, in Source view coordinates. */
+    public static void nativeViewmodelPose(Matrix4f pose) {
+        int[] axes = {2, 0, 1}, signs = {-1, -1, 1};
+        for (int row = 0; row < 3; row++) {
+            for (int column = 0; column < 3; column++)
+                nativeViewmodelPose[row * 4 + column] = signs[row] * signs[column] * pose.get(axes[column], axes[row]);
+            nativeViewmodelPose[row * 4 + 3] = 32 * signs[row] * pose.get(3, axes[row]);
+        }
+    }
 
     public static void tick(Minecraft mc, HostInput input, String session, String process) {
         var player = mc.player;
@@ -109,6 +121,7 @@ public final class StatePublisher {
         state.addProperty("camera", mc.options.getCameraType().ordinal());
         state.addProperty("screenOpen", mc.gui.screen() != null);
         state.addProperty("physgunEquipped", GarryCraftClient.linked() && PhysicsGun.equipped(mc.player));
+        state.add("nativeViewmodelPose", JSON.toJsonTree(nativeViewmodelPose));
         if (PhysicsGun.equipped(mc.player) && mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit
             && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK && !mc.level.getBlockState(hit.getBlockPos()).isAir()) {
             var target = new JsonObject();

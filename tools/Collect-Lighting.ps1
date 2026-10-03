@@ -32,10 +32,10 @@ if ($sameGrid) {
 }
 $results = [ordered]@{
     dark = $samples.dark.modelLights -eq 0
-    floor = $samples.floor.modelLights -gt 0 -and $samples.floor.lights.allocated -gt 0 -and $samples.floor.floorLight[0] -gt 0
-    wall = $samples.wall.modelLights -ge 2 -and $samples.wall.lights.allocated -ge 2
-    far = $samples.far.modelLights -eq $samples.wall.modelLights -and $samples.far.lights.allocated -ge 2
-    budget = $samples.budget.lights.exported -gt 32 -and $samples.budget.lights.allocated -eq 16
+    floor = $samples.floor.modelLights -gt 0 -and $samples.floor.floorLight[0] -gt 0
+    wall = $samples.wall.modelLights -ge 2
+    far = $samples.far.modelLights -eq $samples.wall.modelLights
+    budget = $samples.budget.lights.exported -gt 32 -and $samples.budget.lights.allocated -eq 0 -and $samples.budget.lights.mode -eq 'visible-receivers'
     removed = $samples.removed.modelLights -eq 0 -and $samples.removed.lights.allocated -eq 0
     waterMaterial = $samples.dark.water.faces -gt 0 -and $samples.dark.water.unlit -eq 0 -and $samples.wall.water.unlit -eq 0
     waterTorch = $samples.dark.water.modelLights -eq 0 -and $samples.wall.water.modelLights -ge 2 -and $samples.removed.water.modelLights -eq 0
@@ -45,6 +45,7 @@ $results = [ordered]@{
         [Math]::Abs($tint.expected[1] - $tint.actual[1]) -lt .001 -and
         [Math]::Abs($tint.expected[2] - $tint.actual[2]) -lt .001
     enclosed = $samples.enclosed.exposure -eq 0 -and $samples.enclosed.modelLights -eq 0
+    enclosedPixels = $samples.enclosed.luminance -lt $samples.opened.luminance - 5
     roomTorch = $samples.roomTorch.modelLights -gt 0 -and $minecraft.roomLight.roomTorch[1] -gt $minecraft.roomLight.enclosed[1]
     roomTorchPixels = $samples.roomTorch.luminance -gt ($samples.enclosed.luminance + 1)
     opened = $samples.opened.exposure -gt $samples.enclosed.exposure

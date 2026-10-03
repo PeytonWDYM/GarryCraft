@@ -12,6 +12,7 @@ public static class GarryCraftSourceInput {
     [StructLayout(LayoutKind.Sequential)] struct Point { public int x, y; }
     [StructLayout(LayoutKind.Sequential)] struct Rect { public int left, top, right, bottom; }
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(IntPtr window);
+    [DllImport("user32.dll")] static extern bool ShowWindow(IntPtr window, int command);
     [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr window, IntPtr process);
     [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
     [DllImport("user32.dll")] static extern bool AttachThreadInput(uint source, uint target, bool attach);
@@ -33,6 +34,7 @@ public static class GarryCraftSourceInput {
         if (target != window && (heldKeys.Count > 0 || leftHeld || rightHeld))
             throw new InvalidOperationException("Release the previous Source window's held input before changing targets.");
         target = window;
+        ShowWindow(window, 9);
         uint current = GetCurrentThreadId();
         uint owner = GetWindowThreadProcessId(window, IntPtr.Zero);
         AttachThreadInput(current, owner, true);
@@ -58,6 +60,10 @@ public static class GarryCraftSourceInput {
             }
         }
         RequireFocus();
+        GetClientRect(target, out Rect client);
+        var center = new Point { x = (client.right - client.left) / 2, y = (client.bottom - client.top) / 2 };
+        ClientToScreen(target, ref center);
+        SetCursorPos(center.x, center.y);
     }
     static void RequireTitleBar(Point point) {
         if (GetAncestor(WindowFromPoint(point), 2) != target)

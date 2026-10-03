@@ -61,6 +61,7 @@ namespace {
     MeshOverride setMesh;
     DWORD ownerThread;
     bool installed;
+    bool drawingSourceMesh;
     bool pinned;
     const char* closeMode = "none";
     std::uint64_t castDraws, castGroups, modelDraws, invalidMeshes, staleEntities;
@@ -143,11 +144,13 @@ namespace {
     }
 
     void __fastcall drawModel(void* renderer, const void* state, const void* info, void* bones) {
+        const bool previousSourceMesh = drawingSourceMesh;
         if (GetCurrentThreadId() == ownerThread) {
             void* renderable;
             // ModelRenderInfo_t::pRenderable follows the two 12-byte vectors in the verified x64 layout.
             std::memcpy(&renderable, static_cast<const unsigned char*>(info) + 24, 8);
             if (findProxy(renderable)) {
+                drawingSourceMesh = true;
                 ++modelDraws;
                 unsigned int flags;
                 // These are raw ModelRenderInfo_t flags at engine slot 20, not Lua RenderOverride flags.
@@ -180,6 +183,7 @@ namespace {
             }
         } else ++wrongThread;
         originalModel(renderer, state, info, bones);
+        drawingSourceMesh = previousSourceMesh;
     }
 
     // C_SENT_anim rejects ordinary studio receivers before leaf enumeration. Preserve its effect gates
@@ -490,6 +494,8 @@ namespace {
         return 1;
     }
 }
+
+bool isDrawingSourceMesh() { return drawingSourceMesh; }
 
 void registerShadows(GarrysMod::Lua::ILuaBase* lua) {
     ownerThread = GetCurrentThreadId();
