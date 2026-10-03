@@ -16,3 +16,6 @@ out/
 local.ps1
 .garrycraft-local.json
 artifacts/
+*.[mM][dD]
+!AGENTS.md
+!CLAUDE.md
