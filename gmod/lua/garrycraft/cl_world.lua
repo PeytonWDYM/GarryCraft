@@ -6,7 +6,15 @@ local particlesRevision, entitiesRevision
 local itemModels, items = {}, {}
 local terrainRequest, debrisPeak = nil, 0
 
+local function clearItems()
+    for _, item in ipairs(items) do
+        for _, proxy in ipairs(item.proxies) do GC.RemoveSourceModel(proxy) end
+    end
+    items = {}
+end
+
 function GC.ClearWorldScene()
+    clearItems()
     GC.DestroyRenderMeshes(particles)
     GC.DestroyRenderMeshes(entities)
     particles, entities = {}, {}
@@ -20,17 +28,38 @@ function GC.AcceptWorldScene(scene, body)
     local used = {}
     for _, model in ipairs(scene.itemModels) do
         used[model.id] = true
-        if not itemModels[model.id] then itemModels[model.id] = GC.BuildRenderMeshes(model.batches, false, false, body) end
+        if not itemModels[model.id] then
+            local batches = GC.BuildRenderMeshes(model.batches, false, false, body)
+            batches.transparent = {}
+            for _, batch in ipairs(batches) do if batch.translucent then batches.transparent[#batches.transparent + 1] = batch end end
+            itemModels[model.id] = batches
+        end
     end
     for id, model in pairs(itemModels) do
         if not used[id] then GC.DestroyRenderMeshes(model) itemModels[id] = nil end
     end
+    local previousItems = items
     items = {}
     for _, item in ipairs(scene.items) do
         local transform = Matrix()
         for row = 1, 3 do for column = 1, 4 do transform:SetField(row, column, item.transform[(row - 1) * 4 + column]) end end
         transform:SetField(3, 4, transform:GetField(3, 4) + GC.GridHeight)
-        items[#items + 1] = {model = item.model, transform = transform}
+        local index = #items + 1
+        local previous = previousItems[index]
+        local proxies = {}
+        if previous and previous.model == item.model then
+            proxies = previous.proxies
+            previousItems[index] = nil
+            for _, proxy in ipairs(proxies) do GC.UpdateSourceModel(proxy, transform * proxy.batch.center, transform) end
+        else
+            for _, batch in ipairs(itemModels[item.model]) do
+                if not batch.translucent then proxies[#proxies + 1] = GC.CreateSourceModel(batch, "item", transform * batch.center, transform) end
+            end
+        end
+        items[index] = {model = item.model, transform = transform, proxies = proxies}
+    end
+    for _, previous in pairs(previousItems) do
+        for _, proxy in ipairs(previous.proxies) do GC.RemoveSourceModel(proxy) end
     end
     if particlesRevision ~= scene.particles.revision then
         GC.DestroyRenderMeshes(particles)
@@ -40,7 +69,10 @@ function GC.AcceptWorldScene(scene, body)
         for _, batch in ipairs(scene.particles.batches) do vertices = vertices + batch.count end
     end
     if entitiesRevision ~= scene.entities.revision then
-        GC.DestroyRenderMeshes(entities) entities = GC.BuildRenderMeshes(scene.entities.batches, false, true, body) entitiesRevision = scene.entities.revision
+        local previous = entities
+        entities = GC.BuildRenderMeshes(scene.entities.batches, false, true, body, "world", previous)
+        GC.DestroyRenderMeshes(previous)
+        entitiesRevision = scene.entities.revision
     end
 end
 
@@ -50,7 +82,8 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftWorldEffects", function(de
     GC.DrawRenderMeshes(entities, false)
     for _, item in ipairs(items) do
         cam.PushModelMatrix(item.transform)
-        GC.DrawRenderMeshes(itemModels[item.model], false, item.transform:GetTranslation())
+        -- Opaque item instances use model proxies. Only their transparent batches stay in this pass.
+        GC.DrawRenderMeshes(itemModels[item.model].transparent, false, item.transform:GetTranslation())
         cam.PopModelMatrix()
     end
     local drawn = GC.DrawRenderMeshes(particles, true)

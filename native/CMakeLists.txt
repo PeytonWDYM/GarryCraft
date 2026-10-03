@@ -16,7 +16,7 @@ foreach(realm IN ITEMS gmsv gmcl)
   set_target_properties(${realm}_garrycraft PROPERTIES PREFIX "" OUTPUT_NAME "${realm}_garrycraft_win64")
 endforeach()
 target_sources(gmsv_garrycraft PRIVATE src/runtime.cpp src/geometry.cpp)
-target_sources(gmcl_garrycraft PRIVATE src/textures.cpp src/framerate.cpp src/meshes.cpp src/receiver.cpp src/packets.cpp src/lighting.cpp)
+target_sources(gmcl_garrycraft PRIVATE src/textures.cpp src/framerate.cpp src/meshes.cpp src/receiver.cpp src/packets.cpp src/lighting.cpp src/shadows.cpp)
 target_include_directories(gmcl_garrycraft PRIVATE ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public
     ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier0 ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier1)
 target_compile_definitions(gmcl_garrycraft PRIVATE GARRYCRAFT_CLIENT GMOD_USE_SOURCESDK _WIN32 _WINDOWS COMPILER_MSVC COMPILER_MSVC64)

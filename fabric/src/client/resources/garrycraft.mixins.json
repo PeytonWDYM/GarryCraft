@@ -6,6 +6,7 @@
     "CreativeScreenAccessor",
     "EntityCollisionMixin",
     "PlayerSupportMixin",
+    "PlayerPhysgunPoseMixin",
     "KeyboardMixin",
     "FrameLimitMixin",
     "WorldOpenMixin",

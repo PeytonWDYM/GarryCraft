@@ -72,3 +72,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 The Gradle wrapper uses the Apache License, Version 2.0.
 https://github.com/gradle/gradle/blob/master/LICENSE
+
+## Game assets
+
+The physics gun uses model, material, and animation files from the user's installed Garry's Mod at runtime.
+This repository does not distribute Valve game assets. Minecraft textures and player skins also remain local runtime data.
+The Physics Gun inventory icon is an original project asset.

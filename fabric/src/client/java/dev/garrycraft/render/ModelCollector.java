@@ -24,6 +24,7 @@ import net.minecraft.client.resources.model.geometry.BakedQuad;
 import net.minecraft.client.resources.model.geometry.ItemQuads;
 import net.minecraft.core.Direction;
 import net.minecraft.world.item.ItemDisplayContext;
+import net.minecraft.world.entity.HumanoidArm;
 import org.joml.Matrix4f;
 import org.joml.Vector3f;
 import org.jspecify.annotations.Nullable;
@@ -37,6 +38,18 @@ class ModelCollector extends EmptyCollector {
     }
     private final Map<Integer, List<VertexCapture.Vertex>> batches = new LinkedHashMap<>();
     private final VertexCapture capture = new VertexCapture();
+    private final List<NativeItems.Item> nativeItems = new ArrayList<>();
+    private NativeItems.Arms nativeArms = new NativeItems.Arms(List.of(), List.of());
+    private final boolean nativePlayer;
+    private final ItemDisplayContext offhandContext;
+    ModelCollector() { this(false); }
+    ModelCollector(boolean nativePlayer) {
+        this.nativePlayer = nativePlayer;
+        offhandContext = nativePlayer && net.minecraft.client.Minecraft.getInstance().player.getMainArm() == HumanoidArm.LEFT
+            ? ItemDisplayContext.THIRD_PERSON_RIGHT_HAND : ItemDisplayContext.THIRD_PERSON_LEFT_HAND;
+    }
+    List<NativeItems.Item> nativeItems() { return List.copyOf(nativeItems); }
+    NativeItems.Arms nativeArms() { return nativeArms; }
     private static final Direction[] FACES = {null, Direction.DOWN, Direction.UP, Direction.NORTH, Direction.SOUTH, Direction.WEST, Direction.EAST};
 
     List<Batch> finish() {
@@ -64,6 +77,9 @@ class ModelCollector extends EmptyCollector {
         capture.begin(batch(texture));
         VertexConsumer consumer = mapping == null ? capture : mapping.wrap(capture);
         model.setupAnim(state);
+        if (nativePlayer && model instanceof net.minecraft.client.model.player.PlayerModel player) {
+            nativeArms = NativeItems.arms(player, texture, light, overlay, tint);
+        }
         model.renderToBuffer(pose, consumer, light, overlay, tint);
         capture.flush();
     }
@@ -87,6 +103,11 @@ class ModelCollector extends EmptyCollector {
     @Override public void submitItem(PoseStack pose, ItemDisplayContext context, int light, int overlay, int outline,
         int[] tints, ItemQuads quads, ItemStackRenderState.FoilType foil) {
         capture.flush();
+        if (nativePlayer && context == offhandContext) return;
+        if (nativePlayer && NativeItems.physicsGun(quads)) {
+            nativeItems.add(NativeItems.physicsGun(pose.last().pose()));
+            return;
+        }
         for (var quad : quads.all()) quad(pose.last().pose(), quad, tints);
     }
     @Override public void submitBlockModel(PoseStack pose, RenderType renderType, List<BlockStateModelPart> parts,
@@ -103,6 +124,7 @@ class ModelCollector extends EmptyCollector {
     @Override public void submitItem(PoseStack pose, ItemDisplayContext context, int light, int overlay, int outline,
         int[] tints, ItemQuads quads, @Nullable MeshView mesh, ItemStackRenderState.FoilType foil) {
         submitItem(pose, context, light, overlay, outline, tints, quads, foil);
+        if (nativePlayer && (context == offhandContext || NativeItems.physicsGun(quads))) return;
         mesh(pose.last().pose(), mesh);
     }
     private void mesh(Matrix4f pose, @Nullable MeshView mesh) {

@@ -89,6 +89,8 @@ public final class GarryCraftClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        dev.garrycraft.physicsblocks.PhysicsBlocks.initialize();
+        dev.garrycraft.physicsblocks.DetachedBlockMining.initialize();
         EntityRendererRegistry.register(SourceCombat.TYPE, NoopRenderer::new);
         String defaultPath = System.getenv("LOCALAPPDATA") + "\\GarryCraft\\bridge.bin";
         Path path = Path.of(System.getProperty("garrycraft.bridge", defaultPath));
@@ -210,7 +212,7 @@ public final class GarryCraftClient implements ClientModInitializer {
         }
         if (linked() && minecraft.player != null && !minecraft.player.isDeadOrDying()
                 && input.teleportSeq() == SpawnBridge.acknowledged() && !PhysicsOracle.running() && !ParityOracle.running() && !dev.garrycraft.testing.DamageOracle.running() && !dev.garrycraft.testing.TerrainUseOracle.running()
-                && !dev.garrycraft.testing.LightingOracle.running()) InputBridge.apply(minecraft, input, controls());
+                && !dev.garrycraft.testing.LightingOracle.running()) InputBridge.apply(minecraft, input, controls(), false);
         dev.garrycraft.testing.ResponsivenessOracle.frame(minecraft);
     }
 
@@ -243,6 +245,8 @@ public final class GarryCraftClient implements ClientModInitializer {
             renderEpoch = input.renderEpoch();
             RenderTransport.reset(session, UUID.randomUUID().toString());
         }
+        dev.garrycraft.physicsblocks.PhysicsBlocks.tick(minecraft, input);
+        dev.garrycraft.physicsblocks.DetachedBlockMining.input(minecraft, input);
         var terrain = STATIC_GEOMETRY.getAndSet(null);
         if (terrain != null) COLLISION.accept(terrain);
         var moving = MOVING_GEOMETRY.getAndSet(null);
@@ -333,7 +337,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             wasLinked = active;
             return;
         }
-        if (active || wasLinked) InputBridge.apply(minecraft, active && !loading ? input : HostInput.idle(), active && !loading ? controls() : null);
+        if (active || wasLinked) InputBridge.apply(minecraft, active && !loading ? input : HostInput.idle(), active && !loading ? controls() : null, true);
         if (active && !loading) dev.garrycraft.testing.ResponsivenessOracle.tick(minecraft, input);
         wasLinked = active;
     }

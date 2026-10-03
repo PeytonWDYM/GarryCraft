@@ -16,17 +16,19 @@ hook.Add("Move", "GarryCraftMovement", function(player, movement)
     if not player:Alive() then return end
     if GC.State and GC.State.teleportAck == player:GetNWInt("GarryCraftTeleport") then
         movement:SetOrigin(GC.ToSource(GC.State.x, GC.State.y, GC.State.z))
+        -- The native gun aims from the applied offset, not the desired standing offset.
+        player:SetCurrentViewOffset(Vector(0, 0, GC.State.eye * 32))
     end
     movement:SetVelocity(vector_origin)
     return true
 end)
 
-hook.Add("PreDrawViewModel", "GarryCraftHideSourceWeapon", function()
-    if IsValid(LocalPlayer()) and LocalPlayer():GetNWBool("GarryCraft") then return true end
+hook.Add("PreDrawViewModel", "GarryCraftHideSourceWeapon", function(_, player)
+    if player:GetNWBool("GarryCraft") and not GC.PhysgunActive(player) then return true end
 end)
 
 hook.Add("DrawPhysgunBeam", "GarryCraftHidePhysgunEffects", function(player)
-    if player:GetNWBool("GarryCraft") then return false end
+    if player:GetNWBool("GarryCraft") and not GC.PhysgunActive(player) then return false end
 end)
 
 hook.Add("PlayerBindPress", "GarryCraftSlots", function(player, bind, pressed)
@@ -34,6 +36,11 @@ hook.Add("PlayerBindPress", "GarryCraftSlots", function(player, bind, pressed)
     if GC.ScreenOpen then
         if bind == "invnext" or bind == "invprev" then GC.QueueWheel(bind == "invnext" and -1 or 1) return true end
         if string.match(bind, "^slot%d$") then return true end
+    end
+    if GC.PhysgunEquipped() and (bind == "invnext" or bind == "invprev") then
+        -- A held prop keeps the engine's native distance route. Idle scrolling cannot select Source weapons.
+        if GC.PhysgunHolding(player) then return end
+        return true
     end
     local slot = GC.SelectedSlot or 0
     local selected = string.match(bind, "^slot(%d)$")
@@ -46,6 +53,10 @@ hook.Add("PlayerBindPress", "GarryCraftSlots", function(player, bind, pressed)
     net.WriteUInt(slot, 4)
     net.SendToServer()
     return true
+end)
+
+hook.Add("HUDShouldDraw", "GarryCraftHideWeaponSelection", function(name)
+    if name == "CHudWeaponSelection" and IsValid(LocalPlayer()) and LocalPlayer():GetNWBool("GarryCraft") then return false end
 end)
 
 hook.Add("HUDPaint", "GarryCraftStatus", function()

@@ -3,6 +3,19 @@ local lights, active = {}, {}
 local nextSelection = 0
 local revision = 0
 local allocated = 0
+local worldLights = {}
+
+-- DynamicLight fields are write-only. Reacquire handles and restore the complete known configuration.
+local function worldLight(light, colored)
+    local source = DynamicLight(light.id)
+    if not source then return false end
+    source.pos = light.position
+    source.r, source.g, source.b = colored and light.color.x or 0, colored and light.color.y or 0, colored and light.color.z or 0
+    source.brightness, source.size = 2 * light.emission / 15, light.radius
+    source.decay, source.style, source.noworld, source.nomodel = 0, 0, false, false
+    source.dietime = light.dieTime
+    return true
+end
 
 function GC.SetBlockLights(sections)
     lights = {}
@@ -26,6 +39,7 @@ end
 hook.Add("PreRender", "GarryCraftBlockLights", function()
     if GC.VideoReset or not GC.State or not GC.State.linked or not IsValid(LocalPlayer())
             or not LocalPlayer():GetNWBool("GarryCraft") then return end
+    for id, light in pairs(worldLights) do if light.dieTime <= CurTime() then worldLights[id] = nil end end
     if RealTime() >= nextSelection then
         nextSelection = RealTime() + .1
         local eye = EyePos()
@@ -36,17 +50,25 @@ hook.Add("PreRender", "GarryCraftBlockLights", function()
     end
     allocated = 0
     for _, light in ipairs(active) do
-        local source = DynamicLight(light.id)
-        if source then
-            source.pos = light.position
-            source.r, source.g, source.b = light.color.x, light.color.y, light.color.z
-            source.brightness, source.size = 2 * light.emission / 15, light.radius
-            source.decay, source.style, source.noworld, source.nomodel = 0, 0, false, false
-            source.dietime = CurTime() + .2
+        light.dieTime = CurTime() + .2
+        if worldLight(light, true) then
+            worldLights[light.id] = light
             allocated = allocated + 1
         end
     end
 end)
+
+-- ComputeLighting caches its dynamic contribution. Only ComputeDynamicLighting observes the RGB mute immediately.
+function GC.SourceDynamicLighting(position, normals)
+    local now = CurTime()
+    for id, light in pairs(worldLights) do
+        if light.dieTime <= now or not worldLight(light, false) then worldLights[id] = nil end
+    end
+    local colors = {}
+    for index, normal in ipairs(normals) do colors[index] = render.ComputeDynamicLighting(position, normal) end
+    for _, light in pairs(worldLights) do worldLight(light, true) end
+    return colors
+end
 
 function GC.ModelLights(position)
     local nearest = {}

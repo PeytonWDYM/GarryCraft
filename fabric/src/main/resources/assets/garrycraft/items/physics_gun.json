@@ -1,0 +1,6 @@
+{
+  "model": {
+    "type": "minecraft:model",
+    "model": "garrycraft:item/physics_gun"
+  }
+}
