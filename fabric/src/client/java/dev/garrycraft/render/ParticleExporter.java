@@ -40,6 +40,7 @@ final class ParticleExporter {
             }
         }
         ParityOracle.particles(result.stream().mapToInt(batch -> batch.vertices().size()).sum());
+        dev.garrycraft.testing.ParticleReloadOracle.particles(debris);
         dev.garrycraft.testing.TerrainUseOracle.effects(0, debris);
         return result;
     }

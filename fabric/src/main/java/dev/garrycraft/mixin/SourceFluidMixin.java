@@ -44,6 +44,10 @@ public abstract class SourceFluidMixin {
 			cir.setReturnValue(false);
 			return;
 		}
+		if (SourceSurface.blocksFlow(sourcePos, targetPos)) {
+			cir.setReturnValue(false);
+			return;
+		}
 		if (direction == Direction.DOWN) {
 			if (SourceSurface.hasGeometry(sourcePos)) {
 				// Lying on Source ground: it doesn't sink through.

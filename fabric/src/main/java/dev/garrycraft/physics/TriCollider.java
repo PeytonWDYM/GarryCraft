@@ -18,7 +18,7 @@ import java.util.List;
  * sprint-stopping etc. from it exactly as it would from block collisions.
  */
 public final class TriCollider {
-	private static final double FLOOR_RADIUS = 0.15;   // ground is sampled under a small footprint, like a capsule's base
+	private static final double FLOOR_RADIUS = 0.15;   // normalized footprint, scaled to the entity's actual width
 	private static final double SUBSTEP = 0.1;         // horizontal sub-steps so walls can't be tunnelled
 	private static final double AIR_STEP = 0.3;        // walkable surfaces this far above the feet catch you mid-air
 	private static final double EPS = 1e-4;
@@ -37,7 +37,7 @@ public final class TriCollider {
 		}
 		for (int i = 0; i < 4; i++) {
 			double a = Math.PI / 4 + i * Math.PI / 2;
-			samples.add(new double[] { Math.cos(a) * FLOOR_RADIUS * 0.5, Math.sin(a) * FLOOR_RADIUS * 0.5 });
+			samples.add(new double[] { Math.cos(a) * FLOOR_RADIUS * Math.sqrt(2), Math.sin(a) * FLOOR_RADIUS * Math.sqrt(2) });
 		}
 		return samples.toArray(new double[0][]);
 	}
@@ -49,16 +49,32 @@ public final class TriCollider {
 	public static double[] resolve(
 		List<Triangle> tris, double x0, double y0, double z0, double radius, double height, double step, boolean wasOnGround, double mx, double my, double mz
 	) {
-		if (tris.isEmpty()) {
-			return new double[] { mx, my, mz };
+		if (tris.isEmpty()) return new double[]{mx, my, mz};
+		// Vanilla resolves vertical movement before horizontal movement. A descending glider must
+		// meet a low wall at its landing height, rather than pass above it at the previous height.
+		double vertical = my;
+		if (my > 0) {
+			double ceiling = ceilingAbove(tris, x0, y0 + height, z0, radius * .8);
+			if (!Double.isNaN(ceiling)) vertical = Math.max(0, Math.min(my, ceiling - y0 - height));
+		} else if (my < 0) {
+			double ground = floor(tris, x0, y0, z0, radius, false, EPS);
+			if (y0 + my <= ground) vertical = ground - y0;
 		}
+		boolean landed = my < 0 && vertical != my;
+		var horizontal = resolveHorizontal(tris, x0, y0 + vertical, z0, radius, height, step, wasOnGround || landed, my <= 0, mx, mz);
+		return new double[]{horizontal[0], horizontal[1] == 0 ? vertical : vertical + horizontal[1], horizontal[2]};
+	}
 
+	private static double[] resolveHorizontal(
+		List<Triangle> tris, double x0, double y0, double z0, double radius, double height, double step, boolean wasOnGround, boolean followDown, double mx, double mz
+	) {
 		double x = x0, y = y0, z = z0;
 
 		// 1) Horizontal, in sub-steps, sliding out of walls after each.
 		double horizontal = Math.hypot(mx, mz);
 		int steps = Math.max(1, (int) Math.ceil(horizontal / SUBSTEP));
-		double wallFrom = wasOnGround ? step : 0.02;
+		// A landed elytra pose is shorter than the walking step height. Keep its body in the wall test.
+		double wallFrom = wasOnGround ? Math.min(step, height * .5) : 0.02;
 		boolean hitWall = false;
 		for (int i = 0; i < steps; i++) {
 			double px = x, pz = z;
@@ -70,34 +86,40 @@ public final class TriCollider {
 			z = out[1];
 		}
 
-		// 2) Vertical.
-		double dy = my;
-		if (dy > 0) {
-			double ceiling = ceilingAbove(tris, x, y + height, z, radius * 0.8);
-			if (!Double.isNaN(ceiling)) {
-				dy = Math.max(0.0, Math.min(dy, ceiling - (y + height)));
-			}
-		}
+		// 2) Follow walkable slopes and step onto low ledges after horizontal movement.
 		double walkUp = wasOnGround ? step : AIR_STEP;
-		double floorWalk = floor(tris, x, y, z, true, walkUp);
-		double floorAny = floor(tris, x, y, z, false, EPS);
+		double floorWalk = floor(tris, x, y, z, radius, true, walkUp);
+		double floorAny = floor(tris, x, y, z, radius, false, EPS);
 		double floor = Math.max(floorWalk, floorAny);
-		double targetY = y + dy;
 		double outY;
-		if (targetY <= floor) {
+		if (y <= floor) {
 			outY = floor - y0; // land / stand / walk up a slope or small ledge
-		} else if (wasOnGround && dy <= 0 && floorWalk > Double.NEGATIVE_INFINITY && y - floorWalk <= Math.max(step, horizontal * 1.5)) {
+		} else if (wasOnGround && followDown && floorWalk > Double.NEGATIVE_INFINITY
+				&& y - floorWalk <= Math.max(step, horizontal * 1.5) && slopeBelow(tris, x, z, radius, floorWalk)) {
 			outY = floorWalk - y0; // stick to the ground going downhill instead of hopping
 		} else {
-			outY = dy; // free movement (possibly shortened by a ceiling)
+			outY = 0; // vertical movement was already resolved at the original footprint
 		}
 		// Minecraft decides "did I collide?" with exact equality against what it asked for, so any
 		// axis we didn't actually change must come back bit-for-bit identical (not (y0 + d) - y0).
 		return new double[] { hitWall ? x - x0 : mx, outY, hitWall ? z - z0 : mz };
 	}
 
+	/** Follow connected slopes, but let Minecraft fall naturally when walking off a flat ledge. */
+	private static boolean slopeBelow(List<Triangle> triangles, double x, double z, double radius, double floor) {
+		for (var triangle : triangles) {
+			if (!triangle.walkable || Math.abs(triangle.ny) >= 1 - EPS) continue;
+			// Ground uses the highest footprint sample, which differs from the center on a ramp.
+			for (var sample : FLOOR_SAMPLES) {
+				if (Math.abs(triangle.heightAt(x + sample[0] * radius / FLOOR_RADIUS,
+						z + sample[1] * radius / FLOOR_RADIUS) - floor) < EPS) return true;
+			}
+		}
+		return false;
+	}
+
 	/** Highest ground under the footprint at most {@code maxAbove} above the feet (or -inf). */
-	private static double floor(List<Triangle> tris, double x, double y, double z, boolean walkableOnly, double maxAbove) {
+	private static double floor(List<Triangle> tris, double x, double y, double z, double radius, boolean walkableOnly, double maxAbove) {
 		double best = Double.NEGATIVE_INFINITY;
 		double limit = y + maxAbove;
 		for (Triangle t : tris) {
@@ -108,7 +130,7 @@ public final class TriCollider {
 				continue;
 			}
 			for (double[] s : FLOOR_SAMPLES) {
-				double h = t.heightAt(x + s[0], z + s[1]);
+				double h = t.heightAt(x + s[0] * radius / FLOOR_RADIUS, z + s[1] * radius / FLOOR_RADIUS);
 				if (!Double.isNaN(h) && h <= limit && h > best) {
 					best = h;
 				}
@@ -188,11 +210,11 @@ public final class TriCollider {
 					bestDz = dirZ;
 				}
 			}
-			if (bestPen <= EPS) {
+			if (bestPen <= 1e-9) {
 				break;
 			}
-			x += bestDx * (bestPen + EPS);
-			z += bestDz * (bestPen + EPS);
+			x += bestDx * bestPen;
+			z += bestDz * bestPen;
 		}
 		return new double[] { x, z };
 	}
@@ -271,7 +293,7 @@ public final class TriCollider {
 
 	/** Highest surface at or below {@code maxAbove} over the feet at (x, y, z), or NaN. */
 	public static double groundAt(List<Triangle> tris, double x, double y, double z, double maxAbove) {
-		double f = floor(tris, x, y, z, false, maxAbove);
+		double f = floor(tris, x, y, z, FLOOR_RADIUS, false, maxAbove);
 		return f == Double.NEGATIVE_INFINITY ? Double.NaN : f;
 	}
 }
