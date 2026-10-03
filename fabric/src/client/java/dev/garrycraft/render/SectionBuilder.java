@@ -21,6 +21,7 @@ final class SectionBuilder {
     private final ModelBlockRenderer blocks;
     private final FluidRenderer fluids;
     private final ArrayList<double[]> boxes = new ArrayList<>();
+    private final ArrayList<double[]> occluders = new ArrayList<>();
     private final ArrayList<WorldExporter.Light> lights = new ArrayList<>();
     private final BlockPos.MutableBlockPos position = new BlockPos.MutableBlockPos();
     private int cursor;
@@ -53,6 +54,10 @@ final class SectionBuilder {
                 for (var box : state.getCollisionShape(mc.level, pos).toAabbs()) boxes.add(new double[]{
                     pos.getX() + box.minX, pos.getY() + box.minY, pos.getZ() + box.minZ,
                     pos.getX() + box.maxX, pos.getY() + box.maxY, pos.getZ() + box.maxZ});
+                // Glass can collide without blocking light. Use Minecraft's separate occlusion contract.
+                if (state.canOcclude()) for (var box : state.getOcclusionShape().toAabbs()) occluders.add(new double[]{
+                    pos.getX() + box.minX, pos.getY() + box.minY, pos.getZ() + box.minZ,
+                    pos.getX() + box.maxX, pos.getY() + box.maxY, pos.getZ() + box.maxZ});
                 int emission = state.getLightEmission();
                 if (emission > 0) {
                     float lx = pos.getX() + .5f, ly = pos.getY() + .5f, lz = pos.getZ() + .5f;
@@ -71,6 +76,6 @@ final class SectionBuilder {
 
     WorldExporter.Section finish(String session, String instance, long sequence) {
         return new WorldExporter.Section(session, instance, sequence,
-            SectionPos.x(key) + "," + SectionPos.y(key) + "," + SectionPos.z(key), false, mesh.finish(), boxes, lights);
+            SectionPos.x(key) + "," + SectionPos.y(key) + "," + SectionPos.z(key), false, mesh.finish(), boxes, lights, occluders);
     }
 }

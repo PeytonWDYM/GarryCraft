@@ -26,7 +26,7 @@ function Request($Enabled) {
     @{id='sharing-fixture'; map='sharing_fixture'; enabled=$Enabled} |
         ConvertTo-Json -Compress | Set-Content $requestPath -Encoding utf8NoBOM
 }
-function Status { Get-Content -LiteralPath $statusPath -Raw | ConvertFrom-Json }
+function Status { & "$PSScriptRoot/Read-JsonSnapshot.ps1" -Path $statusPath }
 function Wait-Until($Description, [scriptblock]$Condition) {
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     do {

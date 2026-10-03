@@ -25,22 +25,26 @@ local function openKeyboard()
     keyboard:SetAlpha(0)
     keyboard:SetName("GarryCraftInput")
     keyboard:MakePopup()
+    local entry = vgui.Create("DTextEntry", keyboard)
     function keyboard:OnMouseWheeled(delta) GC.QueueWheel(delta) return true end
     function keyboard:OnMousePressed(code)
         if buttons[code] then event(0, "", 0, buttons[code], true) self:MouseCapture(true) end
     end
     function keyboard:OnMouseReleased(code)
         if buttons[code] then event(0, "", 0, buttons[code], false) self:MouseCapture(false) end
+        -- The full-screen mouse receiver can take focus from the hidden text entry.
+        entry:RequestFocus()
     end
-    local entry = vgui.Create("DTextEntry", keyboard)
     entry:SetSize(1, 1)
     entry:SetPos(-10, -10)
+    entry:SetName("GarryCraftTextInput")
     entry:SetMouseInputEnabled(false)
     entry:RequestFocus()
     entry:SetUpdateOnType(true)
     function entry:AllowInput(text) event(0, text) return true end
     function entry:OnKeyCodeTyped(code)
-        if special[code] then event(special[code]) end
+        -- Suppress Source text-entry actions, including Tab focus traversal and Enter.
+        if special[code] then event(special[code]) return true end
     end
 end
 

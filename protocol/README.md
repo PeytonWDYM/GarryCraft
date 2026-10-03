@@ -8,7 +8,7 @@ Each mailbox has a 64-byte header and a fixed payload capacity.
 | 0 | Source server | 64 KiB | Input, session, viewport, acknowledgments, mob damage |
 | 1 | Minecraft | 4 MiB | Player state, camera, combat events, mob states |
 | 2 | Source server | 16 MiB | Static collision batches |
-| 3 | Source server | 8 MiB | Nearby moving geometry, entity bounds, native water |
+| 3 | Source server | 8 MiB | Moving collision shapes and transforms, entity bounds, native water |
 | 4 | Minecraft | 16 MiB | Texture header and RGBA pixels |
 | 5 | Minecraft | 8 MiB | Scene header and packed meshes |
 | 6 | Minecraft | 64 MiB | HUD header and visible RGBA tiles |
@@ -21,7 +21,8 @@ The reader copies an even sequence, copies the payload, and checks the sequence 
 A changed or odd sequence means the reader must retry on the next frame.
 Sequence access uses acquire/release ordering across processes.
 
-Lanes 0 through 3 and lane 8 contain UTF-8 JSON. Protocol version 1 rejects other versions.
+Lanes 0 through 2 and lane 8 contain UTF-8 JSON. Protocol version 1 rejects other versions.
+Lane 3 uses a JSON header, a newline, and the binary moving collision format below.
 Render lanes contain one JSON header, a newline, and a binary body.
 Each mesh vertex occupies 24 bytes: five float32 values for `x,y,z,u,v`, then four uint8 RGBA values.
 Mesh metadata stores byte offsets and vertex counts. Each mesh contains at most 65,532 triangle vertices.
@@ -45,6 +46,29 @@ Both Source movement and camera reject poses with an older acknowledgement.
 Minecraft sends a cumulative `deaths` counter to trigger the matching Source respawn.
 
 Lane 3 also supplies a 9-by-9 water-surface grid. Minecraft substitutes this water during entity fluid checks.
+
+## Moving collision
+
+The lane 3 JSON header includes `session`, `movingGeometry: 2`, `gridHeight`, `water`, and `geometryTrace`.
+All binary fields use little endian. Shape vertices and instance matrices use Source coordinates and units.
+
+| Record | Fields |
+| --- | --- |
+| Packet prefix | uint32 shape definition count, instance count, highest assigned shape ID, actor count |
+| Shape definition | uint32 shape ID, vertex count, then float32 local XYZ for each vertex |
+| Instance | uint32 entity index, creation ID, physics part, shape ID, then 12 float32 values for a 3-by-4 Source transform |
+| Actor | uint32 entity index and creation ID; float64 Minecraft XYZ; float32 yaw, width, height; uint8 NPC flag; uint32 UTF-8 name length; name bytes |
+
+Instances occupy 64 bytes. Part `0xffffffff` identifies an entity bounds shape.
+Actor records follow all instances and occupy 49 fixed bytes plus their name. Each packet replaces the complete nearby actor list.
+The matrix uses row order. Minecraft applies it before converting the resulting points to Minecraft coordinates.
+Each packet includes all nearby instances. A missing instance removes that body from the collision snapshot.
+Source repeats current definitions above `geometryShapeAck`. Minecraft publishes this acknowledgment after accepting the complete snapshot.
+Skipped packets cannot discard a required definition. Range return allocates a new shape ID if Source retired the previous cache entry.
+
+Minecraft decodes and constructs collision indexes on a geometry worker. Game-thread publication retains the newest complete result.
+Static import and moving bodies share one immutable query snapshot. A different session cannot publish into that snapshot.
+The optional trace includes received body triangles for the owned comparison fixture.
 ## Current clock and camera
 
 The native client reads lane 1 directly. Player state includes previous/current raw tick positions, tick period, and a Windows performance-counter timestamp.
@@ -104,7 +128,8 @@ A transport thread packs snapshots and transfers bytes. It does not call game en
 Minecraft uses separate input and render transfer threads. HUD packing cannot delay an input mailbox read.
 The Source client uses a native worker to copy incoming render packets.
 Lua receives the JSON header and an immutable native body handle. It releases the body after upload or mesh construction.
-Source mesh construction uses GMod's public mesh API on the client thread.
+Source mesh creation, drawing, and destruction use GMod's public mesh API on the client thread.
+The verified Windows x64 build fills locked SDK mesh buffers directly. Other client builds use the public mesh functions.
 
 GMod defaults to 240 FPS. Minecraft retains its saved limit and defaults to Unlimited in a new mirror profile.
 While linked, the hidden Minecraft renderer stops at the Source target rate or a lower saved limit.
@@ -128,3 +153,6 @@ It retains ownership if saving takes too long. It does not kill a saving process
 Source closes both mappings when disabled. It restores player state, frame limits, and menu input.
 Minecraft restores temporary bridge options before saving its shared options file.
 Local launch files and assets remain outside the source repository.
+
+Manual launchers resolve Windows redirected paths before passing them to either game.
+Source deletes each manual control request before execution. Completed or failed commands cannot replay on the next map.

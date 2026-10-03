@@ -1,5 +1,101 @@
 # Local test record
 
+## October 2 native performance, lighting, and input
+
+Both games ran in the owned single-player lab on `gm_construct`, with fresh Minecraft worlds and a 1920x1080 Source window.
+Evidence remains under `%LOCALAPPDATA%\GarryCraft\native-polish`, outside tracked source.
+The baseline is the installed runtime before this run. Its native hashes are recorded, but its exact source revision is not certified.
+
+The same fixture kept 0, 32, 96, and 192 small physics props awake with gravity disabled and repeated forces.
+Each count used three seconds of warmup and twelve seconds of frame measurement. Source retained its 240 FPS cap.
+The runs used the same machine, map, settings, and fixture. These are frame intervals, not GPU timestamps.
+Fresh sessions had different player positions, so this comparison does not hold the exact rendered view constant.
+
+| Awake props | Baseline Source p99 | Candidate3 Source p99 | Baseline maximum | Candidate3 maximum |
+| --- | ---: | ---: | ---: | ---: |
+| 0 | 5.24 ms | 5.39 ms | 18.60 ms | 20.40 ms |
+| 32 | 9.00 ms | 5.81 ms | 15.97 ms | 10.55 ms |
+| 96 | 20.02 ms | 6.97 ms | 44.91 ms | 13.78 ms |
+| 192 | 63.19 ms | 9.66 ms | 81.09 ms | 17.05 ms |
+
+At 192 props, p99 improved by 84.7%. Frames above 16.667 ms changed from 200 of 1,263 to one of 2,438.
+Geometry packing p99 changed from 41.35 ms to 6.64 ms. The candidate read no cached physics meshes during the captured steady state.
+Its binary body was 27,250 bytes, with a 653-byte JSON header and 192 actors.
+Read `baseline/artifacts/performance/result.json`, `baseline/artifacts/baseline-manifest.json`, and `candidate3/artifacts/performance/result.json`.
+The unchanged no-prop case still has occasional hitches. These short runs do not certify stable 240 FPS or every physics addon.
+After the final lighting fix, candidate8 repeated the 192-prop case: p99 was 9.37 ms, maximum was 16.07 ms,
+and none of 2,608 frames exceeded 16.667 ms. Geometry packing p99 was 7.01 ms, with no cached mesh reads.
+Read `candidate8/artifacts/performance/result.json`.
+
+Candidate4 passed 58 moving collision and actor checks against Source's actual APIs.
+Coverage includes translation, rotation, physics recreation, collision toggles, range return, entity-index reuse, and three skipped shape packets.
+The maximum geometry difference was 0.00000384 blocks, within the 0.00003-block tolerance.
+Actor checks include names with quotes and Unicode, NPC flags, dimensions, removal, and replacement generations.
+Read `candidate4/artifacts/moving-geometry-result.json` and the paired records.
+
+Candidate4 passed all 12 native mesh checks, including public/native pixel equality in all three coordinate spaces and visible rebuilds.
+Six creations of a 12,288-vertex mesh took 17.17 ms through public Lua calls and 1.34 ms through native buffer writes.
+This 12.8-fold difference measures mesh construction alone. Read `candidate4/artifacts/native-meshes-result.json`.
+Candidate2 retained rendering through six owned video-mode changes. Its texture report recorded zero retired RGBA bytes.
+The engine retained the tested texture handles, so this run does not prove every late-callback retirement path.
+
+Candidate3 passed all 13 input checks through Windows `SendInput` into the owned GMod window.
+The test used actual emulated keyboard and mouse events for creative-tab clicks, search text, repeated Tab completion, continued typing, and Enter.
+It also reopened creative search and chat. Both commands executed, and the Source text callbacks recorded the actual events.
+Read `candidate3/artifacts/ui-input-result.json` and its paired input traces.
+
+Candidate4 passed all 25 lighting checks, including a closed room, inside and outside torches, a glass opening, water, and emitter budgets.
+Separate pixel probes confirmed both avatar and block shadows on a raised Minecraft floor above the Source map roof.
+At the matched pose, avatar brightness changed from 228.78 to 171.20, and block brightness changed from 210.70 to 160.06.
+Adjacent floor-seam receiver probes passed. Read `candidate4/artifacts/lighting-results.json` and the `shadowOff` and `shadowOn` screenshots.
+Five cancellation checks restored the archived planar-shadow setting and the original Source player shadow flag.
+Read `candidate4/artifacts/lighting-cleanup-result.json`.
+
+Final review found a stale local-light cache when a native brush moved while the Minecraft revision and sample position stayed fixed.
+The owned Source fixture cloned a map brush, then opened and closed its line of sight to a synthetic torch emitter.
+Before the fix, all 144 samples in the settled open window retained zero lights despite a clear engine trace.
+Local light visibility now refreshes on the existing 250 ms ambient schedule.
+Candidate8 passed all five fixed-position brush checks after the fix, with no settled-window mismatches.
+This Source fixture isolates cache invalidation; it does not test Minecraft's emitter export.
+The complete paired lighting scenario then repeated all 25 checks successfully.
+Read `candidate8/artifacts/native-light-before-brush.json`, `native-light-after-brush.json`, and `lighting-results.json`.
+
+These are bounded planar shadows. They use one receiver plane per caster, without clipping at height changes or wrapping arbitrary walls.
+Their direction follows the map sun or a fixed fallback. They do not check whether a roof blocks that directional light.
+Source world point lights do not gain per-pixel shadows. The engine projected-texture probe did not prove shadow casting by public IMesh.
+
+Candidate5 passed all 15 same-input vanilla physics comparisons after canceling an active lighting test.
+Maximum position error was 0.0000001145 blocks. Velocity and grounded state matched.
+Its final case correctly walked off both fixture floors. Shared cleanup then removed protection while the player was still falling.
+The resulting death was a test cleanup defect. Normal completion now resets both peers to the safe Source origin before restoring protection.
+Cancellation retains the replacement test's spawn.
+Candidate5 also passed the live off-range last-block removal check in `artifacts/architecture-result.json`.
+
+Candidate7 repeated all 15 vanilla comparisons. Its five completion checks passed through eight seconds after the final case.
+The player remained alive, grounded, connected, and at the Source fixture origin with no delayed death.
+The collector uses Source's converted fixture origin, including the map's grid alignment.
+Read `candidate7/artifacts/physics-cleanup-result.json` and each paired scenario trace.
+All five scenario-handoff checks passed for physics to lighting, lighting to damage, and damage to lighting.
+Both complete lighting replacements passed all 25 checks. The damage replacement passed all eight directions.
+The interrupted lighting trace records `completed: false`. Each replacement restored the original game mode.
+Read `candidate7/artifacts/scenario-handoff-result.json`, `candidate7/handoff`, and `candidate7/artifacts/damage-results.json`.
+
+The prepared candidate runtime passed all 16 startup and persistence checks across `gm_construct`, `gm_flatgrass`, and `backrooms_main`.
+The saved diamond block and Minecraft FPS option survived reopening. Source restored its weapon, movement, health, armor, collision group, and FPS limits.
+Only one managed Minecraft process remained during the map cycle. Final disable left no orphan.
+The first attempt stopped on a Windows sharing violation in the test's status reader, while Minecraft saved normally.
+Status collectors now permit atomic replacement while reading an opened file generation. They retry only short Windows sharing conflicts.
+Read `artifacts/startup-result.json`, `artifacts/startup-before-sharing-fix.json`, and the paired persistence logs.
+Six injected collision-import failure checks left Source inactive and preserved movement, health, weapon, and its original shadow flag.
+Read `artifacts/garrycraft-start-failure.json` and `Run-ManagedTests.ps1` for the owned fault scenario.
+All four managed lifecycle checks passed, including startup disconnect, automatic reconnect, and normal host exit.
+The separate fresh-world sharing scenario passed all seven checks with deliberately open status and shutdown files.
+It retained the same Minecraft process, deferred status replacement, and held world ownership until saving finished.
+Read `artifacts/lifecycle-result.json` and `sharing-final/runtime-sharing-result.json`.
+The normal prepared runtime now matches the final native module, client class, and lighting addon hashes.
+Launching `GarryCraft.cmd` twice opened one owned host at the menu. No normal Minecraft world loaded during this launch check.
+Existing option and world metadata hashes remained unchanged. Read `cmd-update-result.json` and `normal-files-after.json`.
+
 ## October 2 particle resource reload
 
 The managed launcher update exposed a particle crash during a paused resource reload.
@@ -99,6 +195,23 @@ Backspace changed the query to `ston` and returned 96 items. Both mouse-release 
 Read `iteration9/artifacts/responsiveness-results.json` and its paired Source and Minecraft traces.
 The test selects the search tab through the vanilla API. It does not exercise a physical tab click or operating-system text input.
 No production input change was needed.
+## Manual bridge paths: October 2, 2026
+
+The reported startup stack came from the manual control hook.
+Its saved request pointed at `%LOCALAPPDATA%\GarryCraft\creative-targeting\20261002-final\bridge.bin`.
+Windows resolved that file under Codex's `LocalCache\Local` directory. The manual marker also blocked managed startup.
+
+`tools/Test-BridgePaths.ps1` passed six checks in `bridge-paths/20261002-072239/artifacts/bridge-path-result.json`.
+Source PID 38768 and Minecraft PID 46936 used separate single-player `gm_construct` and a fresh Minecraft world.
+Before the fix, the manual command remained on disk after execution. The saved Source baseline records that pending request.
+After the fix, both games linked through the actual path and loaded collision geometry.
+A fresh command created a new Source session and disappeared from disk.
+Clearing the request ID and reloading the control hook retained that session and the same Minecraft instance.
+Paired Source and Minecraft snapshots remain beside the result outside tracked source.
+Both test processes exited after Minecraft saved its fresh world. The native and Fabric builds passed with Java 25.
+
+This covers native attachment and command replay. The test does not reproduce the original external launcher's Windows path context.
+
 ## Creative NPC targeting: October 2, 2026
 
 Evidence: `%LOCALAPPDATA%\GarryCraft\creative-targeting\20261002-final\artifacts`.

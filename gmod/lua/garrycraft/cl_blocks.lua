@@ -20,6 +20,7 @@ end
 local function clear()
     for _, section in pairs(sections) do GC.DestroyRenderMeshes(section.meshes) end
     sections = {}
+    garrycraft_bridge.clear_light_occluders()
     collect()
 end
 
@@ -41,6 +42,7 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
         if section.clear then clear() else
             local previous = sections[section.key]
             if previous then GC.DestroyRenderMeshes(previous.meshes) end
+            garrycraft_bridge.set_light_occluders(section.key, section.occluders, GC.GridHeight)
             sections[section.key] = {meshes = GC.BuildRenderMeshes(section.meshes, false, true, body), lights = section.lights}
             collect()
         end
@@ -55,17 +57,18 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
 end)
 
 local function active(depth, skybox)
-    return not depth and not skybox and not GC.VideoReset and GC.State and GC.State.linked
+    return not skybox and not GC.VideoReset and GC.State and GC.State.linked
         and IsValid(LocalPlayer()) and LocalPlayer():GetNWBool("GarryCraft")
 end
 local function drawOpaque() GC.DrawRenderMeshes(opaque, false) end
 hook.Add("PostDrawOpaqueRenderables", "GarryCraftOpaqueBlocks", function(depth, skybox)
     if not active(depth, skybox) then return end
-    drawOpaque()
-    render.RenderFlashlights(drawOpaque)
+    GC.DrawRenderMeshes(opaque, false, nil, depth)
+    if not depth then render.RenderFlashlights(drawOpaque) end
+    GC.RestoreLighting()
 end)
 hook.Add("PostDrawTranslucentRenderables", "GarryCraftTransparentBlocks", function(depth, skybox)
-    if not active(depth, skybox) then return end
+    if depth or not active(depth, skybox) then return end
     local eye = EyePos()
     if not sortedFrom or eye:DistToSqr(sortedFrom) > 1 then
         for _, mesh in ipairs(transparent) do mesh.distance = eye:DistToSqr(mesh.center) end
@@ -73,6 +76,7 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftTransparentBlocks", functi
         sortedFrom = eye
     end
     GC.DrawRenderMeshes(transparent, false)
+    GC.RestoreLighting()
 end)
 
 function GC.BlockRenderReport()
@@ -84,6 +88,7 @@ function GC.BlockRenderReport()
     end
     return report
 end
+function GC.BlockShadowMeshes() return opaque end
 
 -- The owned lighting scenario places only water inside this probe radius.
 function GC.WaterLightingReport(position)

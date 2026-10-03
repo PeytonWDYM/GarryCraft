@@ -54,6 +54,7 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftWorldEffects", function(de
         cam.PopModelMatrix()
     end
     local drawn = GC.DrawRenderMeshes(particles, true)
+    GC.RestoreLighting()
     if terrainRequest ~= GC.State.terrainTestRequest then terrainRequest = GC.State.terrainTestRequest debrisPeak = 0 end
     if GC.State.terrainTestPhase == "breaking" then debrisPeak = math.max(debrisPeak, drawn) end
 end)

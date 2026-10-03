@@ -7,69 +7,60 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /** Texture transfers require acknowledgement. Poses and overlay frames retain only the newest snapshot. */
 public final class RenderTransport {
     private static final Gson JSON = new Gson();
-    private static final ConcurrentLinkedQueue<TexturePacket> TEXTURES = new ConcurrentLinkedQueue<>();
-    private static final AtomicReference<AvatarExporter.Scene> SCENE = new AtomicReference<>();
-    private static final AtomicReference<WorldExporter.Section> WORLD = new AtomicReference<>();
-    private static WorldExporter.Section sentWorld;
-    private static byte[] worldBytes;
-    private static long nextWorldSend;
-    private static String session = "";
-    private static String instance = "";
-    private static int nextTexture = 1;
-    private static long nextTextureSend;
-    private static final AtomicInteger TRANSFER = new AtomicInteger();
     private record TextureUpdate(int id, int width, int height, byte[] rgba) {}
-    private static final ConcurrentHashMap<Integer, TextureUpdate> UPDATES = new ConcurrentHashMap<>();
-    private static final ConcurrentLinkedQueue<Integer> UPDATE_ORDER = new ConcurrentLinkedQueue<>();
-    private static byte[] previousScene;
     private record TexturePacket(int id, byte[] bytes) {}
     private record TextureHeader(String session, String instance, int id, int transfer, int width, int height) {}
     public record Tile(int x, int y, int width, int height, int offset, long revision) {}
     public record FrameHeader(String session, String instance, int width, int height, long frame, double capturedAt, java.util.List<Tile> tiles) {}
     private record Overlay(int width, int height, long frame, double capturedAt, byte[] rgba) {}
-    private static final AtomicReference<Overlay> HUD = new AtomicReference<>();
-    private static Overlay previousOverlay;
-    private static final java.util.Map<Integer, TilePixels> TILE_PIXELS = new java.util.HashMap<>();
     private record TilePixels(byte[] rgba, long revision) {}
-    private static long tileRevision;
+    /** The render thread publishes snapshots. Only the transfer thread changes packing and delivery state. */
+    private static final class Generation {
+        final String session, instance;
+        final ConcurrentLinkedQueue<TextureUpdate> textures = new ConcurrentLinkedQueue<>();
+        final ConcurrentHashMap<Integer, TextureUpdate> updates = new ConcurrentHashMap<>();
+        final ConcurrentLinkedQueue<Integer> updateOrder = new ConcurrentLinkedQueue<>();
+        final AtomicReference<AvatarExporter.Scene> scene = new AtomicReference<>();
+        final AtomicReference<WorldExporter.Section> world = new AtomicReference<>();
+        final AtomicReference<Overlay> hud = new AtomicReference<>();
+        // Render-thread ownership ends when reset replaces this generation.
+        int nextTexture = 1;
+        // Transfer-thread state never crosses a render instance boundary.
+        int transfer;
+        TexturePacket pendingTexture;
+        WorldExporter.Section sentWorld;
+        byte[] worldBytes, previousScene;
+        long nextTextureSend, nextWorldSend, tileRevision;
+        Overlay previousOverlay;
+        final java.util.Map<Integer, TilePixels> tilePixels = new java.util.HashMap<>();
+        Generation(String session, String instance) { this.session = session; this.instance = instance; }
+    }
+    private static volatile Generation generation = new Generation("", "");
     private RenderTransport() {}
-    public static String instance() { return instance; }
+    public static String instance() { return generation.instance; }
 
-    public static synchronized void reset(String nextSession, String process) {
-        session = nextSession;
-        instance = process;
-        TEXTURES.clear();
-        UPDATES.clear();
-        UPDATE_ORDER.clear();
-        TRANSFER.set(0);
-        SCENE.set(null);
-        HUD.set(null);
-        previousOverlay = null;
-        TILE_PIXELS.clear();
-        WORLD.set(null);
-        sentWorld = null; worldBytes = null;
-        nextTexture = 1;
-        previousScene = null;
+    public static void reset(String nextSession, String process) {
+        generation = new Generation(nextSession, process);
         Textures.reset();
         FrameExporter.reset();
         WorldExporter.reset();
         MeshSnapshots.reset();
     }
 
-    public static synchronized int texture(int width, int height, byte[] rgba) {
-        int id = nextTexture++;
-        int transfer = TRANSFER.incrementAndGet();
-        TEXTURES.add(new TexturePacket(transfer, packet(new TextureHeader(session, instance, id, transfer, width, height), rgba)));
+    public static int texture(int width, int height, byte[] rgba) {
+        var current = generation;
+        int id = current.nextTexture++;
+        current.textures.add(new TextureUpdate(id, width, height, rgba));
         return id;
     }
     public static void textureUpdate(int id, int width, int height, byte[] rgba) {
         dev.garrycraft.testing.GameplayOracle.texture(id, rgba);
-        if (UPDATES.put(id, new TextureUpdate(id, width, height, rgba)) == null) UPDATE_ORDER.add(id);
+        var current = generation;
+        if (current.updates.put(id, new TextureUpdate(id, width, height, rgba)) == null) current.updateOrder.add(id);
     }
 
     public static byte[] packet(Object header, byte[] body) {
@@ -79,15 +70,16 @@ public final class RenderTransport {
         return result;
     }
 
-    static void scene(AvatarExporter.Scene scene) { SCENE.set(scene); }
+    static void scene(AvatarExporter.Scene scene) { generation.scene.set(scene); }
     public static void overlay(int width, int height, long frame, double capturedAt, byte[] rgba) {
-        HUD.set(new Overlay(width, height, frame, capturedAt, rgba));
+        generation.hud.set(new Overlay(width, height, frame, capturedAt, rgba));
     }
-    private static byte[] tiles(Overlay overlay) {
+    private static byte[] tiles(Generation current, Overlay overlay) {
+        var previousOverlay = current.previousOverlay;
         if (previousOverlay != null && overlay.width() == previousOverlay.width() && overlay.height() == previousOverlay.height()
             && Arrays.equals(overlay.rgba(), previousOverlay.rgba())) return null;
-        if (previousOverlay == null || overlay.width() != previousOverlay.width() || overlay.height() != previousOverlay.height()) TILE_PIXELS.clear();
-        previousOverlay = overlay;
+        if (previousOverlay == null || overlay.width() != previousOverlay.width() || overlay.height() != previousOverlay.height()) current.tilePixels.clear();
+        current.previousOverlay = overlay;
         var tiles = new java.util.ArrayList<Tile>();
         var body = new java.io.ByteArrayOutputStream();
         int width = overlay.width(), height = overlay.height();
@@ -101,54 +93,59 @@ public final class RenderTransport {
             byte[] pixels = new byte[w * h * 4];
             for (int row = 0; row < h; row++) System.arraycopy(rgba, ((y + row) * width + x) * 4, pixels, row * w * 4, w * 4);
             int key = y * width + x;
-            var previous = TILE_PIXELS.get(key);
-            long revision = previous != null && Arrays.equals(previous.rgba(), pixels) ? previous.revision() : ++tileRevision;
-            TILE_PIXELS.put(key, new TilePixels(pixels, revision));
+            var previous = current.tilePixels.get(key);
+            long revision = previous != null && Arrays.equals(previous.rgba(), pixels) ? previous.revision() : ++current.tileRevision;
+            current.tilePixels.put(key, new TilePixels(pixels, revision));
             tiles.add(new Tile(x, height - y - h, w, h, body.size(), revision));
             body.writeBytes(pixels);
         }
-        return packet(new FrameHeader(session, instance, width, height, overlay.frame(), overlay.capturedAt(), tiles), body.toByteArray());
+        return packet(new FrameHeader(current.session, current.instance, width, height, overlay.frame(), overlay.capturedAt(), tiles), body.toByteArray());
     }
-    static void world(WorldExporter.Section packet) { WORLD.set(packet); }
+    static void world(WorldExporter.Section packet) { generation.world.set(packet); }
 
-    public static synchronized void send(Mailbox mailbox, int textureAck, String textureInstance) {
-        if (!instance.equals(textureInstance)) textureAck = 0;
-        var texture = TEXTURES.peek();
-        while (texture != null && texture.id() <= textureAck) {
-            TEXTURES.poll();
-            texture = TEXTURES.peek();
-        }
+    public static void send(Mailbox mailbox, int textureAck, String textureInstance) {
+        var current = generation;
+        if (!current.instance.equals(textureInstance)) textureAck = 0;
+        var texture = current.pendingTexture;
+        if (texture != null && texture.id() <= textureAck) texture = null;
         long now = System.nanoTime();
         if (texture == null) {
-            // Publish the latest pixels in arrival order without blocking Minecraft's render thread.
-            var id = UPDATE_ORDER.poll();
-            if (id != null) {
-                var update = UPDATES.remove(id);
-                int transfer = TRANSFER.incrementAndGet();
-                texture = new TexturePacket(transfer, packet(new TextureHeader(session, instance,
+            var update = current.textures.poll();
+            if (update == null) {
+                // Animated sprites retain their latest pixels and share transfers in arrival order.
+                var id = current.updateOrder.poll();
+                if (id != null) update = current.updates.remove(id);
+            }
+            if (update != null) {
+                int transfer = ++current.transfer;
+                texture = new TexturePacket(transfer, packet(new TextureHeader(current.session, current.instance,
                     update.id(), transfer, update.width(), update.height()), update.rgba()));
-                TEXTURES.add(texture);
             }
         }
-        if (texture != null && now >= nextTextureSend) {
+        current.pendingTexture = texture;
+        if (current != generation) return;
+        if (texture != null && now >= current.nextTextureSend) {
             mailbox.send(4, texture.bytes());
-            nextTextureSend = now + 20_000_000L;
+            current.nextTextureSend = now + 20_000_000L;
         }
-        var scene = SCENE.getAndSet(null);
+        var scene = current.scene.getAndSet(null);
         if (scene != null) {
             byte[] bytes = MeshPackets.scene(scene);
-            if (!Arrays.equals(previousScene, bytes)) { previousScene = bytes; mailbox.send(5, bytes); }
+            if (current != generation) return;
+            if (!Arrays.equals(current.previousScene, bytes)) { current.previousScene = bytes; mailbox.send(5, bytes); }
         }
-        var overlay = HUD.getAndSet(null);
+        var overlay = current.hud.getAndSet(null);
         if (overlay != null) {
-            var bytes = tiles(overlay);
+            var bytes = tiles(current, overlay);
+            if (current != generation) return;
             if (bytes != null) mailbox.send(6, bytes);
         }
-        var world = WORLD.get();
-        if (world != null && now >= nextWorldSend) {
-            if (world != sentWorld) { worldBytes = MeshPackets.section(world); sentWorld = world; }
-            mailbox.send(7, worldBytes);
-            nextWorldSend = now + 20_000_000L;
+        var world = current.world.get();
+        if (world != null && now >= current.nextWorldSend) {
+            if (world != current.sentWorld) { current.worldBytes = MeshPackets.section(world); current.sentWorld = world; }
+            if (current != generation) return;
+            mailbox.send(7, current.worldBytes);
+            current.nextWorldSend = now + 20_000_000L;
         }
     }
 }
