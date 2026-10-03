@@ -1,0 +1,124 @@
+local GC = GarryCraft
+local leftArm, rightArm = {}, {}
+local leftRevision, rightRevision
+local retired = {}
+local lastGrips, lastGunBones = {}, {}
+local lastGripAt, armsDrawn = 0, 0
+local hookCalls, drawStatus, rearElbowError = 0, "not-called", 0
+
+hook.Add("Think", "GarryCraftPhysgunArmRetirement", function()
+    for _, batches in ipairs(retired) do GC.DestroyRenderMeshes(batches) end
+    retired = {}
+end)
+
+function GC.ClearPhysgunArms()
+    retired[#retired + 1], retired[#retired + 2] = leftArm, rightArm
+    leftArm, rightArm = {}, {}
+    leftRevision, rightRevision = nil, nil
+    lastGrips, lastGunBones, lastGripAt, armsDrawn = {}, {}, 0, 0
+    drawStatus = "cleared"
+end
+
+function GC.AcceptPhysgunArms(scene, body)
+    if leftRevision ~= scene.leftArm.revision then
+        retired[#retired + 1] = leftArm
+        leftArm = GC.BuildRenderMeshes(scene.leftArm.batches, false, false, body)
+        leftRevision = scene.leftArm.revision
+    end
+    if rightRevision ~= scene.rightArm.revision then
+        retired[#retired + 1] = rightArm
+        rightArm = GC.BuildRenderMeshes(scene.rightArm.batches, false, false, body)
+        rightRevision = scene.rightArm.revision
+    end
+end
+
+-- The native gun contains a left-hand skeleton. Its rear grip uses the animated gun bone,
+-- since c_hands' unmerged right-hand bones remain in their resting pose.
+hook.Add("PreDrawPlayerHands", "GarryCraftMinecraftPhysgunArms", function(hands, viewmodel, player, weapon)
+    hookCalls = hookCalls + 1
+    if not GC.PhysgunActive(player) then drawStatus = "inactive" return end
+    armsDrawn, lastGrips = 0, {}
+    if #leftArm == 0 or #rightArm == 0 then drawStatus = "missing-mesh" return true end
+    hands:SetupBones()
+    lastGunBones = {}
+    for _, name in ipairs({"Base", "square"}) do
+        local bone = viewmodel:LookupBone(name)
+        local transform = bone and viewmodel:GetBoneMatrix(bone)
+        if transform then lastGunBones[name] = {position = tostring(transform:GetTranslation()), angles = tostring(transform:GetAngles())} end
+    end
+    local grips = {}
+    for _, side in ipairs({{name = "L", batches = leftArm}, {name = "R", batches = rightArm}}) do
+        local wrist, elbow, tip, roll
+        if side.name == "L" then
+            local handBone = hands:LookupBone("ValveBiped.Bip01_L_Hand")
+            local forearmBone = hands:LookupBone("ValveBiped.Bip01_L_Forearm")
+            if not handBone or not forearmBone then drawStatus = "missing-support-bone" return true end
+            local handMatrix, forearmMatrix = hands:GetBoneMatrix(handBone), hands:GetBoneMatrix(forearmBone)
+            if not handMatrix or not forearmMatrix then drawStatus = "missing-support-pose" return true end
+            wrist, elbow = handMatrix:GetTranslation(), forearmMatrix:GetTranslation()
+            tip = wrist + handMatrix:GetAngles():Forward() * 2.5
+            roll = forearmMatrix:GetAngles().r
+        else
+            local rearBone = viewmodel:LookupBone("square")
+            local rearMatrix = rearBone and viewmodel:GetBoneMatrix(rearBone)
+            if not rearMatrix then drawStatus = "missing-gun-pose" return true end
+            tip = rearMatrix:GetTranslation()
+            local view = viewmodel:GetAngles()
+            elbow = viewmodel:GetPos() + view:Forward() * 16 + view:Right() * 14 - view:Up() * 14
+            rearElbowError = WorldToLocal(elbow, Angle(), viewmodel:GetPos(), view):Distance(Vector(16, -14, -14))
+            wrist = tip - (tip - elbow):GetNormalized() * 2.5
+            roll = view.r
+        end
+        local direction = tip - elbow
+        local angles = direction:Angle()
+        angles.r = roll
+        local minimum, maximum = math.huge, -math.huge
+        for _, batch in ipairs(side.batches) do
+            minimum = math.min(minimum, batch.minimum.x)
+            maximum = math.max(maximum, batch.maximum.x)
+        end
+        grips[#grips + 1] = {side = side.name, batches = side.batches, wrist = wrist, elbow = elbow,
+            tip = tip, angles = angles, scale = Vector(direction:Length() / (maximum - minimum), .45, .45)}
+    end
+    lastGrips = {}
+    armsDrawn = 0
+    for _, grip in ipairs(grips) do
+        local transform = Matrix()
+        transform:SetTranslation(grip.tip)
+        transform:SetAngles(grip.angles)
+        transform:Scale(grip.scale)
+        cam.PushModelMatrix(transform)
+        armsDrawn = armsDrawn + GC.DrawRenderMeshes(grip.batches, false, grip.wrist)
+        cam.PopModelMatrix()
+        lastGrips[#lastGrips + 1] = {side = grip.side, wrist = tostring(grip.wrist), elbow = tostring(grip.elbow),
+            tip = tostring(grip.tip), angles = tostring(grip.angles), scale = tostring(grip.scale),
+            elbowLocal = tostring(WorldToLocal(grip.elbow, Angle(), viewmodel:GetPos(), viewmodel:GetAngles()))}
+    end
+    lastGripAt = RealTime()
+    drawStatus = armsDrawn > 0 and "drawn" or "missing-texture"
+    GC.RestoreLighting()
+    return true
+end)
+
+function GC.PhysgunArmReport()
+    local function armReport(batches)
+        local result = {vertices = 0, batches = {}}
+        for _, batch in ipairs(batches) do
+            result.vertices = result.vertices + batch.vertices
+            result.batches[#result.batches + 1] = {texture = batch.texture, vertices = batch.vertices,
+                minimum = tostring(batch.minimum), maximum = tostring(batch.maximum), textureReady = GC.RenderTexture(batch.texture) ~= nil}
+        end
+        return result
+    end
+    return {leftArmBatches = #leftArm, rightArmBatches = #rightArm,
+        leftArm = armReport(leftArm), rightArm = armReport(rightArm), grips = lastGrips,
+        gunBones = lastGunBones, armsDrawn = armsDrawn, rearElbowError = rearElbowError,
+        hookCalls = hookCalls, drawStatus = drawStatus, leftRevision = leftRevision, rightRevision = rightRevision,
+        sourceHandsSuppressed = drawStatus == "drawn" and #lastGrips == 2 and RealTime() - lastGripAt < .5}
+end
+
+hook.Add("ShutDown", "GarryCraftPhysgunArmCleanup", function()
+    GC.ClearPhysgunArms()
+    for _, batches in ipairs(retired) do GC.DestroyRenderMeshes(batches) end
+    retired = {}
+end)

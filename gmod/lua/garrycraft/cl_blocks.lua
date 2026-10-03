@@ -2,6 +2,8 @@ local GC = GarryCraft
 local sections = {}
 local session
 local instance
+local height
+local rebuilt, reused, transferMs, maximumTransferMs = 0, 0, 0, 0
 local acknowledged = 0
 local opaque, transparent = {}, {}
 local sortedFrom
@@ -21,6 +23,7 @@ local function clear()
     for _, section in pairs(sections) do GC.DestroyRenderMeshes(section.meshes) end
     sections = {}
     garrycraft_bridge.clear_light_occluders()
+    garrycraft_bridge.clear_voxel_lighting()
     collect()
 end
 
@@ -30,23 +33,36 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
         return
     end
     if GC.VideoReset then return end
-    if session ~= GC.State.session or instance ~= GC.State.renderInstance then
+    if session ~= GC.State.session or instance ~= GC.State.renderInstance or height ~= GC.GridHeight then
         clear()
-        session, instance = GC.State.session, GC.State.renderInstance
+        session, instance, height = GC.State.session, GC.State.renderInstance, GC.GridHeight
         acknowledged = 0
     end
     local section, body = GC.ReceiveRenderPacket(7)
     if not section then return end
     if section.session ~= session or section.instance ~= instance then garrycraft_bridge.release_packet(body) return end
     if section.sequence > acknowledged then
+        local started = SysTime()
         if section.clear then clear() else
             local previous = sections[section.key]
             garrycraft_bridge.set_light_occluders(section.key, section.occluders, GC.GridHeight)
-            sections[section.key] = {meshes = GC.BuildRenderMeshes(section.meshes, false, true, body, "world", previous and previous.meshes), lights = section.lights}
-            if previous then GC.DestroyRenderMeshes(previous.meshes) end
-            collect()
+            garrycraft_bridge.set_voxel_lighting(section.key, section.voxelLighting, body)
+            local same = previous and previous.geometry == section.geometry
+            local meshes = same and previous.meshes
+                or GC.BuildRenderMeshes(section.meshes, false, true, body, "world", previous and previous.meshes)
+            sections[section.key] = {meshes = meshes, lights = section.lights, geometry = section.geometry}
+            if same then
+                reused = reused + 1
+                GC.SetBlockLights(sections)
+            else
+                rebuilt = rebuilt + 1
+                if previous then GC.DestroyRenderMeshes(previous.meshes) end
+                collect()
+            end
         end
         acknowledged = section.sequence
+        transferMs = (SysTime() - started) * 1000
+        maximumTransferMs = math.max(maximumTransferMs, transferMs)
     end
     garrycraft_bridge.release_packet(body)
     -- Repeat acknowledgments because the server may receive the clear packet after the client does.
@@ -75,7 +91,8 @@ end)
 
 function GC.BlockRenderReport()
     local report = {sections = table.Count(sections), lights = 0, vertices = 0, transparentFaces = #transparent,
-        ack = acknowledged, gridHeight = GC.GridHeight, lighting = GC.LightReport()}
+        ack = acknowledged, gridHeight = GC.GridHeight, lighting = GC.LightReport(),
+        rebuilt = rebuilt, reused = reused, transferMs = transferMs, maxTransferMs = maximumTransferMs}
     for _, section in pairs(sections) do
         report.lights = report.lights + #section.lights
         for _, batch in ipairs(section.meshes) do report.vertices = report.vertices + batch.vertices end

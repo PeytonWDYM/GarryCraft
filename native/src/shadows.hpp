@@ -6,3 +6,5 @@ namespace GarrysMod::Lua { class ILuaBase; }
 // more than four batches, changed bounds/pose, other entity draws, video reset, map exit, and module unload.
 void registerShadows(GarrysMod::Lua::ILuaBase* lua);
 void releaseShadows(GarrysMod::Lua::ILuaBase* lua);
+// Minecraft proxies already supply their voxel ambient cube through the public model lighting API.
+bool isDrawingSourceMesh();

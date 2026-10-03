@@ -9,13 +9,14 @@
 #include <vector>
 
 namespace {
-    struct Box { std::array<float, 3> min, max; };
+    struct Box { std::array<float, 3> min, max; bool operator==(const Box&) const = default; };
     struct Node { Box bounds; int first, count, left = -1, right = -1; };
     std::unordered_map<std::string, std::vector<Box>> sections;
     std::vector<Box> boxes;
     std::vector<Node> tree;
     bool dirty = true;
     unsigned long long rays = 0, boxTests = 0;
+    std::uint64_t revision = 0;
 
     Box bounds(int first, int count) {
         Box result{{INFINITY, INFINITY, INFINITY}, {-INFINITY, -INFINITY, -INFINITY}};
@@ -115,8 +116,15 @@ namespace {
             result.push_back({{value[0] * 32, -value[5] * 32, value[1] * 32 + height},
                 {value[3] * 32, -value[2] * 32, value[4] * 32 + height}});
         }
-        if (result.empty()) sections.erase(key); else sections[key] = std::move(result);
-        dirty = true;
+        const auto existing = sections.find(key);
+        if (result.empty()) {
+            if (existing == sections.end()) return 0;
+            sections.erase(existing);
+        } else {
+            if (existing != sections.end() && existing->second == result) return 0;
+            sections.insert_or_assign(key, std::move(result));
+        }
+        dirty = true; ++revision;
         return 0;
     }
     LUA_FUNCTION_STATIC(clear) { releaseLighting(); return 0; }
@@ -149,6 +157,7 @@ namespace {
         LUA->PushNumber(boxes.size()); LUA->SetField(-2, "boxes");
         LUA->PushNumber(static_cast<double>(rays)); LUA->SetField(-2, "rays");
         LUA->PushNumber(static_cast<double>(boxTests)); LUA->SetField(-2, "boxTests");
+        LUA->PushNumber(static_cast<double>(revision)); LUA->SetField(-2, "revision");
         return 1;
     }
 }
@@ -161,4 +170,6 @@ void registerLighting(GarrysMod::Lua::ILuaBase* lua) {
     lua->PushCFunction(report); lua->SetField(-2, "lighting_report");
     lua->PushCFunction(receiver); lua->SetField(-2, "shadow_receiver");
 }
-void releaseLighting() { sections.clear(); boxes.clear(); tree.clear(); dirty = true; rays = boxTests = 0; }
+void releaseLighting() { sections.clear(); boxes.clear(); tree.clear(); dirty = true; rays = boxTests = 0; ++revision; }
+bool lightOccluded(const Vector& start, const Vector& end) { return occluded(start, end); }
+std::uint64_t lightingOccluderRevision() { return revision; }

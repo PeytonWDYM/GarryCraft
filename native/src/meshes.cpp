@@ -193,7 +193,17 @@ namespace {
         buildMilliseconds += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
         LUA->PushVector(minimum);
         LUA->PushVector(maximum);
-        return 2;
+        std::array<Vector, 3> firstTriangle;
+        for (int i = 0; i < 3; ++i) {
+            Vertex vertex;
+            std::memcpy(&vertex, bytes + i * sizeof(Vertex), sizeof(Vertex));
+            firstTriangle[i] = position(vertex, space, height);
+        }
+        Vector normal = (firstTriangle[1] - firstTriangle[0]).Cross(firstTriangle[2] - firstTriangle[0]);
+        const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
+        if (length > 0) normal /= length;
+        LUA->PushVector(normal);
+        return 3;
     }
 }
 

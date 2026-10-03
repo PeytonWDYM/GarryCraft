@@ -50,6 +50,12 @@ $record = "$data/garrycraft-physgun-$Mode.json"
 if (Test-Path -LiteralPath $record) { Remove-Item -LiteralPath $record }
 if (Test-Path -LiteralPath "$data/garrycraft-physgun-client.json") { Remove-Item -LiteralPath "$data/garrycraft-physgun-client.json" }
 [GarryCraftSourceInput]::Focus($game.MainWindowHandle)
+Start-Sleep -Milliseconds 700
+if ($Mode -eq 'minecraft') {
+    # Foreground activation can move Source's mouse before its camera consumes the new pose.
+    Send "lua_run_cl local r=util.JSONToTable(file.Read('garrycraft-physgun-reference.json','DATA')) LocalPlayer():SetEyeAngles(Angle(unpack(r.fixture.aim)))"
+    Start-Sleep -Milliseconds 700
+}
 Send "lua_run_cl RunString(file.Read('garrycraft-physgun-native.lua','DATA'))"
 $geometry = if ($Mode -eq 'minecraft') { "util.JSONToTable(file.Read('garrycraft-physgun-reference.json','DATA')).fixture" } else { 'nil' }
 Send "lua_run RunString(file.Read('garrycraft-physgun-native.lua','DATA')) GarryCraft.PhysgunNativeTest.Begin('$Mode',$geometry)"
@@ -57,18 +63,18 @@ Start-Sleep -Milliseconds 500
 if (-not (Test-Path -LiteralPath $record)) { throw 'The native gun fixture did not start. Read the Source console log.' }
 $actions = @()
 try {
-    [GarryCraftSourceInput]::Focus($game.MainWindowHandle)
     Mark 'pickup'
     [GarryCraftSourceInput]::MouseDown('left')
     Start-Sleep -Seconds 2
     Snapshot 'pickup-result'
     Mark 'wheel-out'
     [GarryCraftSourceInput]::Wheel(360)
-    Start-Sleep -Seconds 1
+    Start-Sleep -Seconds 2
     Snapshot 'wheel-out-result'
     Mark 'wheel-in'
     [GarryCraftSourceInput]::Wheel(-360)
-    Start-Sleep -Seconds 1
+    # Allow the native body to finish returning from the maximum wheel-out distance before comparing it.
+    Start-Sleep -Seconds 2
     Snapshot 'wheel-in-result'
     Mark 'rotate'
     [GarryCraftSourceInput]::KeyDown($UseKey)
@@ -120,8 +126,6 @@ try {
     FreezeFixture 'pairB'
     Snapshot 'group-frozen-result'
     Stage 'away'
-    Send 'lua_run_cl LocalPlayer():SetEyeAngles(Angle(0,LocalPlayer():EyeAngles().y+180,0))'
-    Start-Sleep -Milliseconds 500
     Snapshot 'group-reload-ray'
     Start-Sleep -Milliseconds 250
     $ray = (Get-Content -LiteralPath $record -Raw | ConvertFrom-Json).snapshots[-1]

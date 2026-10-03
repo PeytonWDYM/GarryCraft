@@ -27,7 +27,19 @@ scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERG
         if entry.kind == "avatar" and ((GC.State.camera == 0 and not depth) or not LocalPlayer():Alive()
             or GC.State.teleportAck ~= LocalPlayer():GetNWInt("GarryCraftTeleport")) then return end
         draws[entry.kind] = draws[entry.kind] + 1
+        if not depth and not entry.batch.unlit then
+            local position = entry.position
+            if entry.kind == "world" then position = position + entry.batch.normal * .5 end
+            GC.PrepareLighting(position, entry.batch.lighting)
+            render.SuppressEngineLighting(true)
+            garrycraft_bridge.source_model_lighting_override(entry.batch.lighting.colors)
+        end
         self:DrawModel(flags)
+        if not depth and not entry.batch.unlit then
+            garrycraft_bridge.source_model_lighting_clear_override()
+            render.SuppressEngineLighting(false)
+            GC.RestoreLighting()
+        end
     end,
     OnRemove = function(self)
         local entry = self.GarryCraftSourceModel

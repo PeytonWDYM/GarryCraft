@@ -13,7 +13,8 @@ import net.minecraft.world.level.chunk.status.ChunkStatus;
 public final class WorldExporter {
     record Light(float x, float y, float z, int emission, int color) {}
     record Section(String session, String instance, long sequence, String key, boolean clear,
-        List<ModelCollector.Batch> meshes, List<double[]> boxes, List<Light> lights, List<double[]> occluders) {}
+        List<ModelCollector.Batch> meshes, List<double[]> boxes, List<Light> lights, List<double[]> occluders,
+        byte[] voxelLighting, float[] lightBrightness) {}
     private static final LongLinkedOpenHashSet DIRTY = new LongLinkedOpenHashSet();
     private static final LongOpenHashSet SENT = new LongOpenHashSet();
     private static final LongOpenHashSet URGENT = new LongOpenHashSet();
@@ -114,7 +115,7 @@ public final class WorldExporter {
         }
         if (clear) {
             clear = false;
-            pending = new Section(session, instance, ++sequence, "", true, List.of(), List.of(), List.of(), List.of());
+            pending = new Section(session, instance, ++sequence, "", true, List.of(), List.of(), List.of(), List.of(), new byte[0], new float[0]);
             clearSequence = pending.sequence();
             RenderTransport.world(pending);
             return;
@@ -123,7 +124,7 @@ public final class WorldExporter {
             long id = committed.firstLong();
             var snapshot = detached.get(id).snapshot;
             pending = new Section(session, instance, ++sequence, snapshot.key(), false,
-                snapshot.meshes(), snapshot.boxes(), snapshot.lights(), snapshot.occluders());
+                snapshot.meshes(), snapshot.boxes(), snapshot.lights(), snapshot.occluders(), snapshot.voxelLighting(), snapshot.lightBrightness());
             pendingKey = detached.get(id).builder.key;
             pendingDetach = id;
             detachSequences.put(id, pending.sequence());
@@ -153,7 +154,8 @@ public final class WorldExporter {
                 for (int i = 0; i < chunk.getSections().length; i++) {
                     long key = SectionPos.asLong(x, chunk.getSectionYFromSectionIndex(i), z);
                     // Exported sections need removal packets even if an off-range edit removed their last block.
-                    if (DEFERRED.remove(key) || (!chunk.getSections()[i].hasOnlyAir() && !SENT.contains(key)))
+                    if (DEFERRED.remove(key) || (!SENT.contains(key)
+                            && (!chunk.getSections()[i].hasOnlyAir() || VoxelLighting.affectsAir(mc.level, key))))
                         dirty(x, SectionPos.y(key), z);
                 }
             }
@@ -187,7 +189,7 @@ public final class WorldExporter {
         }
         int index = level.getSectionIndexFromSectionY(sy);
         if (index < 0 || index >= chunk.getSections().length) return null;
-        if (chunk.getSections()[index].hasOnlyAir() && !SENT.contains(key)) return null;
+        if (chunk.getSections()[index].hasOnlyAir() && !SENT.contains(key) && !VoxelLighting.affectsAir(level, key)) return null;
         return new SectionBuilder(mc, key);
     }
 }

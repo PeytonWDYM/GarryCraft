@@ -35,9 +35,8 @@ final class BlockMeshBuilder implements BlockQuadOutput, FluidRenderer.Output {
         var sprite = quad.materialInfo().sprite();
         boolean translucent = quad.materialInfo().layer().translucent();
         int face = 0, plane = 0;
-        // Source lights opaque models with per-triangle normals. Keep their lighting origins within four-block tiles.
-        // Transparent meshes retain planar samples for the manual lighting and sorting path.
-        if (translucent) {
+        // Separate opposing faces so each lighting probe samples the air outside its receiving surface.
+        {
             var a = quad.position(0); var b = quad.position(1); var c = quad.position(2);
             float nx = (b.y() - a.y()) * (c.z() - a.z()) - (b.z() - a.z()) * (c.y() - a.y());
             float ny = (b.z() - a.z()) * (c.x() - a.x()) - (b.x() - a.x()) * (c.z() - a.z());
