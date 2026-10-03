@@ -96,7 +96,7 @@ hook.Add("PreRender", "GarryCraftClientControls", function()
     local controls = {version = 1, session = session, teleportSeq = player:GetNWInt("GarryCraftTeleport"),
         frame = frame, time = garrycraft_bridge.clock(), yaw = -angles.y - 90, pitch = angles.p,
         mouseX = x / ScrW(), mouseY = y / ScrH(), camera = input.IsKeyDown(KEY_F5),
-        inventory = input.IsKeyDown(KEY_E), chat = input.IsKeyDown(KEY_T),
+        inventory = input.IsKeyDown(GC.PhysgunEquipped() and KEY_I or KEY_E), chat = input.IsKeyDown(KEY_T),
         attack = acceptsButtons and input.IsMouseDown(MOUSE_LEFT), use = acceptsButtons and input.IsMouseDown(MOUSE_RIGHT),
         shift = input.IsKeyDown(KEY_LSHIFT) or input.IsKeyDown(KEY_RSHIFT),
         control = input.IsKeyDown(KEY_LCONTROL) or input.IsKeyDown(KEY_RCONTROL),
@@ -106,8 +106,8 @@ hook.Add("PreRender", "GarryCraftClientControls", function()
     garrycraft_bridge.send(8, util.TableToJSON(controls))
 end)
 
-hook.Add("PlayerBindPress", "GarryCraftInventoryBind", function(player, bind)
-    if player:GetNWBool("GarryCraft") and (bind == "+use" or bind == "messagemode" or bind == "messagemode2"
+hook.Add("PlayerBindPress", "GarryCraftInventoryBind", function(player, bind, pressed)
+    if player:GetNWBool("GarryCraft") and ((bind == "+use" and pressed and not GC.PhysgunEquipped()) or bind == "messagemode" or bind == "messagemode2"
         or string.find(bind, "jpeg", 1, true)) then return true end
 end)
 hook.Add("StartChat", "GarryCraftChat", function()

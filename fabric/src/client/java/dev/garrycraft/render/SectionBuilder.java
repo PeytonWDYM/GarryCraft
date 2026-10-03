@@ -16,6 +16,7 @@ import net.minecraft.world.level.block.WallTorchBlock;
 final class SectionBuilder {
     final long key;
     private final Minecraft mc;
+    private final net.minecraft.client.renderer.block.BlockAndTintGetter level;
     private final BlockPos origin;
     private final BlockMeshBuilder mesh;
     private final ModelBlockRenderer blocks;
@@ -27,7 +28,12 @@ final class SectionBuilder {
     private int cursor;
 
     SectionBuilder(Minecraft mc, long key) {
+        this(mc, key, mc.level);
+    }
+
+    SectionBuilder(Minecraft mc, long key, net.minecraft.client.renderer.block.BlockAndTintGetter level) {
         this.mc = mc; this.key = key;
+        this.level = level;
         origin = SectionPos.of(SectionPos.x(key), SectionPos.y(key), SectionPos.z(key)).origin();
         mesh = new BlockMeshBuilder(origin.getX(), origin.getY(), origin.getZ());
         blocks = new ModelBlockRenderer(mc.options.ambientOcclusion().get(), true, mc.getBlockColors());
@@ -40,18 +46,18 @@ final class SectionBuilder {
             int index = cursor++;
             int x = index & 15, z = (index >> 4) & 15, y = index >> 8;
             position.set(origin.getX() + x, origin.getY() + y, origin.getZ() + z);
-            var state = mc.level.getBlockState(position);
+            var state = level.getBlockState(position);
             if (!state.isAir()) {
                 var pos = position.immutable();
                 var fluid = state.getFluidState();
                 if (!fluid.isEmpty()) {
                     mesh.fluidGround(SourceSurface.groundTop(pos), y, fluid.is(FluidTags.LAVA));
-                    fluids.tesselate(mc.level, pos, mesh, state, fluid);
+                    fluids.tesselate(level, pos, mesh, state, fluid);
                 }
                 mesh.emissive(state.getLightEmission() > 0);
-                if (state.getRenderShape() == RenderShape.MODEL) blocks.tesselateBlock(mesh, x, y, z, mc.level, pos, state,
+                if (state.getRenderShape() == RenderShape.MODEL) blocks.tesselateBlock(mesh, x, y, z, level, pos, state,
                     mc.getModelManager().getBlockStateModelSet().get(state), state.getSeed(pos));
-                for (var box : state.getCollisionShape(mc.level, pos).toAabbs()) boxes.add(new double[]{
+                for (var box : state.getCollisionShape(level, pos).toAabbs()) boxes.add(new double[]{
                     pos.getX() + box.minX, pos.getY() + box.minY, pos.getZ() + box.minZ,
                     pos.getX() + box.maxX, pos.getY() + box.maxY, pos.getZ() + box.maxZ});
                 // Glass can collide without blocking light. Use Minecraft's separate occlusion contract.

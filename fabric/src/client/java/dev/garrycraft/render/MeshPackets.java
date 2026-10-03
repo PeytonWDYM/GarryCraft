@@ -10,9 +10,12 @@ final class MeshPackets {
     private record Mesh(int texture, boolean translucent, boolean unlit, int tint, int offset, int count, float x, float y, float z) {}
     private record Group(long revision, List<Mesh> batches) {}
     private record ItemModel(int id, List<Mesh> batches) {}
+    private record PhysicsBlockModel(long id, List<Mesh> batches) {}
+    private record PhysicsBlocks(long revision, List<PhysicsBlockModel> models, List<Integer> destructionTextures) {}
     private record SceneHeader(String session, String instance, int camera, float handFov,
         Group avatar, Group hands, Group particles, Group entities, Group cracks, List<double[]> selection,
-        List<ItemModel> itemModels, List<ItemInstances.Instance> items) {}
+        List<ItemModel> itemModels, List<ItemInstances.Instance> items, List<NativeItems.Item> nativeItems,
+        Group leftArm, Group rightArm, PhysicsBlocks physicsBlocks) {}
     private record SectionHeader(String session, String instance, long sequence, String key, boolean clear,
         List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights, List<double[]> occluders) {}
     private final ByteBuffer body;
@@ -46,13 +49,18 @@ final class MeshPackets {
     }
     private Group group(MeshSnapshots.Snapshot snapshot) { return new Group(snapshot.revision(), meshes(snapshot.batches())); }
     static byte[] scene(AvatarExporter.Scene scene) {
-        var groups = List.of(scene.avatar(), scene.hands(), scene.particles(), scene.entities(), scene.cracks());
+        var groups = List.of(scene.avatar(), scene.hands(), scene.particles(), scene.entities(), scene.cracks(), scene.leftArm(), scene.rightArm());
         var packet = new MeshPackets(groups.stream().mapToInt(group -> count(group.batches())).sum()
-            + scene.itemModels().stream().mapToInt(model -> count(model.batches())).sum());
+            + scene.itemModels().stream().mapToInt(model -> count(model.batches())).sum()
+            + scene.physicsBlocks().models().stream().mapToInt(model -> count(model.batches())).sum());
         var header = new SceneHeader(scene.session(), scene.instance(), scene.camera(), scene.handFov(),
             packet.group(scene.avatar()), packet.group(scene.hands()), packet.group(scene.particles()),
             packet.group(scene.entities()), packet.group(scene.cracks()), scene.selection(),
-            scene.itemModels().stream().map(model -> new ItemModel(model.id(), packet.meshes(model.batches()))).toList(), scene.items());
+            scene.itemModels().stream().map(model -> new ItemModel(model.id(), packet.meshes(model.batches()))).toList(), scene.items(),
+            scene.nativeItems(), packet.group(scene.leftArm()), packet.group(scene.rightArm()),
+            new PhysicsBlocks(scene.physicsBlocks().revision(), scene.physicsBlocks().models().stream()
+                .map(model -> new PhysicsBlockModel(model.id(), packet.meshes(model.batches()))).toList(),
+                scene.physicsBlocks().destructionTextures()));
         return RenderTransport.packet(header, packet.body.array());
     }
     static byte[] section(WorldExporter.Section section) {

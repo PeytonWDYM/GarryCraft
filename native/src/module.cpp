@@ -12,6 +12,7 @@
 #include "receiver.hpp"
 #include "packets.hpp"
 #include "lighting.hpp"
+#include "shadows.hpp"
 #endif
 
 namespace {
@@ -83,6 +84,7 @@ namespace {
 #ifdef GARRYCRAFT_CLIENT
         receiver.stop();
         releaseLighting();
+        releaseShadows(LUA);
 #else
         releaseGeometry();
 #endif
@@ -121,6 +123,7 @@ GMOD_MODULE_OPEN() {
     registerFramerate(LUA);
     registerMeshes(LUA);
     registerLighting(LUA);
+    registerShadows(LUA);
 #endif
     LUA->PushCFunction(clock);
     LUA->SetField(-2, "clock");
@@ -140,6 +143,7 @@ GMOD_MODULE_OPEN() {
 GMOD_MODULE_CLOSE() {
 #ifdef GARRYCRAFT_CLIENT
     receiver.stop();
+    releaseShadows(LUA);
     releaseTextures();
     releaseMeshes(LUA);
     releaseLighting();

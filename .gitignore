@@ -9,6 +9,7 @@ out/
 *.bin
 *.vtf
 *.png
+!fabric/src/main/resources/assets/garrycraft/textures/item/physics_gun.png
 *.zip
 *.jar
 !fabric/gradle/wrapper/gradle-wrapper.jar

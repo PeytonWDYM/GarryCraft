@@ -117,7 +117,7 @@ public final class PhysicsOracle {
         if (scenario.jumpTicks() != null) for (int scheduled : scenario.jumpTicks()) if (scheduled == tick) jump = true;
         InputBridge.apply(mc, new HostInput(1, host.session(), host.frame(), true, 0, 0, 0, 0, 0,
                 scenario.forward(), false, false, scenario.right(), jump, scenario.sneak(), scenario.sprint(),
-                false, false, 0, "", 0, host.teleportSeq(), host.damageTotal(), 0, false, false, false, 0, 0, "", host.targetFps(), false, List.of(), List.of(), host.viewportWidth(), host.viewportHeight(), 0, 0, "", List.of(), host.renderEpoch(), host.damageScaling()));
+                false, false, 0, "", 0, host.teleportSeq(), host.damageTotal(), 0, false, false, false, 0, 0, "", host.targetFps(), false, List.of(), List.of(), host.viewportWidth(), host.viewportHeight(), 0, 0, "", List.of(), host.renderEpoch(), host.damageScaling(), List.of(), null, -1));
         return true;
     }
 

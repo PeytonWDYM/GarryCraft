@@ -4,22 +4,21 @@ local samples = {}
 local capture
 local projector
 local comparison
-local planarBeforeTest
-local shadowProbes
+local shadowsBeforeTest
 
-local function restorePlanar()
-    if planarBeforeTest then
-        RunConsoleCommand("garrycraft_planar_shadows", planarBeforeTest)
-        planarBeforeTest = nil
+local function restoreShadows()
+    if shadowsBeforeTest then
+        RunConsoleCommand("garrycraft_source_shadows", shadowsBeforeTest)
+        shadowsBeforeTest = nil
     end
-    capture, shadowProbes = nil, nil
+    capture = nil
 end
-hook.Add("ShutDown", "GarryCraftLightingTestCleanup", restorePlanar)
+hook.Add("ShutDown", "GarryCraftLightingTestCleanup", restoreShadows)
 
 -- Opt-in engine shadow-map probe. Compare captures with 0 (off), 1 (shadows), and 2 (light only).
 concommand.Add("garrycraft_test_depthshadow", function(_, _, args)
     if projector then projector:Remove() projector = nil end
-    if comparison then RunConsoleCommand("garrycraft_planar_shadows", comparison.planar) comparison = nil end
+    if comparison then RunConsoleCommand("garrycraft_source_shadows", comparison.shadows) comparison = nil end
     local compare = args[1] == "compare"
     local mode = compare and 1 or tonumber(args[1]) or 0
     if mode == 0 then return end
@@ -32,9 +31,9 @@ concommand.Add("garrycraft_test_depthshadow", function(_, _, args)
     projector:SetColor(Color(255, 255, 255))
     projector:SetEnableShadows(mode == 1)
     if compare then
-        comparison = {ready = RealTime() + .5, planar = GetConVar("garrycraft_planar_shadows"):GetString(),
+        comparison = {ready = RealTime() + .5, shadows = GetConVar("garrycraft_source_shadows"):GetString(),
             session = GC.State.session, samples = {}}
-        RunConsoleCommand("garrycraft_planar_shadows", "0")
+        RunConsoleCommand("garrycraft_source_shadows", "0")
     end
 end)
 
@@ -42,7 +41,7 @@ hook.Add("PreDrawOpaqueRenderables", "GarryCraftLightingDepthProbe", function(de
     if depth or skybox or not projector then return end
     if not GC.State or not GC.State.linked then
         projector:Remove() projector = nil
-        if comparison then RunConsoleCommand("garrycraft_planar_shadows", comparison.planar) comparison = nil end
+        if comparison then RunConsoleCommand("garrycraft_source_shadows", comparison.shadows) comparison = nil end
         return
     end
     if not GC.RenderFeet then return end
@@ -80,30 +79,30 @@ hook.Add("PostRender", "GarryCraftLightingDepthEvidence", function()
     end
     file.Write("garrycraft-depthshadow-source.json", util.TableToJSON(comparison))
     projector:Remove() projector = nil
-    RunConsoleCommand("garrycraft_planar_shadows", comparison.planar)
+    RunConsoleCommand("garrycraft_source_shadows", comparison.shadows)
     comparison = nil
 end)
 hook.Add("ShutDown", "GarryCraftLightingDepthProbeCleanup", function()
     if projector then projector:Remove() end
-    if comparison then RunConsoleCommand("garrycraft_planar_shadows", comparison.planar) end
+    if comparison then RunConsoleCommand("garrycraft_source_shadows", comparison.shadows) end
 end)
 
 hook.Add("Think", "GarryCraftLightingTest", function()
     local state = GC.State
     if not state or not state.linked or not LocalPlayer():GetNWBool("GarryCraft")
             or not state.lightingTestRequest or state.lightingTestRequest == "" then
-        restorePlanar() request, phase = nil, nil return
+        restoreShadows() request, phase = nil, nil return
     end
     if request ~= state.lightingTestRequest then
-        restorePlanar()
+        restoreShadows()
         request, samples, phase = state.lightingTestRequest, {}, nil
-        planarBeforeTest = GetConVar("garrycraft_planar_shadows"):GetString()
+        shadowsBeforeTest = GetConVar("garrycraft_source_shadows"):GetString()
     end
     if phase ~= state.lightingTestPhase then
         phase, ready = state.lightingTestPhase, RealTime() + 1
-        if phase == "shadowOff" then RunConsoleCommand("garrycraft_planar_shadows", "0") end
-        if phase == "shadowOn" then RunConsoleCommand("garrycraft_planar_shadows", "1") end
-        if phase == "done" then restorePlanar() end
+        if phase == "shadowOff" then RunConsoleCommand("garrycraft_source_shadows", "0") end
+        if phase == "shadowOn" then RunConsoleCommand("garrycraft_source_shadows", "1") end
+        if phase == "done" then restoreShadows() end
     end
     if phase == "prepare" or phase == "waiting" or phase == "done" or RealTime() < ready or samples[phase] then return end
     local room = phase == "enclosed" or phase == "roomTorch" or phase == "glass" or phase == "opened"
@@ -115,33 +114,7 @@ hook.Add("Think", "GarryCraftLightingTest", function()
         camera = {state.x, state.y, state.z}, view = tostring(GC.ViewOrigin), angles = tostring(GC.ViewAngles),
         probe = tostring(probe), water = GC.WaterLightingReport(GC.ToSource(35.5, -3.5, .5)),
         exposure = GC.LightingExposure(probe), avatar = GC.AvatarReport(), shadows = table.Copy(GC.ShadowReport())}
-    if phase == "shadowOn" then
-        local receivers = {}
-        for _, x in ipairs({50.999, 51, 51.001}) do
-            local point = GC.ToSource(x, 5, .5)
-            local receiver = garrycraft_bridge.shadow_receiver(point + Vector(0, 0, .5))
-            receivers[#receivers + 1] = {x = x, found = receiver ~= nil, height = receiver and receiver.z or 0, expected = point.z}
-        end
-        samples[phase].seamReceivers = receivers
-    end
     capture = phase
-end)
-
-hook.Add("PostDrawTranslucentRenderables", "GarryCraftLightingShadowProbes", function(depth, skybox)
-    if depth or skybox or (phase ~= "shadowOff" and phase ~= "shadowOn") then return end
-    local avatar = GC.ProjectShadowPoint(GC.RenderFeet + Vector(0, 0, 32), GC.RenderFeet)
-    local feet = GC.ToSource(50.5, 5, 2.5)
-    local top = feet + Vector(0, 0, 31.5)
-    local direction = GC.ProjectShadowPoint(top, feet) - top
-    -- Sample the projected top edge beyond the cube footprint, away from its visible black side.
-    if math.abs(direction.x) >= math.abs(direction.y) then
-        top.x = top.x + (direction.x >= 0 and 14 or -14)
-    else
-        top.y = top.y + (direction.y >= 0 and 14 or -14)
-    end
-    local block = GC.ProjectShadowPoint(top, feet)
-    shadowProbes = {avatar = avatar:ToScreen(), block = block:ToScreen()}
-    shadowProbes.avatar.world, shadowProbes.block.world = tostring(avatar), tostring(block)
 end)
 
 hook.Add("PostRender", "GarryCraftLightingEvidence", function()
@@ -155,16 +128,12 @@ hook.Add("PostRender", "GarryCraftLightingEvidence", function()
     end end
     sample.luminance = total / count
     if capture == "shadowOff" or capture == "shadowOn" then
-        sample.shadowPixels = {}
-        for name, probe in pairs(shadowProbes) do
-            local sum = 0
-            for oy = -4, 4 do for ox = -4, 4 do
-                local r, g, b = render.ReadPixel(math.floor(probe.x) + ox * 2, math.floor(probe.y) + oy * 2)
-                sum = sum + .2126 * r + .7152 * g + .0722 * b
-            end end
-            sample.shadowPixels[name] = {x = probe.x, y = probe.y, world = probe.world,
-                visible = probe.visible, luminance = sum / 81}
-        end
+        -- Source chooses each shadow's direction and receiver. Compare visible pixels without a second projection oracle.
+        sample.shadowGrid = {columns = 96, rows = 54, width = ScrW(), height = ScrH(), pixels = {}}
+        for y = 1, 54 do for x = 1, 96 do
+            local r, g, b = render.ReadPixel(math.floor(ScrW() * x / 97), math.floor(ScrH() * y / 55))
+            sample.shadowGrid.pixels[#sample.shadowGrid.pixels + 1] = .2126 * r + .7152 * g + .0722 * b
+        end end
     end
     file.CreateDir("garrycraft-lighting")
     sample.screenshot = "garrycraft-lighting/" .. string.gsub(request, "[^%w%-]", "-") .. "-" .. capture .. ".png"

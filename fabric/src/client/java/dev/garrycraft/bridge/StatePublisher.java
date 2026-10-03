@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.minecraft.client.Minecraft;
 import dev.garrycraft.combat.SourceCombat;
 import dev.garrycraft.testing.ParityOracle;
+import dev.garrycraft.item.PhysicsGun;
 
 /** Publishes raw ticks and Minecraft's camera state. The Source renderer interpolates the raw ticks. */
 public final class StatePublisher {
@@ -107,6 +108,22 @@ public final class StatePublisher {
         state.addProperty("fov", mc.gameRenderer.mainCamera().getFov());
         state.addProperty("camera", mc.options.getCameraType().ordinal());
         state.addProperty("screenOpen", mc.gui.screen() != null);
+        state.addProperty("physgunEquipped", GarryCraftClient.linked() && PhysicsGun.equipped(mc.player));
+        if (PhysicsGun.equipped(mc.player) && mc.hitResult instanceof net.minecraft.world.phys.BlockHitResult hit
+            && hit.getType() == net.minecraft.world.phys.HitResult.Type.BLOCK && !mc.level.getBlockState(hit.getBlockPos()).isAir()) {
+            var target = new JsonObject();
+            var position = hit.getBlockPos(); var point = hit.getLocation();
+            target.addProperty("x", position.getX()); target.addProperty("y", position.getY()); target.addProperty("z", position.getZ());
+            target.addProperty("hx", point.x); target.addProperty("hy", point.y); target.addProperty("hz", point.z);
+            state.add("physicsBlockTarget", target);
+        } else state.remove("physicsBlockTarget");
+        state.addProperty("physicsBlockEpoch", dev.garrycraft.physicsblocks.PhysicsBlocks.generation());
+        state.addProperty("blockPickAck", dev.garrycraft.physicsblocks.PhysicsBlocks.acknowledged());
+        state.add("blockPickResults", JSON.toJsonTree(dev.garrycraft.physicsblocks.PhysicsBlocks.results()));
+        state.addProperty("physicsBlocksRecovered", dev.garrycraft.physicsblocks.PhysicsBlocks.recovered());
+        state.add("physicsBlockConflicts", JSON.toJsonTree(dev.garrycraft.physicsblocks.PhysicsBlocks.conflicts()));
+        state.add("physicsBlockMining", JSON.toJsonTree(dev.garrycraft.physicsblocks.DetachedBlockMining.state()));
+        state.add("physicsBlockConsumed", JSON.toJsonTree(dev.garrycraft.physicsblocks.DetachedBlockMining.consumed()));
         state.addProperty("fps", mc.getFps());
         state.addProperty("targetFps", GarryCraftClient.targetFps());
         state.addProperty("renderInstance", GarryCraftClient.renderInstance());

@@ -22,6 +22,7 @@ inline __m64 sourceSdkTruncatePair(__m128 value) {
 #include "packets.hpp"
 #include "sdkcompat.hpp"
 #include <array>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 #include <cstdint>
@@ -161,6 +162,8 @@ namespace {
             return LUA->ThrowError("Invalid packed mesh range"), 0;
         float height = static_cast<float>(heightNumber);
         const char* bytes = body.data() + offset;
+        float largest = std::numeric_limits<float>::max();
+        Vector minimum(largest, largest, largest), maximum(-largest, -largest, -largest);
         for (int i = 0; i < count; ++i) {
             Vertex v;
             std::memcpy(&v, bytes + i * sizeof(Vertex), sizeof(Vertex));
@@ -171,6 +174,10 @@ namespace {
                 || std::abs(point.z) > std::numeric_limits<float>::max() / 4
                 || !std::isfinite(v.u) || !std::isfinite(v.v))
                 return LUA->ThrowError("Packed mesh contains nonfinite vertices"), 0;
+            for (int axis = 0; axis < 3; ++axis) {
+                minimum[axis] = std::min(minimum[axis], point[axis]);
+                maximum[axis] = std::max(maximum[axis], point[axis]);
+            }
         }
         bool publicBackend = LUA->IsType(7, GarrysMod::Lua::Type::Bool) && LUA->GetBool(7);
         if (getContext && !publicBackend) {
@@ -184,7 +191,9 @@ namespace {
         }
         builtVertices += count;
         buildMilliseconds += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-        return 0;
+        LUA->PushVector(minimum);
+        LUA->PushVector(maximum);
+        return 2;
     }
 }
 

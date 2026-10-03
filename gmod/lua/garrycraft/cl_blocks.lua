@@ -41,9 +41,9 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
     if section.sequence > acknowledged then
         if section.clear then clear() else
             local previous = sections[section.key]
-            if previous then GC.DestroyRenderMeshes(previous.meshes) end
             garrycraft_bridge.set_light_occluders(section.key, section.occluders, GC.GridHeight)
-            sections[section.key] = {meshes = GC.BuildRenderMeshes(section.meshes, false, true, body), lights = section.lights}
+            sections[section.key] = {meshes = GC.BuildRenderMeshes(section.meshes, false, true, body, "world", previous and previous.meshes), lights = section.lights}
+            if previous then GC.DestroyRenderMeshes(previous.meshes) end
             collect()
         end
         acknowledged = section.sequence
@@ -60,13 +60,7 @@ local function active(depth, skybox)
     return not skybox and not GC.VideoReset and GC.State and GC.State.linked
         and IsValid(LocalPlayer()) and LocalPlayer():GetNWBool("GarryCraft")
 end
-local function drawOpaque() GC.DrawRenderMeshes(opaque, false) end
-hook.Add("PostDrawOpaqueRenderables", "GarryCraftOpaqueBlocks", function(depth, skybox)
-    if not active(depth, skybox) then return end
-    GC.DrawRenderMeshes(opaque, false, nil, depth)
-    if not depth then render.RenderFlashlights(drawOpaque) end
-    GC.RestoreLighting()
-end)
+-- Opaque sections render through Source model proxies and receive the engine's projected shadows.
 hook.Add("PostDrawTranslucentRenderables", "GarryCraftTransparentBlocks", function(depth, skybox)
     if depth or not active(depth, skybox) then return end
     local eye = EyePos()

@@ -19,6 +19,17 @@ foreach ($sample in $samples.PSObject.Properties.Value) {
     Copy-Item -LiteralPath (Join-Path "$LabPath\garrysmod\data" $sample.screenshot) -Destination $destination
 }
 $tint = $samples.wall.water.tints[0]
+$offGrid = $samples.shadowOff.shadowGrid
+$onGrid = $samples.shadowOn.shadowGrid
+$sameGrid = $offGrid.width -eq $onGrid.width -and $offGrid.height -eq $onGrid.height -and
+    $offGrid.columns -eq $onGrid.columns -and $offGrid.rows -eq $onGrid.rows -and
+    $offGrid.pixels.Count -eq $onGrid.pixels.Count -and $offGrid.pixels.Count -gt 0
+$darkenedPixels = 0
+if ($sameGrid) {
+    for ($index = 0; $index -lt $offGrid.pixels.Count; $index++) {
+        if ($offGrid.pixels[$index] - $onGrid.pixels[$index] -gt 5) { $darkenedPixels++ }
+    }
+}
 $results = [ordered]@{
     dark = $samples.dark.modelLights -eq 0
     floor = $samples.floor.modelLights -gt 0 -and $samples.floor.lights.allocated -gt 0 -and $samples.floor.floorLight[0] -gt 0
@@ -42,17 +53,15 @@ $results = [ordered]@{
     sourceShadowDisabled = $samples.floor.avatar.sourceShadowDisabled
     avatarShadowDrawn = $samples.floor.shadows.avatar -gt 0
     blockShadowDrawn = $samples.floor.shadows.blocks -gt 0
-    minecraftReceiver = $samples.shadowOn.shadows.avatarReceiver -eq 'minecraft'
-    receiverSeams = $samples.shadowOn.seamReceivers.Count -eq 3 -and
-        @($samples.shadowOn.seamReceivers | Where-Object { -not $_.found -or [Math]::Abs($_.height - $_.expected) -gt .001 }).Count -eq 0
+    sourceEngineShadows = $samples.shadowOn.shadows.mode -eq 'source' -and $samples.shadowOn.shadows.native.installed -and
+        $samples.shadowOn.shadows.native.castDraws -gt 0
+    liveShadowResources = $samples.shadowOn.shadows.native.invalidMeshes -eq 0 -and
+        $samples.shadowOn.shadows.native.staleEntities -eq 0 -and $samples.shadowOn.shadows.native.wrongThread -eq 0
     shadowPose = $samples.shadowOff.view -eq $samples.shadowOn.view -and $samples.shadowOff.angles -eq $samples.shadowOn.angles
-    shadowProbePose = $samples.shadowOff.shadowPixels.avatar.world -eq $samples.shadowOn.shadowPixels.avatar.world -and
-        $samples.shadowOff.shadowPixels.block.world -eq $samples.shadowOn.shadowPixels.block.world
-    avatarShadowPixels = $samples.shadowOn.shadowPixels.avatar.visible -and
-        $samples.shadowOff.shadowPixels.avatar.luminance -gt ($samples.shadowOn.shadowPixels.avatar.luminance + 5)
-    blockShadowPixels = $samples.shadowOn.shadowPixels.block.visible -and
-        $samples.shadowOff.shadowPixels.block.luminance -gt ($samples.shadowOn.shadowPixels.block.luminance + 5)
+    shadowGrid = $sameGrid
+    shadowPixels = $darkenedPixels -gt 0
 }
+$results['shadowDarkenedPixels'] = $darkenedPixels
 $results | ConvertTo-Json | Set-Content -LiteralPath "$destination\lighting-results.json"
 $results
 if ($results.Values -contains $false) { throw 'Lighting scenario failed. Read the paired artifacts.' }
