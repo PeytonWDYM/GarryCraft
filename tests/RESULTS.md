@@ -1,5 +1,104 @@
 # Local test record
 
+## October 2 particle resource reload
+
+The managed launcher update exposed a particle crash during a paused resource reload.
+`particle-baseline2` reproduced `No sprite at minecraft:textures/atlas/blocks.png` with live terrain particles and changed atlas packing.
+Clearing only extracted quads still failed during restoration in `particle-final`.
+The fix clears live particles, queued particles, and extracted quads at atlas upload, regardless of bridge input age.
+
+`tools/Build.ps1` passed. `particle-final2` passed all nine paired reload checks.
+The block atlas changed from 2048x2048 to 1024x512, then returned to 2048x2048.
+Minecraft and Source each recorded 96 particle vertices before reload and 1,152 fresh vertices afterward.
+Vanilla reported `T 0` after reload, and the original mipmap setting returned.
+Cancellation during the `after` phase saved mipmap level 4 and completed the next lighting scenario.
+All ten lighting checks passed, including water tint, torch lighting, and a single transparent surface.
+The first post-reload gameplay run passed armor, both water animations, native-wall flow, villager movement, and cow movement.
+Its golem moved 0.49 blocks, below the one-block threshold. The full collector therefore failed that run.
+Read `polish-first-result.json` and its paired traces. Accepted destinations alone do not prove sustained wandering.
+The repeat passed all twelve gameplay checks. Golem, villager, and cow travel reached 18.15, 17.69, and 21.06 blocks.
+This difference shows that the fixed-seed setup does not fix every vanilla AI input or measure typical wandering frequency.
+
+Evidence remains under `%LOCALAPPDATA%\GarryCraft\runtime-update\main-a835199`, outside tracked source.
+Read `particle-final2/artifacts/particle-reload-result.json`, its paired traces, `particle-reload-cancel.json`, and `lighting-results.json`.
+These cases cover vanilla resources and terrain particles. They do not certify third-party resource packs.
+
+## October 2 map gameplay fixes
+
+Both games ran in the owned single-player lab with fresh Minecraft worlds. `tools/Build.ps1` passed.
+Evidence remains under `%LOCALAPPDATA%\GarryCraft\gameplay-polish`, outside tracked source.
+
+The baseline rejected all sampled idle destinations. The corrected golem, villager, and cow used their vanilla goals.
+Iteration 6 recorded maximum travel of 15.40, 5.46, and 10.85 blocks over 720 ticks.
+These fixed-seed observations include destination probes. They do not measure typical wandering frequency on every map.
+
+Iterations 3 and 8 passed all 11 paired gameplay checks. Plain, enchanted, and rear-view chest armor each exported 576 vertices.
+Both water texture IDs produced 32 distinct pixel hashes. Source received the animated updates.
+The water source remained present, and the cell across the native test wall stayed dry.
+The armor base texture now renders. The separate animated enchantment glint overlay remains unsupported.
+Iteration 6 repeated the AI and armor checks. Its water placement displayed only the still sprite.
+
+Iteration 6 passed seven paired Downtown prop probes in `artifacts/map-probe-results.json`.
+Real Source rays and imported rays hit the fountain, two light pole directions, and frozen, rotated, and OBB props.
+The largest ray fraction difference was below 0.001. Every body movement probe stopped at the tested surface.
+Source sweeps a box. The imported collider slides a cylinder, so curved and rotated surfaces can produce different stop fractions.
+
+Downtown exported 234,050 total triangles, including 130,248 static prop triangles.
+Of 1,836 BSP props, 1,286 requested solid collision. Fifty-two records had no available collision mesh or usable model bounds.
+Most unavailable models were foliage or skybox objects. This does not establish complete collision for every installed map model.
+
+Iteration 4 recorded 25 native footstep hook calls and 25 actual sound emissions during walk, sprint, crouch, and jump replays.
+The matching native-ground movement traces stayed within 4.3e-13 blocks of vanilla.
+Iterations 3 and 8 passed all 10 lighting checks. Iteration 3 passed all nine terrain checks.
+These include water tint, torch lighting, material transparency, source removal, native placement, mining, and repeated fire/lava damage.
+
+The native ramp regression used a temporary convex Source ramp and Minecraft's actual player movement.
+Before the fix, all 50 descent samples failed, with about 0.053 blocks of separation from native contact.
+After the fix, all 50 samples remained grounded. Maximum contact error was 0.00104 blocks.
+Read `iteration6/artifacts/slope-before.json` and `iteration7/artifacts/slope-after.json`.
+This ramp check is separate from vanilla box comparisons because Minecraft blocks cannot represent the same smooth plane.
+The ramp jump replay also reproduced canceled upward movement before its fix.
+Iteration 8 preserved the jump: 12 airborne ticks and a peak gap of 1.49 blocks above native contact.
+The harness requires actual downhill travel, so stationary samples cannot pass.
+Read `iteration7/artifacts/slope-jump-before.json` and `iteration8/artifacts/slope-jump-after.json`.
+
+Iterations 5, 7, 8, and 10 passed all 15 same-input vanilla box comparisons. Maximum position error was 3.17e-13 blocks.
+Velocity and grounded state matched in every case. The cases include fast walls, low walls, and actual elytra landings.
+Read each scenario's paired tick traces beside `iteration5/artifacts/results.json`.
+
+The export benchmark measured 100 warmed dynamic queries with no nearby solid props.
+On `gm_construct`, median query time changed from 0.1385 ms to 0.0050 ms.
+On Downtown, median query time changed from 0.4475 ms to 0.0038 ms.
+Both implementations returned zero triangles at these positions. Read `iteration5/artifacts/*-export.json` for all samples.
+Downtown's complete static export took 570.5 ms in the warmed run. Import occurs once per session.
+These measurements cover collision query cost, not total FPS. They do not justify a new native threading architecture.
+
+These cases do not certify every map surface, slope, fluid configuration, or high-speed collision.
+Install the Source addon and Fabric runtime together because static packets now carry their full batch count.
+
+The final run exposed pink HUD tiles and a pink hand after repeated map reloads.
+A new procedural texture rendered correctly. Uploading to an existing runtime texture name still produced magenta GPU pixels.
+The native module now assigns a fresh texture generation when the client module loads.
+The real HUD and hand rendered correctly on startup and after another map reload.
+Read `iteration8/artifacts/ground.png`, `texture-fresh.png`, and `texture-after-reload.png`.
+The small red texture probe passed even before the fix. It alone does not prove recovery of the actual runtime textures.
+Its paired reports record the new native generations. The normal HUD screenshots provide the visual recovery evidence.
+The same Source and Java processes also retained correct HUD and hand textures through 1280x720 and 1920x1080 video modes.
+Read `iteration8/artifacts/texture-video-1280.png` for the smaller mode.
+
+Review found cancellation races in the gameplay and physics harnesses. Gameplay now cancels on link loss or session replacement.
+It waits for queued setup and cleanup before another run replaces shared state. Physics preparation captures its reference mode before queuing.
+Iteration 10 passed all 12 paired gameplay checks, including final cleanup with zero remaining test mobs.
+Stopping, replacing the session, and immediately restarting each produced an incomplete trace with successful mob, block, and armor cleanup.
+Read `iteration10/artifacts/cancel-*-minecraft.json` and their matching Source request records.
+The subsequent complete run also found zero leftover mobs. These checks do not force the transport thread's exception path.
+
+The user reported that creative search worked during investigation. The existing input path passed all eight responsiveness checks.
+Iteration 9 typed `stone` through the Source text-entry callback and received 94 matching vanilla inventory items.
+Backspace changed the query to `ston` and returned 96 items. Both mouse-release focus checks passed.
+Read `iteration9/artifacts/responsiveness-results.json` and its paired Source and Minecraft traces.
+The test selects the search tab through the vanilla API. It does not exercise a physical tab click or operating-system text input.
+No production input change was needed.
 ## Creative NPC targeting: October 2, 2026
 
 Evidence: `%LOCALAPPDATA%\GarryCraft\creative-targeting\20261002-final\artifacts`.

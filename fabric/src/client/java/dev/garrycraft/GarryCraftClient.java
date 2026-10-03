@@ -216,6 +216,7 @@ public final class GarryCraftClient implements ClientModInitializer {
         MirrorWorld.open(minecraft);
         boolean active = linked();
         if (!input.session().equals(session)) {
+            dev.garrycraft.testing.GameplayOracle.cancel(minecraft);
             restoreOptions(minecraft);
             session = input.session();
             COLLISION.reset(session);
@@ -240,6 +241,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             return;
         }
         boolean loading = active && COLLISION.acknowledged() < input.geometryBatches() - 1;
+        if (!loading) dev.garrycraft.testing.ParticleReloadOracle.tick(minecraft, input);
         SourceWorld.active = active && !loading && !PhysicsOracle.reference;
         if (!loading && (active || dev.garrycraft.testing.DamageOracle.running())) dev.garrycraft.testing.DamageOracle.update(minecraft, input);
         if (active && !loading && !minecraft.player.connection.hasClientLoaded()) {
@@ -269,7 +271,18 @@ public final class GarryCraftClient implements ClientModInitializer {
             minecraft.gui.setScreen(null);
             LOG.info("GarryCraft attached to Source session {}", session);
         }
-        if (!active && wasLinked) restoreOptions(minecraft);
+        if (!active && wasLinked) {
+            restoreOptions(minecraft);
+            dev.garrycraft.testing.GameplayOracle.cancel(minecraft);
+        }
+        if (!loading && active && PhysicsOracle.beforeTick(minecraft, input)) {
+            wasLinked = active;
+            return;
+        }
+        if (!loading && active && dev.garrycraft.testing.MapProbeOracle.beforeTick(minecraft, input)) {
+            wasLinked = active;
+            return;
+        }
         if (!loading && active && ParityOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
@@ -287,7 +300,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             wasLinked = active;
             return;
         }
-        if (!loading && active && PhysicsOracle.beforeTick(minecraft, input)) {
+        if (!loading && active && dev.garrycraft.testing.GameplayOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
         }

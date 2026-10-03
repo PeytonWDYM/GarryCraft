@@ -1,4 +1,11 @@
 local GC = GarryCraft
+local physicsMeshes = setmetatable({}, {__mode = "k"})
+
+local function physicsMesh(physics)
+    local mesh = physicsMeshes[physics]
+    if not mesh then mesh = physics:GetMesh() physicsMeshes[physics] = mesh end
+    return mesh
+end
 
 local function appendMesh(output, mesh, transform, sourceEntity)
     for index = 1, #mesh, 3 do
@@ -25,6 +32,7 @@ function GC.StaticGeometry()
         if mesh then appendMesh(triangles, mesh) end
     end
     for _, triangle in ipairs(GC.DisplacementGeometry()) do triangles[#triangles + 1] = triangle end
+    for _, triangle in ipairs(GC.StaticPropGeometry()) do triangles[#triangles + 1] = triangle end
     for _, entity in ipairs(ents.GetAll()) do
         if entity:GetNWBool("GarryCraftStatic") then
             local physics = entity:GetPhysicsObject()
@@ -71,13 +79,9 @@ local excludedGroups = {[COLLISION_GROUP_DEBRIS] = true, [COLLISION_GROUP_DEBRIS
 
 function GC.DynamicGeometry(player)
     local triangles = {}
-    for _, entity in ipairs(ents.GetAll()) do
-        local minimum, maximum = entity:WorldSpaceAABB()
-        local point = player:GetPos()
-        local nearby = minimum.x <= point.x + 512 and maximum.x >= point.x - 512
-            and minimum.y <= point.y + 512 and maximum.y >= point.y - 512
-            and minimum.z <= point.z + 512 and maximum.z >= point.z - 512
-        if nearby and entity ~= player and not entity.GarryCraftMirror and entity ~= game.GetWorld() and entity:GetClass() ~= "gc_block"
+    local point = player:GetPos()
+    for _, entity in ipairs(ents.FindInBox(point - Vector(512, 512, 512), point + Vector(512, 512, 512))) do
+        if entity ~= player and not entity.GarryCraftMirror and entity ~= game.GetWorld() and entity:GetClass() ~= "gc_block"
             and entity:IsSolid() and bit.band(entity:GetSolidFlags(), FSOLID_TRIGGER) == 0
             and not excludedGroups[entity:GetCollisionGroup()]
             and not entity:GetNWBool("GarryCraftStatic") then
@@ -86,7 +90,7 @@ function GC.DynamicGeometry(player)
             for index = 0, (found and 0 or entity:GetPhysicsObjectCount()) - 1 do
                 local physics = entity:GetPhysicsObjectNum(index)
                 if IsValid(physics) and physics:IsCollisionEnabled() then
-                    local mesh = physics:GetMesh()
+                    local mesh = physicsMesh(physics)
                     if mesh then appendMesh(triangles, mesh, physics, entity:EntIndex()) found = true end
                 end
             end

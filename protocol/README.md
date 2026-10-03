@@ -34,6 +34,8 @@ Yaw maps to `-SourceYaw - 90`. Pitch uses the Source pitch.
 Minecraft remains the owner of player position after the initial attachment.
 
 Static geometry uses numbered batches and acknowledgments. Input snapshots must not replace geometry batches.
+Each static packet includes `batch` and `total`. Minecraft publishes one immutable map index after the last batch.
+The static stream includes BSP static props. Update the Source addon and Fabric mod together.
 Minecraft releases input after one second without Source. Manual sessions stop after five seconds without Minecraft state.
 Managed sessions allow 120 seconds for loading stalls. The launcher detects Minecraft process exit and stops the bridge independently.
 
@@ -59,6 +61,7 @@ Source rejects render packets from another session or render instance.
 Texture transfers use ordered IDs and acknowledgments that include the render instance.
 Source accepts acknowledgments only from the attached owner and current instance. Acknowledgments never move backward.
 Animated sprites replace pending updates with their latest pixels.
+Pending sprite IDs retain arrival order so one busy animation cannot starve other sprites.
 Block sections repeat until both Source realms acknowledge them. Their acknowledgment includes the render instance.
 Scene and HUD snapshots contain complete current state. Skipped mailbox frames must not leave stale items or HUD tiles.
 HUD tiles carry content revisions. Source uploads a tile only when its revision changes.

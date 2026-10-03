@@ -2,6 +2,30 @@
 
 ## October 2, 2026
 
+Atlas uploads now clear live, queued, and extracted particles together. Resource reloads cannot reuse the previous atlas coordinates.
+The paired resize-and-restore test passed. Cancellation restored saved mipmaps, and all ten lighting checks passed after reload.
+
+Idle Minecraft ground mobs now accept destinations supported by native terrain. Vanilla goals and villager brains still choose their movement.
+BSP static props now export their installed models' collision meshes, including Downtown light poles and fountains.
+Moving geometry uses Source's spatial partition and cached physics meshes. Minecraft publishes one complete immutable map index after static import.
+
+Collision resolves vertical movement before horizontal movement. Short elytra poses remain in wall tests after landing.
+Flat ledges use Minecraft's falling behavior. Crouching uses native support instead of bypassing vanilla edge checks.
+Downhill contact uses the supporting footprint sample instead of the ramp's center height.
+The physics replay now starts initial velocity after settling. It records actual elytra cases and restores test armor and invulnerability.
+Test cancellation now restores gameplay fixtures on link loss or session replacement. Restarts wait for queued cleanup.
+Physics preparation retains its captured reference mode when cancellation changes the active pass.
+
+Grounded player movement now plays the native Source surface's footstep sounds. Sneaking, flying, gliding, swimming, and open menus suppress them.
+Enchanted armor retains its base texture in third person. The separate animated enchantment glint overlay remains unsupported.
+Animated sprites retain fair transfer order. Skipped animation boundaries still publish the current frame.
+Procedural texture names use a new generation when the client module loads. Map reloads cannot retrieve released texture handles.
+Native walls block fluid transfers between adjacent cells. Water retains its Minecraft grid, biome tint, Source lighting, and transparency order.
+
+The owned lab passed 15 vanilla movement comparisons, seven prop probes, native footsteps, idle mob movement, armor, water, lighting, and terrain checks.
+See `tests/RESULTS.md` for traces, measured export costs, and limits. These cases do not certify every map surface or improve every FPS bottleneck.
+Creative search passed typing, filtering, Backspace, and text focus checks through the existing input path.
+Update the Source addon and Fabric runtime together because static packets now include the complete batch count.
 Native Source NPCs now stop targeting the player while Minecraft publishes creative mode.
 Existing enemies lose their player target. Newly spawned NPCs receive the same protection.
 Friendly NPCs retain their player relationships and visibility. Native combat with other entities remains available.
