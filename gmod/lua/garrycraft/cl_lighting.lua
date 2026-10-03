@@ -11,10 +11,15 @@ function GC.PrepareLighting(position, sample)
     if refresh then
         sample.position, sample.time = position, now + .25
         sample.geometryRevision = GC.LightRevision()
-        local exposure = garrycraft_bridge.light_exposure(position)
         for index, normal in ipairs(normals) do
             local color = render.ComputeLighting(position, normal) - render.ComputeDynamicLighting(position, normal)
-            sample.colors[index] = Vector(math.max(0, color.x), math.max(0, color.y), math.max(0, color.z)) * exposure[index]
+            sample.colors[index] = color
+        end
+        local sourceDynamic = GC.SourceDynamicLighting(position, normals)
+        for index, color in ipairs(sample.colors) do
+            color = color + sourceDynamic[index]
+            -- Preserve Source ambient and native lamps; Minecraft torches are added once through visible local lights.
+            sample.colors[index] = Vector(math.max(0, color.x), math.max(0, color.y), math.max(0, color.z))
         end
     end
     -- Native brush movement does not change the Minecraft section revision. Reuse the ambient cache's bounded refresh.

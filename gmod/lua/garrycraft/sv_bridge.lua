@@ -38,8 +38,10 @@ local function stop()
     GC.RespawnStop()
     GC.DamageStop()
     GC.BlocksStop()
+    GC.PhysicsBlocksStop()
     GC.MobsStop()
     GC.NpcTargetingStop()
+    GC.PhysgunStop()
     if IsValid(owner) then
         owner:SetNWBool("GarryCraft", false)
         if not saved.noShadow then owner:RemoveEffects(EF_NOSHADOW) end
@@ -48,6 +50,7 @@ local function stop()
         owner:SetHullDuck(saved.duckMin, saved.duckMax)
         owner:SetViewOffset(saved.eye)
         owner:SetViewOffsetDucked(saved.duckEye)
+        owner:SetCurrentViewOffset(saved.currentEye)
         owner:SetCollisionGroup(saved.collisionGroup)
         owner:SetHealth(saved.health)
         owner:SetArmor(saved.armor)
@@ -75,7 +78,7 @@ local function start(player, timeout)
     local duckMin, duckMax = player:GetHullDuck()
     saved = {moveType = player:GetMoveType(), hullMin = hullMin, hullMax = hullMax,
         duckMin = duckMin, duckMax = duckMax, eye = player:GetViewOffset(),
-        duckEye = player:GetViewOffsetDucked(), collisionGroup = player:GetCollisionGroup(),
+        duckEye = player:GetViewOffsetDucked(), currentEye = player:GetCurrentViewOffset(), collisionGroup = player:GetCollisionGroup(),
         health = player:Health(), armor = player:Armor(), noShadow = player:IsEffectActive(EF_NOSHADOW),
         hadBridgeWeapon = player:HasWeapon("weapon_garrycraft"),
         weapon = IsValid(player:GetActiveWeapon()) and player:GetActiveWeapon():GetClass() or "weapon_physgun"}
@@ -88,13 +91,14 @@ local function start(player, timeout)
     GC.NpcTargetingBegin(player)
     GC.MobsBegin(player)
     GC.BlocksBegin(player, session)
+    GC.PhysicsBlocksBegin(player, session)
     batchIndex = 1
     lastPeer = RealTime()
     peerTimeout = timeout or 5
     lastFrame = -1
     peerInstance = nil
     renderInstance = nil
-    input = {slot = 0, targetFps = garrycraft_bridge.refresh(), renderEpoch = 0}
+    input = {slot = 0, targetFps = garrycraft_bridge.refresh(), renderEpoch = 0, jumpPress = 0}
     testId = ""
     sprintHeld = false
     uiEvents = {}
@@ -107,6 +111,7 @@ local function start(player, timeout)
     player:SetNWString("GarryCraftBridge", path)
     player:SetNWString("GarryCraftSession", session)
     player:SetNWBool("GarryCraft", true)
+    GC.PhysgunBegin(player)
     GC.RespawnBegin(player)
     GC.DamageBegin(player)
     player:ChatPrint("GarryCraft: waiting for Minecraft")
@@ -175,20 +180,27 @@ end)
 
 hook.Add("StartCommand", "GarryCraftInput", function(player, command)
     if player ~= owner then return end
-    input.forward = command:KeyDown(IN_FORWARD)
-    input.back = command:KeyDown(IN_BACK)
+    local nativeGun = GC.PhysgunCommand(command)
+    GC.PhysicsBlocksCommand(player, command, nativeGun)
+    local rotating = nativeGun and command:KeyDown(IN_USE)
+    input.forward = not rotating and command:KeyDown(IN_FORWARD)
+    input.back = not rotating and command:KeyDown(IN_BACK)
     input.left = command:KeyDown(IN_MOVELEFT)
     input.right = command:KeyDown(IN_MOVERIGHT)
-    input.jump = command:KeyDown(IN_JUMP)
+    local jump = command:KeyDown(IN_JUMP)
+    if jump and not input.jump then input.jumpPress = input.jumpPress + 1 end
+    input.jump = jump
     input.sneak = command:KeyDown(IN_DUCK)
     input.sprint = sprintHeld or command:KeyDown(IN_SPEED)
-    input.attack = pose and pose.screenOpen and input.uiAttack or command:KeyDown(IN_ATTACK)
-    input.use = pose and pose.screenOpen and input.uiUse or command:KeyDown(IN_ATTACK2)
+    input.attack = not nativeGun and (pose and pose.screenOpen and input.uiAttack or command:KeyDown(IN_ATTACK))
+    input.use = not nativeGun and (pose and pose.screenOpen and input.uiUse or command:KeyDown(IN_ATTACK2))
     input.yaw = -command:GetViewAngles().y - 90
     input.pitch = command:GetViewAngles().p
-    command:ClearMovement()
-    command:RemoveKey(IN_ATTACK)
-    command:RemoveKey(IN_ATTACK2)
+    if not nativeGun then
+        command:ClearMovement()
+        command:RemoveKey(IN_ATTACK)
+        command:RemoveKey(IN_ATTACK2)
+    end
 end)
 
 hook.Add("Move", "GarryCraftMovement", function(player, movement)
@@ -212,12 +224,14 @@ hook.Add("Think", "GarryCraftBridge", function()
         local state = util.JSONToTable(payload)
         if state.version == 1 and state.session == session and state.instance ~= peerInstance then
             if peerInstance then
+                GC.PhysgunReset()
                 GC.RespawnNewPeer()
                 GC.DamageBegin(owner)
                 GC.NpcTargetingBegin(owner)
                 GC.MobsBegin(owner)
                 GC.EntitiesBegin(session)
                 GC.BlocksBegin(owner, session)
+                GC.PhysicsBlocksBegin(owner, session)
                 GC.GeometryBegin()
                 geometryShapeAck = 0
                 uiEvents = {}
@@ -257,11 +271,14 @@ hook.Add("Think", "GarryCraftBridge", function()
                 owner:SetPos(GC.ToSource(state.x, state.y, state.z))
                 GC.Footsteps(owner, state)
                 owner:SetViewOffset(Vector(0, 0, state.eye * 32))
+                owner:SetCurrentViewOffset(Vector(0, 0, state.eye * 32))
                 owner:SetNWFloat("GarryCraftEye", state.eye * 32)
                 GC.LabCase(state.fixture or "")
                 owner:SetHull(Vector(-9.6, -9.6, 0), Vector(9.6, 9.6, state.height * 32))
                 if state.health > 0 then owner:SetHealth(math.ceil(state.health * 5)) end
             end
+            GC.PhysgunAccept(state)
+            GC.PhysicsBlocksAccept(state)
         end
     end
     if RealTime() - lastPeer > (peerInstance and peerTimeout or 20) then
@@ -289,6 +306,8 @@ hook.Add("Think", "GarryCraftBridge", function()
     input.worldInstance = GC.BlocksInstance()
     input.mobDamage = GC.MobDamage()
     input.uiEvents = uiEvents
+    input.blockPick = GC.PhysicsBlockRequests()
+    input.blockMine = GC.PhysicsBlockMiningInput()
     input.x, input.y, input.z = position[1], position[2], position[3]
     garrycraft_bridge.send(0, util.TableToJSON(input))
     if RealTime() < nextSend then return end

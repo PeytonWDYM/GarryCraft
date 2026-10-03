@@ -46,7 +46,7 @@ function GC.EntityTargets(player)
     local actors = {}
     for _, entity in ipairs(ents.FindInSphere(player:GetPos(), 1024)) do
         if entity ~= player and not entity.GarryCraftMirror and entity:IsSolid() and not entity:IsWorld()
-                and entity:GetClass() ~= "gc_block" and entity:GetClass() ~= "gc_fixture"
+                and entity:GetClass() ~= "gc_block" and entity:GetClass() ~= "gc_fixture" and entity:GetClass() ~= "gc_physics_block"
                 and bit.band(entity:GetSolidFlags(), FSOLID_TRIGGER) == 0 then
             local minimum, maximum = entity:WorldSpaceAABB()
             local position = GC.ToMinecraft(Vector((minimum.x + maximum.x) / 2, (minimum.y + maximum.y) / 2, minimum.z))

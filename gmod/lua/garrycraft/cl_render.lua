@@ -4,7 +4,6 @@ local materialTints = {}
 local avatar = {}
 local hands = {}
 local avatarRevision, handsRevision
-local avatarDepthDraws = 0
 local shadowOwner
 local handFov = 70
 local instance
@@ -23,11 +22,13 @@ local colorFormat = CreateMaterial("garrycraft/color-format", "UnlitGeneric", {
     ['$basetexture'] = "color/white", ['$model'] = 1, ['$vertexcolor'] = 1, ['$vertexalpha'] = 1, ['$translucent'] = 1})
 
 local function clearMeshes()
-    for _, batch in ipairs(avatar) do batch.mesh:Destroy() end
-    for _, batch in ipairs(hands) do batch.mesh:Destroy() end
+    GC.DestroyRenderMeshes(avatar)
+    GC.DestroyRenderMeshes(hands)
     avatar = {}
     hands = {}
     avatarRevision, handsRevision = nil, nil
+    GC.ClearNativeItems()
+    GC.ClearPhysicsBlockModels()
 end
 
 function GC.TextureName(id, width, height)
@@ -52,42 +53,58 @@ local function material(name, texture, shader)
     return result
 end
 
-local function buildMeshes(batches, viewmodel, world, body)
+local function buildMeshes(batches, viewmodel, world, body, sourceKind, previous)
     local result = {}
     for _, batch in ipairs(batches) do
         local mesh = Mesh(batch.unlit and colorFormat or meshFormat)
-        garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
-        result[#result + 1] = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
+        local minimum, maximum = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
+        local built = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
             tintId = batch.tint,
             tint = Vector(bit.rshift(batch.tint, 16) / 255, bit.band(bit.rshift(batch.tint, 8), 255) / 255, bit.band(batch.tint, 255) / 255),
-            vertices = batch.count, center = GC.ToSource(batch.x, batch.y, batch.z), lighting = {colors = {}}}
+            vertices = batch.count, minimum = minimum, maximum = maximum,
+            center = world and GC.ToSource(batch.x, batch.y, batch.z) or GC.DirectionToSource(batch.x, batch.y, batch.z), lighting = {colors = {}}}
+        result[#result + 1] = built
     end
+    if sourceKind then GC.SyncSourceModels(result, previous or {}, sourceKind) end
     return result
 end
 GC.ReceiveRenderPacket = packet
 GC.BuildRenderMeshes = buildMeshes
 
 function GC.DestroyRenderMeshes(batches)
-    for _, batch in ipairs(batches) do batch.mesh:Destroy() end
+    for _, batch in ipairs(batches) do GC.RemoveSourceMeshModels(batch) batch.mesh:Destroy() end
+end
+
+-- Each Source draw selects its batch tint before the studio renderer reads the material.
+function GC.RenderMaterial(batch, unlit)
+    local texture = textures[batch.texture]
+    local material = (unlit or batch.unlit) and (batch.translucent and texture.unlit or texture.emissive)
+        or batch.translucent and texture.translucent or texture.opaque
+    if materialTints[material] ~= batch.tintId then
+        material:SetVector("$color2", batch.tint)
+        materialTints[material] = batch.tintId
+    end
+    return material
 end
 
 function GC.DrawRenderMeshes(batches, unlit, position, depth)
     local drawn = 0
     for _, batch in ipairs(batches) do
         local texture = textures[batch.texture]
-        if texture then
+        if texture and not batch.sourceModel then
             if not depth and not unlit and not batch.unlit then
                 local samplePosition = position or batch.center + (EyePos() - batch.center):GetNormalized() * .5
                 GC.PrepareLighting(samplePosition, batch.lighting)
             end
-            local material = (unlit or batch.unlit) and (batch.translucent and texture.unlit or texture.emissive)
-                or batch.translucent and texture.translucent or texture.opaque
-            if materialTints[material] ~= batch.tintId then
-                material:SetVector("$color2", batch.tint)
-                materialTints[material] = batch.tintId
-            end
+            local material = GC.RenderMaterial(batch, unlit)
             render.SetMaterial(material)
             batch.mesh:Draw()
+            if not depth and not unlit and not batch.unlit then
+                render.RenderFlashlights(function()
+                    render.SetMaterial(material)
+                    batch.mesh:Draw()
+                end)
+            end
             drawn = drawn + batch.vertices
         end
     end
@@ -96,7 +113,10 @@ end
 
 local function acceptAvatar(scene, body)
     if avatarRevision ~= scene.avatar.revision then
-        GC.DestroyRenderMeshes(avatar) avatar = buildMeshes(scene.avatar.batches, false, false, body) avatarRevision = scene.avatar.revision
+        local previous = avatar
+        avatar = buildMeshes(scene.avatar.batches, false, false, body, "avatar", previous)
+        GC.DestroyRenderMeshes(previous)
+        avatarRevision = scene.avatar.revision
     end
     if handsRevision ~= scene.hands.revision then
         GC.DestroyRenderMeshes(hands) hands = buildMeshes(scene.hands.batches, true, false, body) handsRevision = scene.hands.revision
@@ -108,6 +128,8 @@ local function acceptAvatar(scene, body)
     handFov = scene.handFov
     GC.AcceptWorldScene(scene, body)
     GC.AcceptBlockEffects(scene, body)
+    GC.AcceptNativeItems(scene, body)
+    GC.SetPhysicsBlockModels(scene.physicsBlocks, body)
 end
 
 hook.Add("PreRender", "GarryCraftRenderTransfers", function()
@@ -115,6 +137,9 @@ hook.Add("PreRender", "GarryCraftRenderTransfers", function()
         overlayRevisions = {}
         waitingVideo = GC.State and GC.State.renderInstance
         GC.VideoReset = true
+        GC.ClearSourceModels()
+        GC.ClearNativeItems()
+        GC.ClearPhysicsBlockModels()
         overlay = nil
         if IsValid(LocalPlayer()) and LocalPlayer():GetNWBool("GarryCraft") then
             net.Start("garrycraft_render_reset") net.SendToServer()
@@ -216,13 +241,14 @@ function GC.AvatarMeshes() return avatar end
 function GC.AvatarReport()
     local vertices = 0
     for _, batch in ipairs(avatar) do vertices = vertices + batch.vertices end
-    return {vertices = vertices, camera = GC.State.camera, depthDraws = avatarDepthDraws,
+    return {vertices = vertices, camera = GC.State.camera, sourceModels = GC.SourceModelReport(),
         sourceShadowDisabled = LocalPlayer():IsEffectActive(EF_NOSHADOW)}
 end
 
 -- Minecraft supplies the hand animation. Source supplies its camera and lighting.
 hook.Add("PostDrawTranslucentRenderables", "GarryCraftHands", function(depth, skybox)
     if depth or skybox or GC.VideoReset or not GC.State or GC.State.camera ~= 0 or not GC.ViewOrigin then return end
+    if GC.PhysgunEquipped() then return end
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") or not LocalPlayer():Alive() then return end
     local fov = math.deg(2 * math.atan(math.tan(math.rad(handFov) / 2) * 4 / 3))
     cam.Start3D(GC.ViewOrigin, GC.ViewAngles, fov, 0, 0, ScrW(), ScrH(), 0.1, 4096)
@@ -273,24 +299,7 @@ hook.Add("Think", "GarryCraftHideSourceShadow", function()
     end
 end)
 
-hook.Add("PostDrawOpaqueRenderables", "GarryCraftAvatar", function(depth, skybox)
-    if skybox or GC.VideoReset or not GC.State or (GC.State.camera == 0 and not depth) or not GC.RenderFeet then return end
-    if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") or not LocalPlayer():Alive() then return end
-    if not depth then GC.PrepareLighting(GC.RenderFeet + Vector(0, 0, 32)) end
-    local transform = Matrix()
-    transform:SetTranslation(GC.RenderFeet)
-    cam.PushModelMatrix(transform)
-    local function drawMeshes()
-        for _, batch in ipairs(avatar) do
-            local material = textures[batch.texture]
-            if material then render.SetMaterial(material.opaque) batch.mesh:Draw() end
-        end
-    end
-    drawMeshes()
-    if depth then avatarDepthDraws = avatarDepthDraws + 1 else render.RenderFlashlights(drawMeshes) end
-    cam.PopModelMatrix()
-    GC.RestoreLighting()
-end)
+-- Source model proxies draw the opaque avatar, including its native first-person shadow.
 
 hook.Add("HUDPaint", "GarryCraftMinecraftOverlay", function()
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") or not overlay or not GC.State.linked then return end

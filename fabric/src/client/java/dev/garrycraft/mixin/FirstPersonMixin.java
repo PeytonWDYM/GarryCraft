@@ -5,6 +5,7 @@ import com.llamalad7.mixinextras.injector.wrapoperation.WrapOperation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.garrycraft.GarryCraftClient;
 import dev.garrycraft.render.AvatarExporter;
+import dev.garrycraft.item.PhysicsGun;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.FirstPersonHandsAndItemsRenderer;
 import net.minecraft.client.renderer.GameRenderer;
@@ -26,6 +27,8 @@ public abstract class FirstPersonMixin {
             original.call(renderer, partial, pose, collector, player, hands);
             return;
         }
+        // Source renders its native gun and hands. The full Minecraft avatar still supplies player shadows.
+        if (PhysicsGun.equipped(Minecraft.getInstance().player)) return;
         // Remove camera rotation. Source draws this pose relative to its current view, without transport yaw lag.
         var camera = Minecraft.getInstance().gameRenderer.gameRenderState().levelRenderState.cameraRenderState;
         var local = new PoseStack();

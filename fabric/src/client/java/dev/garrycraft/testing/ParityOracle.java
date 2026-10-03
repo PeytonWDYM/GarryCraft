@@ -277,7 +277,7 @@ public final class ParityOracle {
             forward, false, false, false, false, false, false, stage == 2 && tick >= 300 && tick <= 340, false,
             stage == 2 && tick >= 300 && tick <= 340 ? 5 : slot, "", 0,
             host.teleportSeq(), host.damageTotal(), 0, false, false, false, 0, 0, "", host.targetFps(),
-            false, List.of(), List.of(), host.viewportWidth(), host.viewportHeight(), host.entityHitAck(), host.worldAck(), host.worldInstance(), List.of(), host.renderEpoch(), host.damageScaling()));
+            false, List.of(), List.of(), host.viewportWidth(), host.viewportHeight(), host.entityHitAck(), host.worldAck(), host.worldInstance(), List.of(), host.renderEpoch(), host.damageScaling(), List.of(), null, -1));
     }
 
     private static CompletableFuture<Void> prepare(Minecraft mc, boolean reference) {

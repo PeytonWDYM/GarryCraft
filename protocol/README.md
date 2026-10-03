@@ -40,6 +40,11 @@ The static stream includes BSP static props. Update the Source addon and Fabric 
 Minecraft releases input after one second without Source. Manual sessions stop after five seconds without Minecraft state.
 Managed sessions allow 120 seconds for loading stalls. The launcher detects Minecraft process exit and stops the bridge independently.
 
+Lane 0 includes `jump` for the current held state and `jumpPress` for the session's cumulative press count.
+Source increments `jumpPress` when a command changes Jump from released to pressed.
+Minecraft keeps a new press pending until its next movement tick, even if a later snapshot reports release.
+Render frames collect presses but do not change the Jump mapping. Inactive input and session changes clear pending presses.
+
 Source issues a monotonically increasing `teleportSeq` on attachment and respawn.
 Input origin remains the chosen spawn until Minecraft publishes its matching `teleportAck`.
 Both Source movement and camera reject poses with an older acknowledgement.
@@ -118,6 +123,34 @@ Source increments `renderEpoch` after a video reset. Minecraft changes its rende
 Player state and gameplay continue during render resynchronization.
 Mesh metadata includes a center. Source uses that center to sort transparent block faces across sections.
 Mesh metadata also includes an RGB material tint. Water passes Minecraft's biome color to the lit material because VertexLitGeneric ignores vertex colors.
+
+Opaque block meshes combine face directions and planes within four-block tiles, grouped by texture and emissive state.
+Their vertex positions, UVs, and colors retain the existing packet format. Native mesh construction computes each triangle's normal and exact bounds.
+Transparent block faces retain their sorting and manual lighting path.
+
+Source binds opaque meshes to model entities through public `GetRenderMesh` callbacks.
+One nearby perspective `ProjectedTexture` uses their depth passes for sun shadows and Minecraft self-shadowing under queued rendering.
+It uses constant attenuation and preserves Source's baked ambient lighting. Its footprint is bounded and does not rebake BSP lightmaps.
+The separate native RTT hook preserves casts onto BSP surfaces. RTT model receivers require an immediate render context and stay disabled in queued rendering.
+These renderer choices add no mailbox fields and leave the game's queue mode unchanged.
+
+## Native physics gun
+
+Minecraft publishes lane 1 `physgunEquipped` each render frame.
+It is true only when a living, linked, nonspectator player holds `garrycraft:physics_gun` in the main hand.
+Source selects its installed `weapon_physgun`. Its native weapon code controls prop targeting, holding, rotation, freezing, and unfreezing.
+Source retains the weapon's native hooks and permissions. Minecraft keeps player movement and game rules.
+
+Minecraft suppresses gameplay attack and use while this item is selected. Menu clicks retain normal Minecraft behavior.
+Source keeps the native gun's attack, secondary attack, use, reload, speed modifier, and mouse wheel inputs.
+While the gun is equipped, GMod's bound Use key controls native prop rotation and I opens Minecraft inventory.
+The mouse wheel controls native gun distance. Number keys still select Minecraft hotbar slots.
+Lane 8 publishes I through the existing `inventory` field while the gun is equipped.
+Other items retain E inventory input and mouse wheel hotbar selection.
+
+Source renders the installed gun's viewmodel and beam. Minecraft omits its first-person hands during this selection.
+The full Minecraft avatar still exports for player shadows and third-person rendering.
+Deselection, death, session replacement, and Disable release the native held body through Source weapon cleanup.
 
 ## Thread ownership
 

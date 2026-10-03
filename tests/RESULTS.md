@@ -1,5 +1,73 @@
 # Local test record
 
+## October 3 Source shadows and physics gun
+
+The corrective build ran in the owned `source-lighting-fix` single-player `gm_construct` lab at 1920x1080.
+Artifacts remain under `%LOCALAPPDATA%\GarryCraft\source-lighting-fix\verified\artifacts`.
+The native module and Fabric build passed. This record covers the tested scenes, not all maps or addons.
+
+The Source sun probe used a perspective white projector with constant attenuation and the map's sun direction.
+Captures `source-sun-in-world-overhead-2937993` and `source-sun-in-world-roof-down-3233164` show shadows on Minecraft surfaces.
+The overhead pair shows the pillar and wall shadow on the floor. The roof pair blocks the added direct light inside the room.
+The roofed depth pass drew world meshes 15,729 times, including 7,062 draws of a batch spanning two block heights.
+The first-person avatar had 642 depth draws and zero color draws after visibility guards.
+The paired views and resolutions match; native brush traces do not obstruct the projector.
+The hand and totem retain visible ambient lighting. These probes use elevated brightness to expose the shadow boundary.
+Production uses one nearby projector at brightness 0.35. It cannot subtract light already baked into Source ambient.
+
+The final prop fixture kept every requested body awake. Each phase used three seconds of warmup and twelve seconds of measurement,
+with production sun shadows enabled and the Source camera stationary throughout this run.
+
+| Awake props | Source p99 | Maximum frame interval | Geometry export p99 |
+| --- | ---: | ---: | ---: |
+| 0 | 5.51 ms | 7.10 ms | 0.23 ms |
+| 32 | 6.00 ms | 11.90 ms | 1.20 ms |
+| 96 | 7.14 ms | 14.60 ms | 2.81 ms |
+| 192 | 10.35 ms | 19.46 ms | 10.78 ms |
+
+The earlier installed baseline recorded 63.19 ms at 192 props. Its rendered view differed, so the comparison is not an exact paired benchmark.
+These are frame intervals, not GPU timestamps. Stable 240 FPS remains unproven.
+
+Windows `SendInput` passed all thirteen UI checks on the final candidate.
+Creative search accepted `diamond` and `stone` after reopening. Two real Tab callbacks cycled chat suggestions;
+typing, Enter, command execution, and reopening chat all remained usable.
+The result records actual VGUI text callbacks and closes the Source input panel.
+
+Real mouse input detached, rotated, froze, and mined a stone block in survival with an iron pickaxe.
+The trace records vanilla progress through 0.1333 increments to completion. Tool damage increased by one and cobblestone dropped.
+A moved chest retained its three diamonds. Mining it preserved a gold replacement in its original cell and water at its new position.
+Holding the chest journal open denied its atomic commit: the body remained and tool damage stayed unchanged.
+After releasing the file lock, a fresh attack consumed the body, wore the tool once, and emitted one chest plus three diamonds.
+The save-failure log, consumption snapshots, and Minecraft inventory/entity chat observations remain with the run.
+This proves the precommit failure case. Postdelivery deletion failure, abrupt process loss, and same-input vanilla break-time comparisons remain separate cases.
+
+The review follow-up repeated the chest failure with player effects deferred until the durable commit.
+The denied write kept exhaustion at 0.024999619, the chest mining objective at zero, and a fresh iron pickaxe undamaged.
+Retrying changed exhaustion to 0.029999617, the objective to one, and tool damage to one; three diamonds dropped.
+Adventure-mode pickup was rejected and retained the original dirt cell. A permission change during the asynchronous capture window remains an unforced timing case.
+
+The clear-corridor native reference passed all 24 checks. The Minecraft item passed all 52 checks using the same Windows inputs.
+This includes distance changes, rotation, snap, Use with W/S, freezing, reload, welded-group double reload, slots, menus, walking, and jumping.
+The largest compared hold-distance difference was 1.489 Source units; the largest angle difference was 0.0017 degrees.
+An earlier fixture was rejected because its reload ray hit a Minecraft collision entity instead of the Source world.
+Another comparison hit different obstacles during the wheel snapshots. Those failed comparisons remain in the artifacts.
+The final comparison uses the native floor and verifies a world or miss ray before double reload.
+
+A real 60 ms Space press was compressed into 19.53 ms of server-observed jump state and produced no movement before the fix.
+The cumulative press counter now survives until Minecraft's movement tick. The same physical key press produced a 1.25220334-block jump.
+Synthetic oracle inputs preserve the production counter and do not replay earlier presses.
+The final build passed all fifteen vanilla movement comparisons within the 0.000001-block tolerance.
+A real Space press during the synthetic walk reference did not cause another jump after the oracle ended.
+Fifteen resume samples kept the player grounded at Y 256.5. `oracle-jump-resume.json` records the press and samples.
+
+The mesh-edit observer completed twelve seconds with 1,099 rebindings, no missing slots, and unchanged zero invalid-mesh, stale-entity, and wrong-thread counters.
+The first/front third-person captures show the native cyan gun and Minecraft arms; the clone uses the installed weapon's skin 1.
+Six changes between 1280x720 and 1920x1080 retained both processes and frame publication with production sun shadows enabled.
+The final video report had zero invalid-mesh, invalid-depth, stale-entity, and wrong-thread counters.
+This checks video mode changes, not every device-loss path.
+After bridge stop, Source reported zero model proxies and receivers, a restored native hook, and no active sun projector.
+Minecraft saved and exited normally while the gun was selected. Existing occupied-cell recovery conflicts retained their journals.
+
 ## October 2 native performance, lighting, and input
 
 Both games ran in the owned single-player lab on `gm_construct`, with fresh Minecraft worlds and a 1920x1080 Source window.

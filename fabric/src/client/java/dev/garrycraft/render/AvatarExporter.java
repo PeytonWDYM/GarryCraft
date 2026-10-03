@@ -13,7 +13,9 @@ public final class AvatarExporter {
                          MeshSnapshots.Snapshot avatar, MeshSnapshots.Snapshot hands,
                          MeshSnapshots.Snapshot particles, MeshSnapshots.Snapshot entities,
                          MeshSnapshots.Snapshot cracks, List<double[]> selection,
-                         List<ItemInstances.Model> itemModels, List<ItemInstances.Instance> items) {}
+                         List<ItemInstances.Model> itemModels, List<ItemInstances.Instance> items,
+                         List<NativeItems.Item> nativeItems, MeshSnapshots.Snapshot leftArm,
+                         MeshSnapshots.Snapshot rightArm, PhysicsBlockMeshes.Models physicsBlocks) {}
     private static List<ModelCollector.Batch> hands = List.of();
     private AvatarExporter() {}
 
@@ -35,14 +37,16 @@ public final class AvatarExporter {
         var cracks = MeshSnapshots.changed("cracks", BlockEffects.cracks(mc));
         var selection = BlockEffects.selection(mc);
         int mode = mc.options.getCameraType().ordinal();
+        PhysicsBlockMeshes.frame(mc, session, instance);
         if (mc.player.isDeadOrDying()) {
             RenderTransport.scene(new Scene(session, instance, mode, mc.options.fov().get(), MeshSnapshots.changed("avatar", List.of()),
                 MeshSnapshots.changed("hands", mc.player.isDeadOrDying() ? List.of() : hands), particles, entities, cracks, selection,
-                world.models(), world.items()));
+                world.models(), world.items(), List.of(), MeshSnapshots.changed("leftArm", List.of()),
+                MeshSnapshots.changed("rightArm", List.of()), PhysicsBlockMeshes.snapshot()));
             hands = List.of();
             return;
         }
-        var collector = new ModelCollector();
+        var collector = new ModelCollector(dev.garrycraft.item.PhysicsGun.equipped(mc.player));
         var dispatcher = mc.getEntityRenderDispatcher();
         dispatcher.prepare(camera, mc.crosshairPickEntity);
         float partial = mc.getDeltaTracker().getGameTimeDeltaPartialTick(false);
@@ -52,7 +56,9 @@ public final class AvatarExporter {
         var avatar = collector.finish();
         dev.garrycraft.testing.GameplayOracle.avatar(avatar.stream().mapToInt(batch -> batch.vertices().size()).sum());
         RenderTransport.scene(new Scene(session, instance, mode, mc.options.fov().get(), MeshSnapshots.changed("avatar", avatar),
-            MeshSnapshots.changed("hands", camera.isDetached() ? List.of() : hands), particles, entities, cracks, selection, world.models(), world.items()));
+            MeshSnapshots.changed("hands", camera.isDetached() ? List.of() : hands), particles, entities, cracks, selection, world.models(), world.items(),
+            collector.nativeItems(), MeshSnapshots.changed("leftArm", collector.nativeArms().left()),
+            MeshSnapshots.changed("rightArm", collector.nativeArms().right()), PhysicsBlockMeshes.snapshot()));
         hands = List.of();
     }
 }

@@ -93,6 +93,8 @@ hook.Add("CalcView", "GarryCraftCamera", function(player, origin, angles, fov)
         eye = Lerp(part, state.eye, following.state.eyePrevious)
     end
     GC.RenderFeet = position
+    GC.UpdateSourceAvatarPosition(position)
+    GC.UpdateNativeItemPosition(position)
     position = position + Vector(0, 0, eye * 32)
     local phase = -(state.walk + (state.walk - state.walkPrevious) * fraction) * math.pi
     local amount = Lerp(fraction, state.bobPrevious, state.bob)

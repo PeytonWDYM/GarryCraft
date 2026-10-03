@@ -17,6 +17,17 @@ namespace sdkcompat {
         return matchesBuild(GetModuleHandleW(L"client.dll"), 0x6ab2b438, 0xb78000, 0x9ba819);
     }
 
+    inline bool supportedEngine() {
+        return matchesBuild(GetModuleHandleW(L"engine.dll"), 0x6ab2b381, 0xe52000, 0x572c76);
+    }
+
+    inline void* studioRender() {
+        auto module = GetModuleHandleW(L"studiorender.dll");
+        if (!matchesBuild(module, 0x6aa9c7cb, 0x835000, 0xe281d)) return nullptr;
+        auto factory = reinterpret_cast<CreateInterfaceFn>(GetProcAddress(module, "CreateInterface"));
+        return factory ? factory("VStudioRender025", nullptr) : nullptr;
+    }
+
     inline void* materialSystem() {
         auto module = GetModuleHandleW(L"materialsystem.dll");
         if (!matchesBuild(module, 0x6aa9c7a1, 0x2151000, 0x128def)) return nullptr;

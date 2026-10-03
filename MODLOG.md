@@ -1,5 +1,49 @@
 # GarryCraft mod log
 
+## October 3, 2026
+
+Opaque avatars, Minecraft sections, mobs, and dropped items now use Source model entities with their actual mesh, material, transform, and bounds.
+The native module supplies custom silhouettes to Source's render-to-texture (RTT) shadow path. Source owns projection, clipping, and the shadow atlas.
+
+Queued rendering preserves casts onto BSP surfaces. The native guard disables RTT model receivers because Source rejects their material proxy in queued draws.
+RTT receivers on studio and custom models require an immediate render context. The addon leaves the game's queue mode unchanged.
+
+One public Source `ProjectedTexture` now supplies perspective sun shadows within a nearby footprint, including Minecraft mesh self-shadowing.
+It uses Source's sun direction and color, constant attenuation, and the public `GetRenderMesh` depth path under queued rendering.
+The projector preserves BSP ambient lighting. A roof blocks its added direct light, without removing light already baked into the map.
+The first-person avatar casts RTT and projected depth shadows while its color draw stays hidden. The attached native Source player shadow stays suppressed.
+
+Mesh revisions rebind existing entities and shadow registrations before retiring old meshes.
+Entity creation and removal run in `Think`, outside render hooks. Retired entities stop drawing immediately.
+Temporary link loss retains mesh bindings for recovery. Session changes and video resets retire the old render ownership.
+
+Opaque block batches now combine planes within four-block tiles, retaining texture and emissive state.
+The native builder keeps each triangle's normal. Transparent batches retain their existing manual lighting and face sorting.
+
+Source ambient lighting remains intact. Manual lit meshes preserve native dynamic lights and add visible Minecraft torch lights separately.
+Minecraft geometry does not rebake BSP lightmaps. Source point lights retain their engine limits and do not acquire per-pixel shadows.
+The native shadow path requires the exact Windows x64 engine builds pinned in `native/src/sdkcompat.hpp`. It has no planar fallback.
+
+Source counts jump presses so short keyboard taps survive Minecraft's movement tick. Render frames cannot clear a pending press.
+Synthetic physics comparisons preserve the normal input counter instead of replaying historical presses afterward.
+
+Minecraft now registers a Physics Gun item in Tools & Utilities. Selecting it uses Source's installed `weapon_physgun` and native prop behavior.
+GMod's bound Use key rotates held objects. I opens Minecraft inventory, and the mouse wheel adjusts hold distance.
+Deselection, death, and bridge shutdown release the held object. Section collision mirrors remain fixed.
+
+Source renders the installed gun's native viewmodel and `models/weapons/w_physics.mdl` world model.
+Captured Minecraft skin and sleeve meshes attach to the native hand and forearm bones. Valve model files and textures remain in the installed game.
+
+Individual Minecraft blocks detach into Source physics bodies after the client receives their model and section removal.
+Recovery journals retain their original cell, block state, and block entity data through `prepared`, `detached`, and `restoring` phases.
+Stopping or restarting restores unmined blocks to their original cells. Occupied cells retain the journal and report a conflict, including identical replacement blocks.
+Recovery saves restored chunks before deleting completed journal files.
+
+Detached block mining uses Minecraft's tool, progress, and loot rules. A durable `broken` journal replaces block restoration with captured loot recovery.
+Recovery reuses saved loot entity UUIDs. After the world save, `delivered` records prevent journal cleanup failures from emitting that loot again.
+
+These entries describe implementation changes. See `tests/RESULTS.md` for runtime evidence.
+
 ## October 2, 2026
 
 Moving collision now sends cached local shapes and binary transforms instead of rebuilding JSON world triangles each Source tick.
@@ -14,10 +58,10 @@ Creative search clicks now retain text focus. Tab completion no longer triggers 
 The Windows keyboard and mouse scenario passed typing, filtering, repeated completion, Enter, and reopening chat.
 Physics replay completion now returns both players to the safe fixture origin before restoring protection. Cancellation retains the replacement spawn.
 
-Minecraft exports occlusion shapes separately from collision shapes. Closed rooms block ambient and outside torch contributions; glass admits light.
-Local mesh lights use all exported emitters, independently of Source's world-light budget.
+Minecraft exports occlusion shapes separately from collision shapes. Local torch visibility uses these shapes; glass admits light.
+Manual mesh lights use all exported emitters, independently of Source's world-light budget.
 Their cached visibility refreshes with ambient sampling, so native brush doors can block and reveal stationary torch lights.
-The first-person Minecraft avatar remains available for planar shadows. Native Source player shadows are suppressed while attached.
+The October 3 rendering correction replaces this revision's custom shadow pass and ambient masking.
 See `docs/ARCHITECTURE.md` and `tests/RESULTS.md` for measured performance and rendering limits.
 
 Atlas uploads now clear live, queued, and extracted particles together. Resource reloads cannot reuse the previous atlas coordinates.
