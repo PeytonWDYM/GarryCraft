@@ -7,6 +7,8 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path -Parent $PSScriptRoot
+$LabPath = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$LabPath/.garrycraft-lab")
+$JavaHome = Split-Path -Parent (Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$JavaHome/bin/java.exe"))
 & "$PSScriptRoot\Build.ps1" -JavaHome $JavaHome
 & "$PSScriptRoot\Install-Lab.ps1" -LabPath $LabPath
 # This developer harness owns Java. Do not also start the prepared map runtime.
@@ -14,6 +16,8 @@ Set-Content -LiteralPath "$LabPath/garrysmod/data/garrycraft-runtime-manual.txt"
 $root = [IO.Path]::GetFullPath($RunRoot)
 if ($FreshWorld) { $root = Join-Path $root ([DateTime]::Now.ToString('yyyyMMdd-HHmmss')) }
 New-Item -ItemType Directory -Path "$root\minecraft","$root\artifacts" -Force | Out-Null
+[IO.File]::WriteAllText("$root/run-path", '')
+$root = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$root/run-path")
 $launcher = Join-Path $root 'minecraft.ps1'
 $repoLiteral = $repository.Replace("'", "''")
 $javaLiteral = $JavaHome.Replace("'", "''")

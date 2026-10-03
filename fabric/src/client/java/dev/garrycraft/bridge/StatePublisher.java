@@ -37,6 +37,8 @@ public final class StatePublisher {
         state.addProperty("tickMs", tickMs);
         state.addProperty("linked", GarryCraftClient.linked());
         state.addProperty("geometryAck", GarryCraftClient.COLLISION.acknowledged());
+        state.addProperty("geometryShapeAck", GarryCraftClient.COLLISION.shapeAcknowledged());
+        state.add("movingGeometry", JSON.toJsonTree(GarryCraftClient.COLLISION.movingTrace()));
         state.addProperty("geometryReady", GarryCraftClient.COLLISION.acknowledged() >= input.geometryBatches() - 1);
         state.addProperty("teleportAck", SpawnBridge.acknowledged());
         state.addProperty("deaths", SpawnBridge.deaths());

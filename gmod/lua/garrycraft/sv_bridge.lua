@@ -26,6 +26,7 @@ local saved
 local testId = ""
 local uiEvents = {}
 local uiSequence = 0
+local geometryShapeAck = 0
 
 local bridgePath = CreateConVar("garrycraft_bridge", "", FCVAR_ARCHIVE, "Absolute path to GarryCraft bridge.bin")
 
@@ -41,6 +42,7 @@ local function stop()
     GC.NpcTargetingStop()
     if IsValid(owner) then
         owner:SetNWBool("GarryCraft", false)
+        if not saved.noShadow then owner:RemoveEffects(EF_NOSHADOW) end
         owner:SetMoveType(saved.moveType)
         owner:SetHull(saved.hullMin, saved.hullMax)
         owner:SetHullDuck(saved.duckMin, saved.duckMax)
@@ -55,8 +57,8 @@ local function stop()
     end
     if owner and session then
         garrycraft_bridge.send(0, util.TableToJSON({version = 1, session = session, active = false, frame = frame}))
-        garrycraft_bridge.close()
     end
+    garrycraft_bridge.close()
     owner = nil
     pose = nil
     session = nil
@@ -67,9 +69,19 @@ local function start(player, timeout)
     if IsValid(owner) then stop() end
     local path = bridgePath:GetString()
     if path == "" then error("Set garrycraft_bridge to the absolute path of bridge.bin") end
-    garrycraft_bridge.open(path)
     GC.AlignGrid(player)
     batches = GC.StaticGeometry()
+    local hullMin, hullMax = player:GetHull()
+    local duckMin, duckMax = player:GetHullDuck()
+    saved = {moveType = player:GetMoveType(), hullMin = hullMin, hullMax = hullMax,
+        duckMin = duckMin, duckMax = duckMax, eye = player:GetViewOffset(),
+        duckEye = player:GetViewOffsetDucked(), collisionGroup = player:GetCollisionGroup(),
+        health = player:Health(), armor = player:Armor(), noShadow = player:IsEffectActive(EF_NOSHADOW),
+        hadBridgeWeapon = player:HasWeapon("weapon_garrycraft"),
+        weapon = IsValid(player:GetActiveWeapon()) and player:GetActiveWeapon():GetClass() or "weapon_physgun"}
+    garrycraft_bridge.open(path)
+    GC.GeometryBegin()
+    geometryShapeAck = 0
     owner = player
     session = game.GetMap() .. ":" .. tostring(SysTime())
     GC.EntitiesBegin(session)
@@ -87,14 +99,8 @@ local function start(player, timeout)
     sprintHeld = false
     uiEvents = {}
     uiSequence = 0
-    local hullMin, hullMax = player:GetHull()
-    local duckMin, duckMax = player:GetHullDuck()
-    saved = {moveType = player:GetMoveType(), hullMin = hullMin, hullMax = hullMax,
-        duckMin = duckMin, duckMax = duckMax, eye = player:GetViewOffset(),
-        duckEye = player:GetViewOffsetDucked(), collisionGroup = player:GetCollisionGroup(),
-        health = player:Health(), armor = player:Armor(), hadBridgeWeapon = player:HasWeapon("weapon_garrycraft"),
-        weapon = IsValid(player:GetActiveWeapon()) and player:GetActiveWeapon():GetClass() or "weapon_physgun"}
     player:Give("weapon_garrycraft")
+    player:AddEffects(EF_NOSHADOW)
     player:SelectWeapon("weapon_garrycraft")
     player:SetHull(Vector(-9.6, -9.6, 0), Vector(9.6, 9.6, 57.6))
     player:SetHullDuck(Vector(-9.6, -9.6, 0), Vector(9.6, 9.6, 48))
@@ -212,6 +218,8 @@ hook.Add("Think", "GarryCraftBridge", function()
                 GC.MobsBegin(owner)
                 GC.EntitiesBegin(session)
                 GC.BlocksBegin(owner, session)
+                GC.GeometryBegin()
+                geometryShapeAck = 0
                 uiEvents = {}
                 uiSequence = 0
             end
@@ -240,6 +248,8 @@ hook.Add("Think", "GarryCraftBridge", function()
                 owner:SetEyeAngles(Angle(state.lightingTestPitch, -state.lightingTestYaw - 90, 0))
             end
             lastFrame = state.frame
+            GC.GeometryPeer(state)
+            geometryShapeAck = state.geometryShapeAck or 0
             lastPeer = RealTime()
             if state.geometryAck == batchIndex - 1 then batchIndex = batchIndex + 1 end
             if state.linked and not state.reference and GC.RespawnAccept(state) then
@@ -287,8 +297,7 @@ hook.Add("Think", "GarryCraftBridge", function()
         garrycraft_bridge.send(2, util.TableToJSON({session = session, batch = batchIndex - 1, total = #batches,
             triangles = batches[batchIndex]}))
     end
-    garrycraft_bridge.send(3, util.TableToJSON({session = session, triangles = GC.DynamicGeometry(owner),
-        water = GC.WaterGrid(owner), actors = GC.EntityTargets(owner)}))
+    garrycraft_bridge.send(3, GC.DynamicGeometryPacket(owner, session, geometryShapeAck))
 end)
 
 hook.Add("ShutDown", "GarryCraftStop", stop)

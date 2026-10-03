@@ -1,7 +1,6 @@
 package dev.garrycraft;
 
 import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.garrycraft.bridge.HostInput;
 import dev.garrycraft.bridge.ClientControls;
@@ -25,7 +24,6 @@ import dev.garrycraft.testing.PhysicsOracle;
 import dev.garrycraft.testing.ParityOracle;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.UUID;
 import net.fabricmc.api.ClientModInitializer;
@@ -43,7 +41,8 @@ public final class GarryCraftClient implements ClientModInitializer {
     public static final Logger LOG = LoggerFactory.getLogger("garrycraft");
     public static final CollisionWorld COLLISION = SourceWorld.COLLISION;
     private static final Gson JSON = new Gson();
-    private static final ConcurrentLinkedQueue<Geometry> GEOMETRY = new ConcurrentLinkedQueue<>();
+    private static final AtomicReference<CollisionWorld.StaticGeometry> STATIC_GEOMETRY = new AtomicReference<>();
+    private static final AtomicReference<CollisionWorld.MovingGeometry> MOVING_GEOMETRY = new AtomicReference<>();
     private static volatile HostInput input = HostInput.idle();
     private static volatile long receivedAt;
     private static volatile ClientControls clientControls;
@@ -62,7 +61,6 @@ public final class GarryCraftClient implements ClientModInitializer {
     public static boolean captureScene() { return captureScene; }
     public static void resourcesChanged() { resourcesChanged = true; }
     public static String renderInstance() { return RenderTransport.instance(); }
-    private record Geometry(JsonObject payload, boolean dynamic) {}
 
     public static boolean linked() {
         return input.active() && System.nanoTime() - receivedAt < 1_000_000_000L;
@@ -95,6 +93,7 @@ public final class GarryCraftClient implements ClientModInitializer {
         String defaultPath = System.getenv("LOCALAPPDATA") + "\\GarryCraft\\bridge.bin";
         Path path = Path.of(System.getProperty("garrycraft.bridge", defaultPath));
         Thread.ofPlatform().daemon().name("garrycraft-bridge").start(() -> transport(path));
+        Thread.ofPlatform().daemon().name("garrycraft-geometry-transfer").start(() -> geometryTransport(path));
         Thread.ofPlatform().daemon().name("garrycraft-render-transfer").start(() -> renderTransport(path));
         ClientTickEvents.START_CLIENT_TICK.register(GarryCraftClient::beforeTick);
         ClientTickEvents.END_CLIENT_TICK.register(GarryCraftClient::afterTick);
@@ -142,15 +141,6 @@ public final class GarryCraftClient implements ClientModInitializer {
                     clientControls = next;
                     controlsReceivedAt = System.nanoTime();
                 }
-                for (int lane = 2; lane <= 3; lane++) {
-                    String payload = mailbox.receive(lane);
-                    if (payload != null) {
-                        var message = JsonParser.parseString(payload).getAsJsonObject();
-                        // Reject snapshots from the older actor-free protocol after an upgrade.
-                        if (lane == 3 && !message.has("actors")) continue;
-                        GEOMETRY.add(new Geometry(message, lane == 3));
-                    }
-                }
                 String outgoing = StatePublisher.drain();
                 if (outgoing != null) mailbox.send(1, outgoing);
                 Thread.sleep(2);
@@ -159,6 +149,30 @@ public final class GarryCraftClient implements ClientModInitializer {
             transportStopped = true;
             input = HostInput.idle();
             LOG.error("GarryCraft bridge stopped", error);
+        }
+    }
+
+    private void geometryTransport(Path path) {
+        var decoder = new CollisionWorld.Decoder();
+        try (var mailbox = new Mailbox(path)) {
+            while (!transportStopped && !Thread.currentThread().isInterrupted()) {
+                String terrain = mailbox.receive(2);
+                if (terrain != null) {
+                    var message = JsonParser.parseString(terrain).getAsJsonObject();
+                    if (message.get("session").getAsString().equals(input.session()))
+                        STATIC_GEOMETRY.set(decoder.staticGeometry(message));
+                }
+                byte[] moving = mailbox.receiveBytes(3);
+                if (moving != null) {
+                    var geometry = decoder.movingGeometry(moving, input.session());
+                    if (geometry != null) MOVING_GEOMETRY.set(geometry);
+                }
+                Thread.sleep(2);
+            }
+        } catch (IOException | InterruptedException | RuntimeException error) {
+            transportStopped = true;
+            input = HostInput.idle();
+            LOG.error("GarryCraft geometry transfer stopped", error);
         }
     }
 
@@ -229,8 +243,10 @@ public final class GarryCraftClient implements ClientModInitializer {
             renderEpoch = input.renderEpoch();
             RenderTransport.reset(session, UUID.randomUUID().toString());
         }
-        Geometry geometry;
-        while ((geometry = GEOMETRY.poll()) != null) COLLISION.accept(geometry.payload(), geometry.dynamic());
+        var terrain = STATIC_GEOMETRY.getAndSet(null);
+        if (terrain != null) COLLISION.accept(terrain);
+        var moving = MOVING_GEOMETRY.getAndSet(null);
+        if (moving != null) COLLISION.accept(moving);
         SourceCombat.update(session, active, input.entityHitAck(), COLLISION.actors());
         dev.garrycraft.combat.DamageScaling.update(active ? input.damageScaling() : dev.garrycraft.combat.DamageScaling.DEFAULTS);
         dev.garrycraft.combat.SourceMobs.update(session, active && !PhysicsOracle.reference, input.mobDamage());
@@ -241,9 +257,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             return;
         }
         boolean loading = active && COLLISION.acknowledged() < input.geometryBatches() - 1;
-        if (!loading) dev.garrycraft.testing.ParticleReloadOracle.tick(minecraft, input);
         SourceWorld.active = active && !loading && !PhysicsOracle.reference;
-        if (!loading && (active || dev.garrycraft.testing.DamageOracle.running())) dev.garrycraft.testing.DamageOracle.update(minecraft, input);
         if (active && !loading && !minecraft.player.connection.hasClientLoaded()) {
             // Source supplies the rendered world, so its complete mesh fulfills Minecraft's render-ready callback.
             ((dev.garrycraft.mixin.ClientWorldReady) minecraft.player.connection).garrycraft$worldReady();
@@ -275,6 +289,25 @@ public final class GarryCraftClient implements ClientModInitializer {
             restoreOptions(minecraft);
             dev.garrycraft.testing.GameplayOracle.cancel(minecraft);
         }
+        if (!loading && PhysicsOracle.cancel(minecraft, active ? input : HostInput.idle())) {
+            InputBridge.apply(minecraft, HostInput.idle());
+            wasLinked = active;
+            return;
+        }
+        // Cancel a previous damage test before lighting can capture its restored game mode.
+        if (!loading && dev.garrycraft.testing.DamageOracle.running()
+                && (!active || !input.test().equals(dev.garrycraft.testing.DamageOracle.request()))) {
+            dev.garrycraft.testing.DamageOracle.update(minecraft, active ? input : HostInput.idle());
+            if (dev.garrycraft.testing.DamageOracle.running()) { wasLinked = active; return; }
+        }
+        // Lighting cleanup must finish before a replacement test captures game mode or creates fixtures.
+        if (!loading && dev.garrycraft.testing.LightingOracle.beforeTick(minecraft, active ? input : HostInput.idle())) {
+            wasLinked = active;
+            return;
+        }
+        if (!loading) dev.garrycraft.testing.ParticleReloadOracle.tick(minecraft, input);
+        if (!loading && (active || dev.garrycraft.testing.DamageOracle.running()))
+            dev.garrycraft.testing.DamageOracle.update(minecraft, active ? input : HostInput.idle());
         if (!loading && active && PhysicsOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
@@ -288,10 +321,6 @@ public final class GarryCraftClient implements ClientModInitializer {
             return;
         }
         if (!loading && active && dev.garrycraft.testing.TerrainUseOracle.beforeTick(minecraft, input)) {
-            wasLinked = active;
-            return;
-        }
-        if (!loading && active && dev.garrycraft.testing.LightingOracle.beforeTick(minecraft, input)) {
             wasLinked = active;
             return;
         }

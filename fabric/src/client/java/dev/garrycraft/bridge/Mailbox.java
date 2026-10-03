@@ -41,6 +41,11 @@ public final class Mailbox implements AutoCloseable {
     }
 
     public String receive(int lane) {
+        byte[] bytes = receiveBytes(lane);
+        return bytes == null ? null : new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    public byte[] receiveBytes(int lane) {
         int offset = offset(lane);
         int before = (int) INT.getAcquire(buffer, offset);
         if ((before & 1) != 0 || before == seen[lane]) return null;
@@ -51,7 +56,7 @@ public final class Mailbox implements AutoCloseable {
         VarHandle.acquireFence();
         if (before != (int) INT.getAcquire(buffer, offset)) return null;
         seen[lane] = before;
-        return new String(bytes, StandardCharsets.UTF_8);
+        return bytes;
     }
 
     public void send(int lane, String payload) {

@@ -16,7 +16,7 @@ function Wait-Until($Description, [scriptblock]$Condition) {
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "Timed out: $Description"
 }
-function Status { Get-Content -LiteralPath "$LabPath/garrysmod/data/garrycraft-runtime-status.json" -Raw | ConvertFrom-Json }
+function Status { & "$PSScriptRoot/Read-JsonSnapshot.ps1" -Path "$LabPath/garrysmod/data/garrycraft-runtime-status.json" }
 function Wait-Linked($Map) {
     Wait-Until "link on $Map" {
         $status = Status

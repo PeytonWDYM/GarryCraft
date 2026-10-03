@@ -33,7 +33,6 @@ hook.Add("PreRender", "GarryCraftBlockLights", function()
         table.sort(lights, function(a, b) return a.distance == b.distance and a.id < b.id or a.distance < b.distance end)
         active = {}
         for index = 1, math.min(16, #lights) do active[index] = lights[index] end
-        revision = revision + 1
     end
     allocated = 0
     for _, light in ipairs(active) do
@@ -51,9 +50,11 @@ end)
 
 function GC.ModelLights(position)
     local nearest = {}
-    for _, light in ipairs(active) do
+    -- Local mesh lights use every exported emitter. The world-light budget cannot remove room lighting.
+    for _, light in ipairs(lights) do
         local distance = position:DistToSqr(light.position)
-        if distance < light.radius * light.radius then
+        if distance < light.radius * light.radius and not garrycraft_bridge.light_occluded(position, light.position)
+                and not util.TraceLine({start = position, endpos = light.position, mask = MASK_SOLID_BRUSHONLY}).Hit then
             local index = 1
             while nearest[index] and nearest[index].distance <= distance do index = index + 1 end
             if index <= 4 then
@@ -68,4 +69,5 @@ function GC.ModelLights(position)
 end
 
 function GC.LightRevision() return revision end
-function GC.LightReport() return {exported = #lights, selected = #active, allocated = allocated, worldLimit = 16} end
+function GC.LightReport() return {exported = #lights, selected = #active, allocated = allocated, worldLimit = 16,
+    occlusion = garrycraft_bridge.lighting_report()} end

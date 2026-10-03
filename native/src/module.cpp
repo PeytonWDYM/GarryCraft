@@ -3,6 +3,7 @@
 #include <exception>
 #ifndef GARRYCRAFT_CLIENT
 #include "runtime.hpp"
+#include "geometry.hpp"
 #endif
 #ifdef GARRYCRAFT_CLIENT
 #include "textures.hpp"
@@ -10,6 +11,7 @@
 #include "meshes.hpp"
 #include "receiver.hpp"
 #include "packets.hpp"
+#include "lighting.hpp"
 #endif
 
 namespace {
@@ -55,6 +57,8 @@ namespace {
         try {
 #ifdef GARRYCRAFT_CLIENT
             receiver.stop();
+#else
+            releaseGeometry();
 #endif
             bridge.open(wide);
 #ifdef GARRYCRAFT_CLIENT
@@ -78,6 +82,9 @@ namespace {
     LUA_FUNCTION_STATIC(close) {
 #ifdef GARRYCRAFT_CLIENT
         receiver.stop();
+        releaseLighting();
+#else
+        releaseGeometry();
 #endif
         bridge.close();
         return 0;
@@ -103,6 +110,7 @@ GMOD_MODULE_OPEN() {
     LUA->CreateTable();
 #ifndef GARRYCRAFT_CLIENT
     registerRuntime(LUA);
+    registerGeometry(LUA);
 #endif
     LUA->PushCFunction(refresh);
     LUA->SetField(-2, "refresh");
@@ -112,6 +120,7 @@ GMOD_MODULE_OPEN() {
     registerTextures(LUA);
     registerFramerate(LUA);
     registerMeshes(LUA);
+    registerLighting(LUA);
 #endif
     LUA->PushCFunction(clock);
     LUA->SetField(-2, "clock");
@@ -133,6 +142,9 @@ GMOD_MODULE_CLOSE() {
     receiver.stop();
     releaseTextures();
     releaseMeshes(LUA);
+    releaseLighting();
+#else
+    releaseGeometry();
 #endif
     bridge.close();
     return 0;

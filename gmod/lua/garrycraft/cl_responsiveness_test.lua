@@ -28,6 +28,7 @@ end
 function GC.TestClientControls(controls)
     local state = GC.State
     if not state or not state.responsivenessRequest or not string.StartWith(state.responsivenessRequest, "responsiveness:") then return end
+    if string.StartWith(state.responsivenessRequest, "responsiveness:ui-input:") then return end
     if request ~= state.responsivenessRequest then
         request = state.responsivenessRequest
         started = RealTime()
