@@ -2,6 +2,7 @@
 #include "lighting.hpp"
 #include "source_sun_lighting.hpp"
 #include "voxel_lighting.hpp"
+#include "lighting_changes.hpp"
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -22,9 +23,11 @@ namespace sourceLightmaps {
         size_t receiverCursor = 0;
         bool running = false, repeat = false, requested = true;
         Revisions observed{};
+        std::vector<Revisions> applied;
+        std::uint64_t skippedReceivers = 0;
         double cpuMilliseconds = 0, uploadMilliseconds = 0, updateMilliseconds = 0, maximumMilliseconds = 0;
         std::uint64_t passes = 0, interruptedTiles = 0;
-        Revisions revisions() { return {voxelLightingRevision(), captureRevision.load(), sourceSunRevision(), lightingOccluderRevision()}; }
+        Revisions revisions() { return {voxelLightingRevision(), captureRevision.load(), sourceSunRevision(), lightingChangeRevision()}; }
         double elapsed(Clock::time_point start) { return std::chrono::duration<double, std::milli>(Clock::now() - start).count(); }
         size_t pendingReceivers() {
             if (!active) return 0;
@@ -43,6 +46,7 @@ namespace sourceLightmaps {
         work.reset(); receiverCursor = 0; running = repeat = false; requested = true;
         cpuMilliseconds = uploadMilliseconds = updateMilliseconds = maximumMilliseconds = 0;
         passes = interruptedTiles = 0;
+        applied.clear(); skippedReceivers = 0;
     }
     void invalidateLightmapWork() { requested = true; }
     void reportLightmapWork(ILuaBase* lua) {
@@ -52,6 +56,7 @@ namespace sourceLightmaps {
         number(lua, "max_update_ms", maximumMilliseconds); number(lua, "completed_passes", passes);
         number(lua, "receiver_cursor", receiverCursor); number(lua, "partial_luxels", work ? work->pixel : 0);
         number(lua, "interrupted_tiles", interruptedTiles); number(lua, "occluder_revision", observed[3]);
+        number(lua, "skipped_receivers", skippedReceivers);
     }
 
     LUA_FUNCTION(update) {
@@ -61,6 +66,8 @@ namespace sourceLightmaps {
         const auto latest = revisions();
         const bool force = LUA->IsType(1, GarrysMod::Lua::Type::Bool) && LUA->GetBool(1);
         if (force && !running) requested = true;
+        if (requested) applied.clear();
+        applied.resize(receivers.size());
         if (!running && (requested || latest != observed)) {
             running = true; requested = repeat = false; receiverCursor = 0; observed = latest; mappedLuxels = 0;
         } else if (running && (requested || latest != observed)) {
@@ -78,6 +85,11 @@ namespace sourceLightmaps {
             while (running && Clock::now() < deadline && batch.size() < 4 && batchPixels < 4096) {
                 if (receiverCursor == receivers.size()) { finishPass(); continue; }
                 const auto& receiver = receivers[receiverCursor];
+                auto& previous = applied[receiverCursor];
+                if (previous[1] == observed[1] && previous[2] == observed[2]
+                        && !sourceSunLightingChanged(receiver.minimum, receiver.maximum, gridHeight, previous[3])) {
+                    previous = observed; ++skippedReceivers; ++receiverCursor; continue;
+                }
                 if (receiver.displacement && receiver.positions.empty()) { ++receiverCursor; continue; }
                 const auto found = originals.find(receiver.tile);
                 if (found == originals.end() || found->second.width != receiver.width || found->second.height != receiver.height) {
@@ -92,7 +104,7 @@ namespace sourceLightmaps {
                             batch.push_back({receiver.tile, tile.width, tile.height, tile.pixels});
                             batchPixels += size_t(tile.width) * tile.height; tile.modified = false; tile.applied = {};
                         }
-                        ++receiverCursor; continue;
+                        previous = observed; ++receiverCursor; continue;
                     }
                     work.emplace(Work{tile.pixels, tile.pixels});
                 }
@@ -125,6 +137,7 @@ namespace sourceLightmaps {
                     batch.push_back({receiver.tile, tile.width, tile.height, std::move(pending.target)});
                     batchPixels += pixels;
                 }
+                previous = observed;
                 work.reset(); ++receiverCursor;
             }
             if (running && receiverCursor == receivers.size()) finishPass();
@@ -135,8 +148,7 @@ namespace sourceLightmaps {
         const auto uploadStart = Clock::now(); uploadBatch(batch);
         uploadMilliseconds = elapsed(uploadStart); uploads += batch.size();
         updateMilliseconds = elapsed(start); maximumMilliseconds = std::max(maximumMilliseconds, updateMilliseconds);
-        // A capture on the render worker may have arrived while uploading.
-        if (!running && revisions() != observed) requested = true;
+        // The next call observes captures that arrived while uploading.
         LUA->PushNumber(batch.size()); LUA->PushNumber(pendingReceivers()); return 2;
     }
 }

@@ -29,7 +29,7 @@ scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERG
         draws[entry.kind] = draws[entry.kind] + 1
         if not depth and not entry.batch.unlit then
             local position = entry.position
-            if entry.kind == "world" then position = position + entry.batch.normal * .5 end
+            if entry.kind == "world" then position = entry.batch.probe end
             GC.PrepareLighting(position, entry.batch.lighting)
             render.SuppressEngineLighting(true)
             garrycraft_bridge.source_model_lighting_override(entry.batch.lighting.colors)

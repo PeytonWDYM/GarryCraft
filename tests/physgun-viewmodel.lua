@@ -34,7 +34,7 @@ function GC.PhysgunViewmodelTest.Begin(label)
             latestPacketFrame = state.frame, bobPose = applied}
     end)
     hook.Add("PostRender", name, function()
-        -- Player hands draw after PostDrawViewModel. Inspect the completed frame and the packet actually applied.
+        -- Inspect the completed frame after all viewmodel hooks and the packet actually applied.
         if drawnFrame then
             drawnFrame.native = GC.NativeItemReport()
             run.frames[#run.frames + 1] = drawnFrame
