@@ -25,6 +25,7 @@ public final class WorldExporter {
     private static Section pending;
     private static SectionBuilder building;
     private static long sequence, scanTick = -1;
+    private static int scanColumn = 49, scanSection, scanX, scanZ;
     private static long pendingKey;
     private static final java.util.LinkedHashMap<Long, DetachSection> detached = new java.util.LinkedHashMap<>();
     private static final LongLinkedOpenHashSet committed = new LongLinkedOpenHashSet();
@@ -36,7 +37,7 @@ public final class WorldExporter {
     public static void reset() {
         synchronized (DIRTY) { DIRTY.clear(); URGENT.clear(); GEOMETRY.clear(); }
         snapshots.clear();
-        SENT.clear(); DEFERRED.clear(); pending = null; building = null; sequence = 0; scanTick = -1; clear = true;
+        SENT.clear(); DEFERRED.clear(); pending = null; building = null; sequence = 0; scanTick = -1; scanColumn = 49; clear = true;
         detached.clear(); committed.clear(); detachSequences.clear(); pendingDetach = 0; clearSequence = 0;
         handoffs.clear();
     }
@@ -162,25 +163,7 @@ public final class WorldExporter {
             }
             return;
         }
-        long tick = mc.level.getGameTime();
-        if (scanTick < 0 || tick - scanTick >= 20) {
-            scanTick = tick;
-            int cx = SectionPos.blockToSectionCoord(mc.player.getBlockX()), cz = SectionPos.blockToSectionCoord(mc.player.getBlockZ());
-            // Source retains exported meshes. Java needs cached geometry only near the player.
-            snapshots.long2ObjectEntrySet().removeIf(entry -> Math.abs(SectionPos.x(entry.getLongKey()) - cx) > 3
-                || Math.abs(SectionPos.z(entry.getLongKey()) - cz) > 3);
-            for (int x = cx - 3; x <= cx + 3; x++) for (int z = cz - 3; z <= cz + 3; z++) {
-                var chunk = mc.level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
-                if (chunk == null) continue;
-                for (int i = 0; i < chunk.getSections().length; i++) {
-                    long key = SectionPos.asLong(x, chunk.getSectionYFromSectionIndex(i), z);
-                    // Exported sections need removal packets even if an off-range edit removed their last block.
-                    if (DEFERRED.remove(key) || (!SENT.contains(key)
-                            && (!chunk.getSections()[i].hasOnlyAir() || VoxelLighting.affectsAir(mc.level, key))))
-                        dirty(x, SectionPos.y(key), z);
-                }
-            }
-        }
+        scan(mc);
         // Ignore empty dirty sections without spending the frame budget on their geometry.
         for (int attempts = 0; attempts < 64; attempts++) {
             long key;
@@ -206,6 +189,31 @@ public final class WorldExporter {
             if (section == null) continue;
             building = section;
             return;
+        }
+    }
+    /** Spread the mirror world's 6,272 section checks across frames instead of one periodic stall. */
+    private static void scan(Minecraft mc) {
+        long tick = mc.level.getGameTime();
+        if (scanColumn == 49) {
+            if (scanTick >= 0 && tick - scanTick < 20) return;
+            scanTick = tick;
+            scanX = mc.player.getBlockX() >> 4; scanZ = mc.player.getBlockZ() >> 4;
+            snapshots.long2ObjectEntrySet().removeIf(entry -> Math.abs(SectionPos.x(entry.getLongKey()) - scanX) > 3
+                || Math.abs(SectionPos.z(entry.getLongKey()) - scanZ) > 3);
+            scanColumn = scanSection = 0;
+        }
+        long deadline = System.nanoTime() + 250_000L;
+        while (scanColumn < 49) {
+            int x = scanX - 3 + scanColumn / 7, z = scanZ - 3 + scanColumn % 7;
+            var chunk = mc.level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
+            if (chunk == null || scanSection == chunk.getSections().length) { scanColumn++; scanSection = 0; continue; }
+            int index = scanSection++;
+            long key = SectionPos.asLong(x, chunk.getSectionYFromSectionIndex(index), z);
+            // An off-range edit can remove the last block. Its clear snapshot must still reach Source.
+            if (DEFERRED.remove(key) || (!SENT.contains(key)
+                    && (!chunk.getSections()[index].hasOnlyAir() || VoxelLighting.affectsAir(mc.level, key))))
+                dirty(x, SectionPos.y(key), z);
+            if (System.nanoTime() >= deadline) return;
         }
     }
     private static SectionBuilder build(Minecraft mc, long key) {

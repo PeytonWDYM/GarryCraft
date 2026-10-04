@@ -1,5 +1,7 @@
 local GC = GarryCraft
 local sections = {}
+local collisions = {}
+local rebuilt, reused, maximumPollMs = 0, 0, 0
 local acknowledged = 0
 local clientAck = 0
 local owner
@@ -10,12 +12,14 @@ util.AddNetworkString("garrycraft_world_ack")
 local function clear()
     for _, entity in pairs(sections) do if IsValid(entity) then entity:Remove() end end
     sections = {}
+    collisions = {}
 end
 
 function GC.BlocksBegin(player, nextSession)
     clear()
     owner, session, instance = player, nextSession, nil
     acknowledged, clientAck = 0, 0
+    rebuilt, reused, maximumPollMs = 0, 0, 0
 end
 function GC.BlocksStop() clear() owner = nil end
 function GC.BlocksAck() return math.min(acknowledged, clientAck) end
@@ -36,7 +40,16 @@ function GC.BlocksPoll(process)
     if section.session ~= session or section.instance ~= process then return end
     if instance ~= process then clear() instance = process acknowledged, clientAck = 0, 0 end
     if section.sequence <= acknowledged then return end
+    local started = SysTime()
     if section.clear then clear() else
+        -- Light propagation and render-only changes retain the existing physics body.
+        if collisions[section.key] == section.collision then
+            reused = reused + 1
+            acknowledged = section.sequence
+            return
+        end
+        collisions[section.key] = section.collision
+        rebuilt = rebuilt + 1
         local previous = sections[section.key]
         if IsValid(previous) then previous:Remove() end
         sections[section.key] = nil
@@ -62,6 +75,11 @@ function GC.BlocksPoll(process)
         end
     end
     acknowledged = section.sequence
+    maximumPollMs = math.max(maximumPollMs, (SysTime() - started) * 1000)
+end
+
+function GC.BlockCollisionReport()
+    return {sections = table.Count(sections), rebuilt = rebuilt, reused = reused, maxBuildMs = maximumPollMs, ack = acknowledged}
 end
 
 hook.Add("ShutDown", "GarryCraftBlockCleanup", clear)

@@ -19,6 +19,8 @@ $failedRequest = $null
 $hostProcess = Get-Process -Id $HostPid
 $hostStarted = $hostProcess.StartTime
 $publishedStatus = $null
+$request = $null
+$requestWrittenAt = [DateTime]::MinValue
 
 function Publish-Status($State, $Message) {
     $value = [ordered]@{id = $currentRequest; state = $State; message = $Message; map = $currentMap;
@@ -32,8 +34,9 @@ function Write-Control($Stop) {
     # Retain the world mutex while a control reader holds the previous file open.
     while (-not (Write-JsonFile $control @{stop = $Stop})) { Start-Sleep -Milliseconds 50 }
 }
-function Stop-Client {
+function Stop-Client([string]$Reason) {
     if (-not $client) { return }
+    Write-Output "Stopping Minecraft PID $($client.Id) on ${currentMap}: $Reason"
     if (-not $client.HasExited) {
         Publish-Status 'saving' 'Saving the Minecraft world'
         Write-Control $true
@@ -51,25 +54,33 @@ try {
     while ($true) {
         $hostProcess.Refresh()
         if ($hostProcess.HasExited -or $hostProcess.StartTime -ne $hostStarted) { break }
-        $request = $null
         if (Test-Path -LiteralPath $requestPath) {
-            try { $request = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json } catch { }
+            try {
+                $nextRequest = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json
+                if ($nextRequest) {
+                    $nextWrittenAt = (Get-Item -LiteralPath $requestPath).LastWriteTime
+                    $request = $nextRequest
+                    $requestWrittenAt = $nextWrittenAt
+                }
+            } catch { }
         }
-        # Video initialization can pause Source hooks. Host exit and explicit Disable still stop immediately.
-        $fresh = $request -and ((Get-Date) - (Get-Item -LiteralPath $requestPath).LastWriteTime).TotalSeconds -lt 120
+        # Source rewrites this file in place. Empty, partial, or locked reads retain
+        # the last complete request. Failed reads cannot extend its heartbeat deadline.
+        $fresh = $request -and ((Get-Date) - $requestWrittenAt).TotalSeconds -lt 120
         $wanted = $fresh -and $request.enabled
         if ($wanted -and ($request.map -match '[\\/:*?"<>|\x00]' -or $request.map -in '.', '..')) {
             throw 'The map name cannot be used as a world folder.'
         }
         if ($client -and (-not $wanted -or $currentMap -ne $request.map)) {
             if (-not $wanted) { $failedRequest = $currentRequest }
-            Stop-Client
+            $reason = if (-not $fresh) { 'Source heartbeat expired' } elseif (-not $request.enabled) { 'Source disabled the bridge' } else { "Map changed to $($request.map)" }
+            Stop-Client $reason
         }
         if ($request) { $currentRequest = $request.id }
         if ($client -and $client.HasExited) {
             $failedRequest = $currentRequest
             $exitCode = $client.ExitCode
-            Stop-Client
+            Stop-Client "Process exited with code $exitCode"
             Publish-Status 'error' "Minecraft exited ($exitCode). Read the map's minecraft-stderr.log and crash-reports."
         }
         if ($wanted -and -not $client -and $failedRequest -ne $currentRequest) {
@@ -96,9 +107,10 @@ try {
         elseif (-not $wanted -and -not $client) { Publish-Status 'off' 'GarryCraft is off' }
         Start-Sleep -Milliseconds 500
     }
-    Stop-Client
+    Stop-Client 'Source host exited'
     Publish-Status 'off' 'GarryCraft is off'
 } catch {
+    Write-Output "Runtime failed: $($_.Exception.Message)"
     try { Publish-Status 'error' $_.Exception.Message }
     finally {
         if ($client -and -not $client.HasExited) {

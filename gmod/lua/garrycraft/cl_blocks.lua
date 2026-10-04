@@ -56,7 +56,7 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
                 GC.SetBlockLights(sections)
             else
                 rebuilt = rebuilt + 1
-                if previous then GC.DestroyRenderMeshes(previous.meshes) end
+                if previous then GC.DestroyRenderMeshes(previous.meshes, meshes) end
                 collect()
             end
         end
