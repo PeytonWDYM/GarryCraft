@@ -1,10 +1,10 @@
 param([Parameter(Mandatory)][int]$GamePid, [Parameter(Mandatory)][string]$LabPath,
     [Parameter(Mandatory)][string]$RunRoot, [ValidateRange(1,9)][int]$GunSlot = 1,
-    [ValidateRange(1,9)][int]$OtherSlot = 2)
+    [ValidateRange(1,9)][int]$OtherSlot = 2, [switch]$MissingSourceHands)
 $ErrorActionPreference = 'Stop'
 $LabPath = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$LabPath/.garrycraft-lab")
 $data = "$LabPath/garrysmod/data"
-$destination = "$RunRoot/artifacts/physgun-viewmodel"
+$destination = "$RunRoot/artifacts/physgun-viewmodel$(if ($MissingSourceHands) { '-no-source-hands' })"
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 Copy-Item "$PSScriptRoot/../tests/physgun-viewmodel.lua" "$data/garrycraft-physgun-viewmodel.lua"
 . "$PSScriptRoot/SourceInput.ps1"
@@ -26,9 +26,10 @@ function Wait-Record([bool]$Finished) {
 }
 $game = Get-Process -Id $GamePid
 [GarryCraftSourceInput]::Focus($game.MainWindowHandle)
-Send "lua_run_cl RunString(file.Read('garrycraft-physgun-viewmodel.lua','DATA')) GarryCraft.PhysgunViewmodelTest.Begin('$request')"
-Wait-Record $false | Out-Null
 try {
+    if ($MissingSourceHands) { Send 'lua_run Entity(1):GetHands():Remove()' }
+    Send "lua_run_cl RunString(file.Read('garrycraft-physgun-viewmodel.lua','DATA')) GarryCraft.PhysgunViewmodelTest.Begin('$request')"
+    Wait-Record $false | Out-Null
     Start-Sleep -Seconds 1
     Mark 'walk'
     [GarryCraftSourceInput]::KeyDown(0x57)
@@ -52,6 +53,7 @@ try {
 } finally {
     [GarryCraftSourceInput]::KeyUp(0x57)
     [GarryCraftSourceInput]::KeyUp(0x10)
+    if ($MissingSourceHands) { Send 'lua_run Entity(1):SetupHands()' }
     Send 'lua_run_cl GarryCraft.PhysgunViewmodelTest.Finish()'
 }
 $run = Wait-Record $true

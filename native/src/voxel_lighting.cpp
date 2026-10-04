@@ -1,5 +1,6 @@
 #include "voxel_lighting.hpp"
 #include "lighting.hpp"
+#include "lighting_changes.hpp"
 #include "packets.hpp"
 #include <GarrysMod/Lua/Interface.h>
 #include <algorithm>
@@ -36,6 +37,11 @@ namespace {
     };
     std::unordered_map<CellKey, Section, KeyHash> sections;
     std::uint64_t revision = 0;
+    void changed(const CellKey& key) {
+        recordLightingChange(Vector(key.x * 512.f, -(key.z + 1) * 512.f, key.y * 512.f),
+            Vector((key.x + 1) * 512.f, -key.z * 512.f, (key.y + 1) * 512.f));
+        ++revision;
+    }
     unsigned long long samples = 0, transmissions = 0, transmissionCells = 0, unloadedRays = 0;
 
     CellKey cellAt(const Vector& point, float height) {
@@ -141,10 +147,10 @@ namespace {
         const auto existing = sections.find(key);
         if (existing != sections.end() && existing->second.cells == section.cells && existing->second.brightness == section.brightness) return 0;
         sections.insert_or_assign(key, std::move(section));
-        ++revision;
+        changed(key);
         return 0;
     }
-    LUA_FUNCTION_STATIC(removeSection) { if (sections.erase(parseKey(LUA, 1))) ++revision; return 0; }
+    LUA_FUNCTION_STATIC(removeSection) { const auto key = parseKey(LUA, 1); if (sections.erase(key)) changed(key); return 0; }
     LUA_FUNCTION_STATIC(clear) { releaseVoxelLighting(); return 0; }
     LUA_FUNCTION_STATIC(sample) {
         auto value = sampleVoxelLighting(LUA->GetVector(1), static_cast<float>(LUA->CheckNumber(2)));
@@ -253,4 +259,4 @@ void registerVoxelLighting(GarrysMod::Lua::ILuaBase* lua) {
     lua->PushCFunction(transmission); lua->SetField(-2, "light_transmission");
     lua->PushCFunction(report); lua->SetField(-2, "voxel_lighting_report");
 }
-void releaseVoxelLighting() { sections.clear(); samples = transmissions = transmissionCells = unloadedRays = 0; ++revision; }
+void releaseVoxelLighting() { sections.clear(); samples = transmissions = transmissionCells = unloadedRays = 0; ++revision; clearLightingChanges(); }

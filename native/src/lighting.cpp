@@ -1,4 +1,5 @@
 #include <GarrysMod/Lua/Interface.h>
+#include "lighting_changes.hpp"
 #include <mathlib/vector.h>
 #include "lighting.hpp"
 #include <algorithm>
@@ -117,11 +118,24 @@ namespace {
                 {value[3] * 32, -value[2] * 32, value[4] * 32 + height}});
         }
         const auto existing = sections.find(key);
+        auto record = [height](const std::vector<Box>& values) {
+            if (values.empty()) return;
+            auto bounds = values.front();
+            for (const auto& box : values) for (int axis = 0; axis < 3; ++axis) {
+                bounds.min[axis] = std::min(bounds.min[axis], box.min[axis]);
+                bounds.max[axis] = std::max(bounds.max[axis], box.max[axis]);
+            }
+            recordLightingChange(Vector(bounds.min[0], bounds.min[1], bounds.min[2] - height),
+                Vector(bounds.max[0], bounds.max[1], bounds.max[2] - height));
+        };
         if (result.empty()) {
             if (existing == sections.end()) return 0;
+            record(existing->second);
             sections.erase(existing);
         } else {
             if (existing != sections.end() && existing->second == result) return 0;
+            if (existing != sections.end()) record(existing->second);
+            record(result);
             sections.insert_or_assign(key, std::move(result));
         }
         dirty = true; ++revision;
@@ -170,6 +184,6 @@ void registerLighting(GarrysMod::Lua::ILuaBase* lua) {
     lua->PushCFunction(report); lua->SetField(-2, "lighting_report");
     lua->PushCFunction(receiver); lua->SetField(-2, "shadow_receiver");
 }
-void releaseLighting() { sections.clear(); boxes.clear(); tree.clear(); dirty = true; rays = boxTests = 0; ++revision; }
+void releaseLighting() { sections.clear(); boxes.clear(); tree.clear(); dirty = true; rays = boxTests = 0; ++revision; clearLightingChanges(); }
 bool lightOccluded(const Vector& start, const Vector& end) { return occluded(start, end); }
 std::uint64_t lightingOccluderRevision() { return revision; }

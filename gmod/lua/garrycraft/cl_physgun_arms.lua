@@ -5,6 +5,25 @@ local retired = {}
 local lastGrips, lastGunBones = {}, {}
 local lastGripAt, armsDrawn = 0, 0
 local hookCalls, drawStatus, rearElbowError = 0, "not-called", 0
+local support
+
+-- The installed citizen skeleton supplies the gun's merged support pose, independently
+-- of the selected player model and its optional hands entity.
+hook.Add("Think", "GarryCraftPhysgunArmSupport", function()
+    local player = LocalPlayer()
+    if not IsValid(player) or not player:GetNWBool("GarryCraft") then
+        if IsValid(support) then support:Remove() end
+        support = nil
+        return
+    end
+    if not IsValid(support) then
+        support = ClientsideModel("models/weapons/c_arms_citizen.mdl", RENDERGROUP_OTHER)
+        if not IsValid(support) then return end
+        support:SetNoDraw(true)
+        support:AddEffects(EF_BONEMERGE)
+    end
+    support:SetParent(player:GetViewModel())
+end)
 
 hook.Add("Think", "GarryCraftPhysgunArmRetirement", function()
     for _, batches in ipairs(retired) do GC.DestroyRenderMeshes(batches) end
@@ -33,13 +52,37 @@ function GC.AcceptPhysgunArms(scene, body)
 end
 
 -- The native gun contains a left-hand skeleton. Its rear grip uses the animated gun bone,
--- since c_hands' unmerged right-hand bones remain in their resting pose.
-hook.Add("PreDrawPlayerHands", "GarryCraftMinecraftPhysgunArms", function(hands, viewmodel, player, weapon)
+-- since the support skeleton's unmerged right-hand bones remain in their resting pose.
+local function armPose(viewmodel)
+    if #leftArm == 0 or #rightArm == 0 then return nil, "missing-mesh" end
+    for _, arm in ipairs({leftArm, rightArm}) do
+        for _, batch in ipairs(arm) do
+            if not GC.RenderTexture(batch.texture) then return nil, "missing-texture" end
+        end
+    end
+    if not IsValid(support) then return nil, "pending-support" end
+    support:SetupBones()
+    local handBone = support:LookupBone("ValveBiped.Bip01_L_Hand")
+    local forearmBone = support:LookupBone("ValveBiped.Bip01_L_Forearm")
+    if not handBone or not forearmBone then return nil, "missing-support-bone" end
+    local hand, forearm = support:GetBoneMatrix(handBone), support:GetBoneMatrix(forearmBone)
+    if not hand or not forearm then return nil, "missing-support-pose" end
+    local rearBone = viewmodel:LookupBone("square")
+    local rear = rearBone and viewmodel:GetBoneMatrix(rearBone)
+    if not rear then return nil, "missing-gun-pose" end
+    return {hand = hand, forearm = forearm, rear = rear}
+end
+
+hook.Add("PreDrawPlayerHands", "GarryCraftSuppressPhysgunHands", function(_, viewmodel, player)
+    if GC.PhysgunActive(player) and armPose(viewmodel) then return true end
+end)
+
+hook.Add("PostDrawViewModel", "GarryCraftMinecraftPhysgunArms", function(viewmodel, player, weapon)
     hookCalls = hookCalls + 1
     if not GC.PhysgunActive(player) then drawStatus = "inactive" return end
     armsDrawn, lastGrips = 0, {}
-    if #leftArm == 0 or #rightArm == 0 then drawStatus = "missing-mesh" return true end
-    hands:SetupBones()
+    local pose, reason = armPose(viewmodel)
+    if not pose then drawStatus = reason return end
     lastGunBones = {}
     for _, name in ipairs({"Base", "square"}) do
         local bone = viewmodel:LookupBone(name)
@@ -50,18 +93,12 @@ hook.Add("PreDrawPlayerHands", "GarryCraftMinecraftPhysgunArms", function(hands,
     for _, side in ipairs({{name = "L", batches = leftArm}, {name = "R", batches = rightArm}}) do
         local wrist, elbow, tip, roll
         if side.name == "L" then
-            local handBone = hands:LookupBone("ValveBiped.Bip01_L_Hand")
-            local forearmBone = hands:LookupBone("ValveBiped.Bip01_L_Forearm")
-            if not handBone or not forearmBone then drawStatus = "missing-support-bone" return true end
-            local handMatrix, forearmMatrix = hands:GetBoneMatrix(handBone), hands:GetBoneMatrix(forearmBone)
-            if not handMatrix or not forearmMatrix then drawStatus = "missing-support-pose" return true end
+            local handMatrix, forearmMatrix = pose.hand, pose.forearm
             wrist, elbow = handMatrix:GetTranslation(), forearmMatrix:GetTranslation()
             tip = wrist + handMatrix:GetAngles():Forward() * 2.5
             roll = forearmMatrix:GetAngles().r
         else
-            local rearBone = viewmodel:LookupBone("square")
-            local rearMatrix = rearBone and viewmodel:GetBoneMatrix(rearBone)
-            if not rearMatrix then drawStatus = "missing-gun-pose" return true end
+            local rearMatrix = pose.rear
             tip = rearMatrix:GetTranslation()
             local view = viewmodel:GetAngles()
             elbow = viewmodel:GetPos() + view:Forward() * 16 + view:Right() * 14 - view:Up() * 14
@@ -97,7 +134,6 @@ hook.Add("PreDrawPlayerHands", "GarryCraftMinecraftPhysgunArms", function(hands,
     lastGripAt = RealTime()
     drawStatus = armsDrawn > 0 and "drawn" or "missing-texture"
     GC.RestoreLighting()
-    return true
 end)
 
 function GC.PhysgunArmReport()
@@ -118,6 +154,7 @@ function GC.PhysgunArmReport()
 end
 
 hook.Add("ShutDown", "GarryCraftPhysgunArmCleanup", function()
+    if IsValid(support) then support:Remove() end
     GC.ClearPhysgunArms()
     for _, batches in ipairs(retired) do GC.DestroyRenderMeshes(batches) end
     retired = {}

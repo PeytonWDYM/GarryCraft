@@ -11,5 +11,6 @@ float sourceSkyIrradiance(const SourceSunSample& sample, const Vector& normal, f
 float sourceSkyFactor(const Vector& position, const Vector& normal, float sky, float gridHeight);
 std::uint64_t sourceSunRevision();
 bool sourceSunLightingIntersects(const Vector& minimum, const Vector& maximum, float gridHeight);
+bool sourceSunLightingChanged(const Vector& minimum, const Vector& maximum, float gridHeight, std::uint64_t since);
 void registerSourceSunLighting(GarrysMod::Lua::ILuaBase* lua);
 void releaseSourceSunLighting();

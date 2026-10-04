@@ -26,6 +26,14 @@ final class SectionBuilder {
     private final ArrayList<WorldExporter.Light> lights = new ArrayList<>();
     private final BlockPos.MutableBlockPos position = new BlockPos.MutableBlockPos();
     private int cursor;
+    private long completedTick = -1;
+
+    boolean ready() {
+        if (!step()) return false;
+        if (completedTick < 0) completedTick = mc.level.getGameTime();
+        // Let propagation publish without blocking geometry indefinitely during chunk loading.
+        return !mc.level.getLightEngine().hasLightWork() || mc.level.getGameTime() - completedTick >= 2;
+    }
 
     SectionBuilder(Minecraft mc, long key) {
         this(mc, key, mc.level);

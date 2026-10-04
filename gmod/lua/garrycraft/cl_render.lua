@@ -57,11 +57,11 @@ local function buildMeshes(batches, viewmodel, world, body, sourceKind, previous
     local result = {}
     for _, batch in ipairs(batches) do
         local mesh = Mesh(batch.unlit and colorFormat or meshFormat)
-        local minimum, maximum, normal = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
+        local minimum, maximum, normal, probe = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
         local built = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
             tintId = batch.tint,
             tint = Vector(bit.rshift(batch.tint, 16) / 255, bit.band(bit.rshift(batch.tint, 8), 255) / 255, bit.band(batch.tint, 255) / 255),
-            vertices = batch.count, minimum = minimum, maximum = maximum, normal = normal,
+            vertices = batch.count, minimum = minimum, maximum = maximum, normal = normal, probe = probe,
             center = world and GC.ToSource(batch.x, batch.y, batch.z) or GC.DirectionToSource(batch.x, batch.y, batch.z), lighting = {colors = {}}}
         result[#result + 1] = built
     end
@@ -93,7 +93,7 @@ function GC.DrawRenderMeshes(batches, unlit, position, depth)
         local texture = textures[batch.texture]
         if texture and not batch.sourceModel then
             if not depth and not unlit and not batch.unlit then
-                local samplePosition = position or batch.center + batch.normal * .5
+                local samplePosition = position or batch.probe
                 GC.PrepareLighting(samplePosition, batch.lighting)
             end
             local material = GC.RenderMaterial(batch, unlit)

@@ -20,3 +20,4 @@ target_sources(gmcl_garrycraft PRIVATE src/textures.cpp src/framerate.cpp src/me
 target_include_directories(gmcl_garrycraft PRIVATE ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public
     ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier0 ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier1)
 target_compile_definitions(gmcl_garrycraft PRIVATE GARRYCRAFT_CLIENT GMOD_USE_SOURCESDK _WIN32 _WINDOWS COMPILER_MSVC COMPILER_MSVC64)
+target_sources(gmcl_garrycraft PRIVATE src/lighting_changes.cpp)

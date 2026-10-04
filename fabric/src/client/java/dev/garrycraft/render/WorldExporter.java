@@ -19,6 +19,9 @@ public final class WorldExporter {
     private static final LongOpenHashSet SENT = new LongOpenHashSet();
     private static final LongOpenHashSet URGENT = new LongOpenHashSet();
     private static final LongOpenHashSet DEFERRED = new LongOpenHashSet();
+    private static final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<Section> snapshots = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
+    private static final LongOpenHashSet GEOMETRY = new LongOpenHashSet();
+    private static final ThreadLocal<Boolean> lightUpdate = ThreadLocal.withInitial(() -> false);
     private static Section pending;
     private static SectionBuilder building;
     private static long sequence, scanTick = -1;
@@ -31,7 +34,8 @@ public final class WorldExporter {
     private static boolean clear;
     private WorldExporter() {}
     public static void reset() {
-        synchronized (DIRTY) { DIRTY.clear(); URGENT.clear(); }
+        synchronized (DIRTY) { DIRTY.clear(); URGENT.clear(); GEOMETRY.clear(); }
+        snapshots.clear();
         SENT.clear(); DEFERRED.clear(); pending = null; building = null; sequence = 0; scanTick = -1; clear = true;
         detached.clear(); committed.clear(); detachSequences.clear(); pendingDetach = 0; clearSequence = 0;
         handoffs.clear();
@@ -78,14 +82,27 @@ public final class WorldExporter {
         detached.clear(); committed.clear(); detachSequences.clear(); handoffs.clear();
     }
     public static long clearSequence() { return clearSequence; }
-    public static void dirty(int x, int y, int z) { synchronized (DIRTY) { DIRTY.add(SectionPos.asLong(x, y, z)); } }
+    public static void lightUpdate(boolean active) { lightUpdate.set(active); }
+    public static void dirty(int x, int y, int z) {
+        synchronized (DIRTY) {
+            long key = SectionPos.asLong(x, y, z);
+            DIRTY.add(key);
+            if (!lightUpdate.get()) GEOMETRY.add(key);
+        }
+    }
     public static void urgent(BlockPos position) {
         long key = SectionPos.asLong(position);
         synchronized (DIRTY) {
             for (var section : detached.values()) if (section.position.equals(position)) section.clientChanged = true;
             var pending = handoffs.get(key);
             if (pending != null) for (var section : pending) if (section.position.equals(position)) section.clientChanged = true;
-            DIRTY.addAndMoveToFirst(key); URGENT.add(key);
+            // Face culling and the light halo depend on cells across section boundaries.
+            for (int x = (position.getX() - 1) >> 4; x <= (position.getX() + 1) >> 4; x++)
+                for (int y = (position.getY() - 1) >> 4; y <= (position.getY() + 1) >> 4; y++)
+                    for (int z = (position.getZ() - 1) >> 4; z <= (position.getZ() + 1) >> 4; z++) {
+                        long neighbor = SectionPos.asLong(x, y, z);
+                        DIRTY.addAndMoveToFirst(neighbor); URGENT.add(neighbor); GEOMETRY.add(neighbor);
+                    }
         }
     }
     public static void frame(Minecraft mc, String session, String instance, long ack) {
@@ -135,9 +152,10 @@ public final class WorldExporter {
             return;
         }
         if (building != null) {
-            if (building.step()) {
+            if (building.ready()) {
                 pending = building.finish(session, instance, ++sequence);
                 pendingKey = building.key;
+                snapshots.put(pendingKey, pending);
                 SENT.add(pendingKey);
                 building = null;
                 RenderTransport.world(pending);
@@ -148,6 +166,9 @@ public final class WorldExporter {
         if (scanTick < 0 || tick - scanTick >= 20) {
             scanTick = tick;
             int cx = SectionPos.blockToSectionCoord(mc.player.getBlockX()), cz = SectionPos.blockToSectionCoord(mc.player.getBlockZ());
+            // Source retains exported meshes. Java needs cached geometry only near the player.
+            snapshots.long2ObjectEntrySet().removeIf(entry -> Math.abs(SectionPos.x(entry.getLongKey()) - cx) > 3
+                || Math.abs(SectionPos.z(entry.getLongKey()) - cz) > 3);
             for (int x = cx - 3; x <= cx + 3; x++) for (int z = cz - 3; z <= cz + 3; z++) {
                 var chunk = mc.level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
                 if (chunk == null) continue;
@@ -163,7 +184,24 @@ public final class WorldExporter {
         // Ignore empty dirty sections without spending the frame budget on their geometry.
         for (int attempts = 0; attempts < 64; attempts++) {
             long key;
-            synchronized (DIRTY) { if (DIRTY.isEmpty()) return; key = DIRTY.removeFirstLong(); URGENT.remove(key); }
+            boolean geometry;
+            synchronized (DIRTY) {
+                if (DIRTY.isEmpty()) return;
+                key = DIRTY.removeFirstLong(); URGENT.remove(key); geometry = GEOMETRY.remove(key);
+            }
+            var previous = snapshots.get(key);
+            if (!geometry && previous != null && !handoffs.containsKey(key)
+                    && Math.abs(SectionPos.x(key) - (mc.player.getBlockX() >> 4)) <= 3
+                    && Math.abs(SectionPos.z(key) - (mc.player.getBlockZ() >> 4)) <= 3
+                    && mc.level.getChunkSource().getChunk(SectionPos.x(key), SectionPos.z(key), ChunkStatus.FULL, false) != null) {
+                var origin = SectionPos.of(key).origin();
+                pending = new Section(session, instance, ++sequence, previous.key(), false,
+                    previous.meshes(), previous.boxes(), previous.lights(), previous.occluders(),
+                    VoxelLighting.capture(mc.level, origin, mc.level), VoxelLighting.brightness(mc.level.dimensionType()));
+                pendingKey = key;
+                RenderTransport.world(pending);
+                return;
+            }
             var section = build(mc, key);
             if (section == null) continue;
             building = section;

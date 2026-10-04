@@ -203,7 +203,32 @@ namespace {
         const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
         if (length > 0) normal /= length;
         LUA->PushVector(normal);
-        return 3;
+        Vector probeNormal = normal;
+        // Keep the probe near the face's center, but on actual geometry. The first
+        // triangle can lie below native flooring, and a batch centroid can lie in a hole.
+        const Vector center = (minimum + maximum) / 2.f;
+        Vector probe = (firstTriangle[0] + firstTriangle[1] + firstTriangle[2]) / 3.f;
+        float nearest = (probe - center).LengthSqr();
+        for (int first = 3; first < count; first += 3) {
+            Vector candidate(0, 0, 0);
+            std::array<Vector, 3> triangle;
+            for (int i = 0; i < 3; ++i) {
+                Vertex vertex;
+                std::memcpy(&vertex, bytes + (first + i) * sizeof(Vertex), sizeof(Vertex));
+                triangle[i] = position(vertex, space, height);
+                candidate += triangle[i] / 3.f;
+            }
+            const float distance = (candidate - center).LengthSqr();
+            if (distance < nearest) {
+                probeNormal = (triangle[1] - triangle[0]).Cross(triangle[2] - triangle[0]);
+                const float probeLength = std::sqrt(probeNormal.LengthSqr());
+                if (probeLength > 0) probeNormal /= probeLength;
+                nearest = distance;
+                probe = candidate;
+            }
+        }
+        LUA->PushVector(probe + probeNormal * .5f);
+        return 4;
     }
 }
 

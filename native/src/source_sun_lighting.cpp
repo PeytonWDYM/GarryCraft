@@ -1,6 +1,7 @@
 #include "source_sun_lighting.hpp"
 #include "voxel_lighting.hpp"
 #include "lighting.hpp"
+#include "lighting_changes.hpp"
 #include <GarrysMod/Lua/Interface.h>
 #include <algorithm>
 #include <array>
@@ -12,11 +13,12 @@ namespace {
     constexpr float rayLength = 2048;
     Vector direction(0, 0, 1);
     float strength = 0, luaGridHeight = 0;
-    std::uint64_t revision = 0, cachedVoxelRevision = UINT64_MAX, cachedOccluderRevision = UINT64_MAX;
+    std::uint64_t revision = 0;
     std::uint64_t rays = 0, cacheHits = 0;
     // Exact positions preserve partial-block boundaries. The key also includes
     // grid translation; stationary models and BSP luxels reuse a single ray.
-    std::map<std::array<std::uint32_t, 4>, float> transmissionCache;
+    struct CachedTransmission { float value; std::uint64_t revision; };
+    std::map<std::array<std::uint32_t, 4>, CachedTransmission> transmissionCache;
 
     bool finite(const Vector& value) {
         return std::isfinite(value.x) && std::isfinite(value.y) && std::isfinite(value.z);
@@ -68,19 +70,16 @@ namespace {
 SourceSunSample sampleSourceSunLighting(const Vector& position, float height) {
     SourceSunSample sample{direction, strength, 1};
     if (strength == 0) return sample;
-    const auto voxelRevision = voxelLightingRevision();
-    const auto occluderRevision = lightingOccluderRevision();
-    if (voxelRevision != cachedVoxelRevision || occluderRevision != cachedOccluderRevision) {
-        transmissionCache.clear(); cachedVoxelRevision = voxelRevision; cachedOccluderRevision = occluderRevision;
-    }
     const std::array key{std::bit_cast<std::uint32_t>(position.x), std::bit_cast<std::uint32_t>(position.y),
         std::bit_cast<std::uint32_t>(position.z), std::bit_cast<std::uint32_t>(height)};
     const auto found = transmissionCache.find(key);
-    if (found != transmissionCache.end()) { ++cacheHits; sample.transmission = found->second; return sample; }
+    if (found != transmissionCache.end() && !sourceSunLightingChanged(position, position, height, found->second.revision)) {
+        ++cacheHits; found->second.revision = lightingChangeRevision(); sample.transmission = found->second.value; return sample;
+    }
     sample.transmission = voxelLightTransmission(position, position + direction * rayLength, height);
     ++rays;
     if (transmissionCache.size() >= 32768) transmissionCache.clear();
-    transmissionCache.emplace(key, sample.transmission);
+    transmissionCache.insert_or_assign(key, CachedTransmission{sample.transmission, lightingChangeRevision()});
     return sample;
 }
 
@@ -102,6 +101,11 @@ bool sourceSunLightingIntersects(const Vector& minimum, const Vector& maximum, f
 }
 
 std::uint64_t sourceSunRevision() { return revision; }
+bool sourceSunLightingChanged(const Vector& minimum, const Vector& maximum, float height, std::uint64_t since) {
+    const auto offset = direction * (strength > 0 ? rayLength : 0);
+    return lightingChanged(minimum + Vector(std::min(0.f, offset.x), std::min(0.f, offset.y), std::min(0.f, offset.z)),
+        maximum + Vector(std::max(0.f, offset.x), std::max(0.f, offset.y), std::max(0.f, offset.z)), height, since);
+}
 void registerSourceSunLighting(GarrysMod::Lua::ILuaBase* lua) {
     lua->PushCFunction(setLighting); lua->SetField(-2, "source_sun_lighting");
     lua->PushCFunction(skyFactor); lua->SetField(-2, "source_sky_factor");
