@@ -230,7 +230,9 @@ public final class GarryCraftClient implements ClientModInitializer {
     private static void beforeTick(Minecraft minecraft) {
         ManagedRuntime.tick(minecraft);
         MirrorWorld.open(minecraft);
-        boolean active = linked();
+        // A stop packet can arrive mid-tick. Keep its active flag and payload in one snapshot.
+        var input = GarryCraftClient.input;
+        boolean active = input.active() && System.nanoTime() - receivedAt < 1_000_000_000L;
         if (!input.session().equals(session)) {
             dev.garrycraft.testing.GameplayOracle.cancel(minecraft);
             restoreOptions(minecraft);

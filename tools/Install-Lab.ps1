@@ -14,7 +14,7 @@ New-Item -ItemType Directory -Path "$lab\garrysmod\lua\bin","$lab\garrysmod\addo
 $addonLua = "$lab\garrysmod\addons\garrycraft\lua"
 # Remove retired addon code while retaining game settings, data, and saved worlds.
 foreach ($installed in Get-ChildItem -LiteralPath $addonLua -File -Recurse) {
-    $relative = [IO.Path]::GetRelativePath($addonLua, $installed.FullName)
+    $relative = $installed.FullName.Substring($addonLua.Length + 1)
     if (-not (Test-Path -LiteralPath "$repository\gmod\lua\$relative")) {
         Remove-Item -LiteralPath $installed.FullName
     }

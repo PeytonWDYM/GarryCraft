@@ -59,7 +59,8 @@ local function stop()
         owner:ChatPrint("GarryCraft stopped")
     end
     if owner and session then
-        garrycraft_bridge.send(0, util.TableToJSON({version = 1, session = session, active = false, frame = frame}))
+        input.version, input.session, input.frame, input.active = 1, session, frame, false
+        garrycraft_bridge.send(0, util.TableToJSON(input))
     end
     garrycraft_bridge.close()
     owner = nil

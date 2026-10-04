@@ -89,3 +89,8 @@ The candidate recorded 11,274 idle, edit, and torch-change frames without interv
 Its largest interval was 12.015 ms. Zero and 32 awake props had P99 5.640 ms and 5.836 ms.
 The larger 192-prop stress pass had P99 15.643 ms and eight intervals above 16.667 ms.
 The 96-prop pass had one longer interval at 23.505 ms. These results support the tested workloads, not a universal hitch-free claim.
+
+Disable exposed a partial host-input packet racing with an active combat tick.
+The client now uses one input snapshot per tick. Source sends a complete inactive packet on stop.
+The final renderer repeated all 13 pixel and fluid checks. `Test-SourceShutdown.ps1` passed three distinct start, save, and exit cycles.
+Its logs and the captured earlier crash are in the matched run's `artifacts/shutdown` directory.
