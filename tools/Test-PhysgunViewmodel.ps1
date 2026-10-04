@@ -1,10 +1,10 @@
 param([Parameter(Mandatory)][int]$GamePid, [Parameter(Mandatory)][string]$LabPath,
     [Parameter(Mandatory)][string]$RunRoot, [ValidateRange(1,9)][int]$GunSlot = 1,
-    [ValidateRange(1,9)][int]$OtherSlot = 2, [switch]$MissingSourceHands)
+    [ValidateRange(1,9)][int]$OtherSlot = 2, [switch]$MissingSourceHands, [switch]$Armored)
 $ErrorActionPreference = 'Stop'
 $LabPath = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$LabPath/.garrycraft-lab")
 $data = "$LabPath/garrysmod/data"
-$destination = "$RunRoot/artifacts/physgun-viewmodel$(if ($MissingSourceHands) { '-no-source-hands' })"
+$destination = "$RunRoot/artifacts/physgun-viewmodel$(if ($MissingSourceHands) { '-no-source-hands' })$(if ($Armored) { '-armored' })"
 New-Item -ItemType Directory -Path $destination -Force | Out-Null
 Copy-Item "$PSScriptRoot/../tests/physgun-viewmodel.lua" "$data/garrycraft-physgun-viewmodel.lua"
 . "$PSScriptRoot/SourceInput.ps1"
@@ -25,6 +25,11 @@ function Wait-Record([bool]$Finished) {
     throw "The viewmodel probe did not acknowledge finished=$Finished. Read the Source console log."
 }
 $game = Get-Process -Id $GamePid
+if ($Armored) {
+    foreach ($piece in @(@('head','helmet'),@('chest','chestplate'),@('legs','leggings'),@('feet','boots'))) {
+        & "$PSScriptRoot/Send-MinecraftLabCommand.ps1" -GamePid $GamePid -LabPath $LabPath -Command "item replace entity @s armor.$($piece[0]) with minecraft:netherite_$($piece[1])"
+    }
+}
 [GarryCraftSourceInput]::Focus($game.MainWindowHandle)
 try {
     if ($MissingSourceHands) { Send 'lua_run Entity(1):GetHands():Remove()' }

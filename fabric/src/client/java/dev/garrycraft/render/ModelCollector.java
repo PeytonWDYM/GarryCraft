@@ -40,6 +40,7 @@ class ModelCollector extends EmptyCollector {
     private final VertexCapture capture = new VertexCapture();
     private final List<NativeItems.Item> nativeItems = new ArrayList<>();
     private NativeItems.Arms nativeArms = new NativeItems.Arms(List.of(), List.of());
+    private boolean capturedArms;
     private final boolean nativePlayer;
     private final ItemDisplayContext offhandContext;
     ModelCollector() { this(false); }
@@ -77,8 +78,10 @@ class ModelCollector extends EmptyCollector {
         capture.begin(batch(texture));
         VertexConsumer consumer = mapping == null ? capture : mapping.wrap(capture);
         model.setupAnim(state);
-        if (nativePlayer && model instanceof net.minecraft.client.model.player.PlayerModel player) {
+        // The skin submits first. Armor also uses PlayerModel, with unrelated textures and hidden arm parts.
+        if (nativePlayer && !capturedArms && model instanceof net.minecraft.client.model.player.PlayerModel player) {
             nativeArms = NativeItems.arms(player, texture, light, overlay, tint);
+            capturedArms = true;
         }
         model.renderToBuffer(pose, consumer, light, overlay, tint);
         capture.flush();
