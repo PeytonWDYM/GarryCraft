@@ -16,8 +16,8 @@ Minecraft 'fill -50 -6 46 -46 -1 51 air'
 Minecraft 'fill -49 -6 47 -48 -6 48 minecraft:oak_log'
 Start-Sleep -Seconds 3
 Remove-Item -LiteralPath "$data/garrycraft-rapid-edits.json", "$data/garrycraft-rapid-edits.png" -ErrorAction SilentlyContinue
-Send "lua_run_cl RunString(file.Read('garrycraft-rapid-edits.lua','DATA')) GarryCraft.RapidEditTest.Begin(-49,-6,47)"
 try {
+    Send "lua_run_cl RunString(file.Read('garrycraft-rapid-edits.lua','DATA')) GarryCraft.RapidEditTest.Begin(-49,-6,47)"
     $deadline = [DateTime]::UtcNow.AddSeconds(45)
     while (-not (Test-Path -LiteralPath "$data/garrycraft-rapid-edits.json")) {
         if ([DateTime]::UtcNow -gt $deadline) { throw 'Rapid edit capture timed out.' }
