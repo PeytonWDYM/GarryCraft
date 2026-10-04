@@ -4,14 +4,10 @@ The October 4 fix draws Minecraft arms from an owned, installed citizen support 
 It does not depend on the selected Source player model's hands entity.
 The skeleton survives hotbar switches and retires when the bridge stops.
 
-Native mesh construction chooses a real triangle near each face batch's center for its lighting probe.
+Native mesh construction chooses a real triangle near each face batch's center as the Source model's lighting origin.
 This avoids solid cells in concave gaps and the first triangle's preference for low corners.
-Block edits prioritize neighboring sections. Geometry allows up to two ticks for pending light propagation.
-Light-only callbacks reuse nearby geometry. The cache evicts sections outside the export range.
-
-The native module records bounded light and occluder change regions.
-Cached sun rays and native lightmap receivers retain results when those regions cannot affect them.
-Native uploads retain their existing frame budgets.
+Block edits prioritize neighboring sections and do not wait for Minecraft light propagation.
+Source supplies visual lighting. The bridge exports no light field, emitters, or shadow occluders.
 
 The later October 4 hitch fix retains unchanged section mesh batches and their Source model and shadow ownership.
 The transport worker merges touching collision boxes with identical perpendicular spans.
@@ -23,10 +19,10 @@ Source rewrites that JSON in place. Reading an empty file previously ordered Min
 Failed reads do not extend the existing 120-second heartbeat deadline.
 Logs now state why the launcher stops Minecraft.
 
-## Verification
+## Earlier verification
 
 Run `tools/Build.ps1` with Java 25. Use a separate, marked single-player lab and a fresh Minecraft world.
-Run `Test-RenderEdits.ps1`, `Test-PhysgunViewmodel.ps1 -MissingSourceHands`, and the receiver, directional, and density scripts.
+The earlier runs used `Test-RenderEdits.ps1`, `Test-PhysgunViewmodel.ps1 -MissingSourceHands`, and the retired receiver, directional, and density scripts.
 Each script accepts `-GamePid`, `-LabPath`, and `-RunRoot`. Read its JSON traces and PNGs.
 
 Artifacts: `%LOCALAPPDATA%/GarryCraft/render-edits-verified/20261004-081413/artifacts`.
@@ -67,9 +63,34 @@ Explicit Disable saved and stopped Minecraft. Both launcher and Minecraft logs r
 The authorized daily build now uses matching Java classes, Lua files, and launcher scripts.
 Its shortcut keeps the existing world and settings paths.
 
-## Limits
+## Current Source rendering
 
-Lighting still uses one sample per face batch and estimates the sun's share of baked Source irradiance.
-Native lightmap tiles update over several frames. Shadows do not update instantly everywhere.
-These fixtures do not certify every map, material, player addon, or large-map frame budget.
-All fixtures used the separate lab and owned test worlds.
+Source now shades blocks, water, hands, arms, and items. No propagated Minecraft lighting crosses the bridge.
+The bridge removed the voxel field, sun rays, ambient overrides, runtime lightmap updates, and custom shadow receivers.
+The native mesh adapter still submits actual silhouettes to Source's shadow caster draw.
+Glow materials retain self-illumination. Source's baked room lighting stays unchanged after a block edit.
+Minecraft torches and lava do not create Source lamps. Standard Source shadow receiver limits still apply to model surfaces.
+Water retains Minecraft flow and textures without native map-water reflection and refraction.
+
+Run `Test-SourceRendering.ps1`, `Test-RenderEdits.ps1`, `Test-CollisionEdits.ps1`, and the frame fixtures in a fresh single-player lab.
+Read paired PNGs and JSON traces. Earlier lighting results above describe the removed hybrid renderer.
+Current tests do not certify every map, material, player addon, or large-map frame budget.
+
+October 4 Source artifacts: `%LOCALAPPDATA%/GarryCraft/source-render-candidate/20261004-130414/runtime/worlds/gm_construct/artifacts`.
+All 13 rendering, seven edit, seven collision, six rapid-input, 14 arm, and 15 native mesh checks passed.
+The arm pass used Source console movement and hotbar binds with armor and missing Source hands.
+It recorded 2,056 active frames and six screenshots. Maximum pose error was 0.000514.
+The custom silhouette probe darkened a native floor pixel from 77 to 55. No invalid or wrong-thread native draws occurred.
+Screenshot capture adds GPU readback and PNG stalls. Its frame intervals are separate from gameplay measurements.
+
+Matched fresh-world artifacts: `%LOCALAPPDATA%/GarryCraft/source-render-matched/20261004-133829/runtime/worlds/gm_construct/artifacts`.
+The same edit sequence had P99 5.729 ms before and 5.596 ms afterward.
+The candidate recorded 11,274 idle, edit, and torch-change frames without intervals above 16.667 ms.
+Its largest interval was 12.015 ms. Zero and 32 awake props had P99 5.640 ms and 5.836 ms.
+The larger 192-prop stress pass had P99 15.643 ms and eight intervals above 16.667 ms.
+The 96-prop pass had one longer interval at 23.505 ms. These results support the tested workloads, not a universal hitch-free claim.
+
+Disable exposed a partial host-input packet racing with an active combat tick.
+The client now uses one input snapshot per tick. Source sends a complete inactive packet on stop.
+The final renderer repeated all 13 pixel and fluid checks. `Test-SourceShutdown.ps1` passed three distinct start, save, and exit cycles.
+Its logs and the captured earlier crash are in the matched run's `artifacts/shutdown` directory.

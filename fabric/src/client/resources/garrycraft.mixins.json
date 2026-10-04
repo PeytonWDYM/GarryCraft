@@ -14,7 +14,7 @@
     "EntitySwimMixin",
     "LevelRendererMixin",
     "WorldChangesMixin",
-    "LightUpdatesMixin",
+    "ChunkGeometryMixin",
     "MirrorSettingsMixin",
     "ClientLevelAccessor",
     "ClientWorldReady",

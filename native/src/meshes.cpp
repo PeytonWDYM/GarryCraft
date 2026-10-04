@@ -203,12 +203,11 @@ namespace {
         const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
         if (length > 0) normal /= length;
         LUA->PushVector(normal);
-        Vector probeNormal = normal;
-        // Keep the probe near the face's center, but on actual geometry. The first
-        // triangle can lie below native flooring, and a batch centroid can lie in a hole.
+        // Choose a point on an actual face. A concave batch's bounds center can lie inside another block.
         const Vector center = (minimum + maximum) / 2.f;
-        Vector probe = (firstTriangle[0] + firstTriangle[1] + firstTriangle[2]) / 3.f;
-        float nearest = (probe - center).LengthSqr();
+        Vector surfaceOrigin = (firstTriangle[0] + firstTriangle[1] + firstTriangle[2]) / 3.f;
+        Vector surfaceNormal = normal;
+        float nearest = (surfaceOrigin - center).LengthSqr();
         for (int first = 3; first < count; first += 3) {
             Vector candidate(0, 0, 0);
             std::array<Vector, 3> triangle;
@@ -220,14 +219,14 @@ namespace {
             }
             const float distance = (candidate - center).LengthSqr();
             if (distance < nearest) {
-                probeNormal = (triangle[1] - triangle[0]).Cross(triangle[2] - triangle[0]);
-                const float probeLength = std::sqrt(probeNormal.LengthSqr());
-                if (probeLength > 0) probeNormal /= probeLength;
+                surfaceNormal = (triangle[1] - triangle[0]).Cross(triangle[2] - triangle[0]);
+                const float surfaceLength = std::sqrt(surfaceNormal.LengthSqr());
+                if (surfaceLength > 0) surfaceNormal /= surfaceLength;
                 nearest = distance;
-                probe = candidate;
+                surfaceOrigin = candidate;
             }
         }
-        LUA->PushVector(probe + probeNormal * .5f);
+        LUA->PushVector(surfaceOrigin + surfaceNormal * .5f);
         return 4;
     }
 }

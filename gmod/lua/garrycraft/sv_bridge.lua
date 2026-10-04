@@ -59,7 +59,8 @@ local function stop()
         owner:ChatPrint("GarryCraft stopped")
     end
     if owner and session then
-        garrycraft_bridge.send(0, util.TableToJSON({version = 1, session = session, active = false, frame = frame}))
+        input.version, input.session, input.frame, input.active = 1, session, frame, false
+        garrycraft_bridge.send(0, util.TableToJSON(input))
     end
     garrycraft_bridge.close()
     owner = nil
@@ -257,10 +258,6 @@ hook.Add("Think", "GarryCraftBridge", function()
             GC.DamageTestSample(owner, state)
             GC.TerrainTestSample(owner, state)
             GC.PolishSample(state)
-            -- Normal play also has an empty request. Only an active lighting test may control the host's look.
-            if string.StartWith(testId, "lighting:") and state.lightingTestPhase ~= "done" and state.lightingTestRequest == testId then
-                owner:SetEyeAngles(Angle(state.lightingTestPitch, -state.lightingTestYaw - 90, 0))
-            end
             lastFrame = state.frame
             GC.GeometryPeer(state)
             geometryShapeAck = state.geometryShapeAck or 0

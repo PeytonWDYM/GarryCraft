@@ -22,12 +22,9 @@ final class MeshPackets {
         List<ItemModel> itemModels, List<ItemInstances.Instance> items, List<NativeItems.Item> nativeItems,
         Group leftArm, Group rightArm, PhysicsBlocks physicsBlocks) {}
     private record SectionHeader(String session, String instance, long sequence, String key, boolean clear,
-        List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights, List<double[]> occluders,
-        VoxelLight voxelLighting, String geometry, String collision) {}
-    private record VoxelLight(int offset, int count, int width, float[] brightness) {}
+        List<Mesh> meshes, List<double[]> boxes, String geometry, String collision) {}
     private final ByteBuffer body;
-    private MeshPackets(int vertices) { this(vertices, 0); }
-    private MeshPackets(int vertices, int extra) { body = ByteBuffer.allocate(Math.addExact(Math.multiplyExact(vertices, 24), extra)).order(ByteOrder.LITTLE_ENDIAN); }
+    private MeshPackets(int vertices) { body = ByteBuffer.allocate(Math.multiplyExact(vertices, 24)).order(ByteOrder.LITTLE_ENDIAN); }
     private static int count(List<ModelCollector.Batch> batches) { return batches.stream().mapToInt(batch -> batch.vertices().size()).sum(); }
     private List<Mesh> meshes(List<ModelCollector.Batch> batches) {
         return meshes(batches, false);
@@ -47,7 +44,7 @@ final class MeshPackets {
                     for (int i = 5; i < 9; i++) body.put((byte) vertex[i]);
                 }
                 int count = end - first;
-                // VertexLitGeneric ignores vertex colors. Each water face supplies its Minecraft biome tint as a material color.
+                // Source model materials use the authored block, biome, item, or entity tint for each draw.
                 var color = batch.vertices().get(first);
                 int tint = batch.materialTint() ? (int) color[5] << 16 | (int) color[6] << 8 | (int) color[7] : 0xFFFFFF;
                 String geometry = sortFaces ? batch.texture() + ":" + batch.translucent() + ":" + batch.unlit() + ":" + tint
@@ -58,7 +55,7 @@ final class MeshPackets {
         return result;
     }
     private Group group(MeshSnapshots.Snapshot snapshot) { return new Group(snapshot.revision(), meshes(snapshot.batches())); }
-    // Light-engine callbacks resend section packets. Their irradiance must not rebuild unchanged Source meshes.
+    // Matching geometry retains Source meshes across duplicate section delivery.
     private String geometry(List<Mesh> meshes) {
         try {
             var digest = MessageDigest.getInstance("SHA-256");
@@ -94,15 +91,13 @@ final class MeshPackets {
         return RenderTransport.packet(header, packet.body.array());
     }
     static byte[] section(WorldExporter.Section section) {
-        var packet = new MeshPackets(count(section.meshes()), section.voxelLighting().length);
+        var packet = new MeshPackets(count(section.meshes()));
         var meshes = packet.meshes(section.meshes(), true);
         var geometry = packet.geometry(meshes);
-        var voxel = new VoxelLight(packet.body.position(), section.voxelLighting().length, VoxelLighting.WIDTH, section.lightBrightness());
-        packet.body.put(section.voxelLighting());
         var collision = CollisionBoxes.merge(section.boxes());
         byte[] boxes = GEOMETRY_JSON.toJson(collision).getBytes(StandardCharsets.UTF_8);
         var header = new SectionHeader(section.session(), section.instance(), section.sequence(), section.key(), section.clear(),
-            meshes, collision, section.lights(), section.occluders(), voxel, geometry, digest(boxes, 0, boxes.length));
+            meshes, collision, geometry, digest(boxes, 0, boxes.length));
         return RenderTransport.packet(header, packet.body.array());
     }
 }

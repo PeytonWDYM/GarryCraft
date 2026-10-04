@@ -52,7 +52,6 @@ concommand.Add("garrycraft_test", function(caller, _, arguments)
     elseif arguments[1] == "responsiveness" then GC.BeginTest(caller, "responsiveness:" .. tostring(SysTime()))
     elseif arguments[1] == "damage" then GC.RunDamageTest(caller)
     elseif arguments[1] == "terrain" then GC.RunTerrainTest(caller)
-    elseif arguments[1] == "lighting" then GC.RunLightingTest(caller)
     elseif arguments[1] == "entities" then GC.RunEntityTest(caller) else GC.RunLabTest(caller) end
 end)
 
@@ -63,12 +62,6 @@ end
 hook.Add("Think", "GarryCraftPolishCleanup", function()
     if IsValid(waterWall) and not GC.IsActive() then waterWall:Remove() end
 end)
-
-function GC.RunLightingTest(owner)
-    assert(game.SinglePlayer() and game.GetMap() == "gm_construct", "Lighting tests require local gm_construct")
-    owner:SetPos(Vector(1200, 16, -144))
-    GC.BeginTest(owner, "lighting:" .. tostring(SysTime()))
-end
 
 -- The agent can request a test without taking the user's keyboard or mouse.
 local nextControl = 0
@@ -92,7 +85,6 @@ hook.Add("Think", "GarryCraftLabControl", function()
         if request.scenario == "responsiveness" then GC.BeginTest(player.GetHumans()[1], "responsiveness:" .. tostring(SysTime()))
         elseif request.scenario == "damage" then GC.RunDamageTest(player.GetHumans()[1])
         elseif request.scenario == "terrain" then GC.RunTerrainTest(player.GetHumans()[1])
-        elseif request.scenario == "lighting" then GC.RunLightingTest(player.GetHumans()[1])
         elseif request.scenario == "entities" then GC.RunEntityTest(player.GetHumans()[1]) else GC.RunLabTest(player.GetHumans()[1]) end
     elseif request.command == "kill" then player.GetHumans()[1]:Kill()
     elseif request.command == "damage" then

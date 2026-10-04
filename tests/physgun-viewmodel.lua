@@ -11,11 +11,11 @@ local function save()
     file.Write("garrycraft-physgun-viewmodel.json", util.TableToJSON(run, true))
 end
 GC.PhysgunViewmodelTest = {}
-function GC.PhysgunViewmodelTest.Begin(label)
+function GC.PhysgunViewmodelTest.Begin(label, inputDriver)
     assert(not run and GC.PhysgunActive(LocalPlayer()), "Select the Minecraft physics gun before Begin")
     assert(GC.State.camera == 0, "Use first person")
     run = {label = label, started = RealTime(), map = game.GetMap(), frames = {}, images = {},
-        inputDriver = "Windows keyboard and mouse", scenarios = {"idle", "walk", "sprint", "stop", "switch-away", "switch-back"}}
+        inputDriver = inputDriver or "Windows keyboard and mouse", scenarios = {"idle", "walk", "sprint", "stop", "switch-away", "switch-back"}}
     phase, capture = "idle", RealTime() + .4
     hook.Add("PostDrawViewModel", name, function(model)
         if not run or #run.frames >= 8000 then return end

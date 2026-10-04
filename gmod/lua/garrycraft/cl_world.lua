@@ -81,13 +81,10 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftWorldEffects", function(de
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") then return end
     GC.DrawRenderMeshes(entities, false)
     for _, item in ipairs(items) do
-        cam.PushModelMatrix(item.transform)
-        -- Opaque item instances use model proxies. Only their transparent batches stay in this pass.
-        GC.DrawRenderMeshes(itemModels[item.model].transparent, false, item.transform:GetTranslation())
-        cam.PopModelMatrix()
+        -- Opaque item instances use model proxies. Source also shades their sorted transparent batches.
+        GC.DrawRenderMeshes(itemModels[item.model].transparent, false, item.transform:GetTranslation(), item.transform)
     end
     local drawn = GC.DrawRenderMeshes(particles, true)
-    GC.RestoreLighting()
     if terrainRequest ~= GC.State.terrainTestRequest then terrainRequest = GC.State.terrainTestRequest debrisPeak = 0 end
     if GC.State.terrainTestPhase == "breaking" then debrisPeak = math.max(debrisPeak, drawn) end
 end)

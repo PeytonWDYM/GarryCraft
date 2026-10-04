@@ -59,6 +59,6 @@ final class NativeItems {
             vertex[1] = -width;
             vertex[2] -= (minZ + maxZ) / 2;
         }
-        return List.of(new ModelCollector.Batch(texture, triangles));
+        return List.of(new ModelCollector.Batch(texture, triangles, false, false, true));
     }
 }

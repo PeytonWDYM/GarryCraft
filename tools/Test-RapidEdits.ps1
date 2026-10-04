@@ -32,13 +32,13 @@ $run = Get-Content -Raw -LiteralPath "$output/garrycraft-rapid-edits.json" | Con
 $settled = @($run.frames | Where-Object { $_.time -ge 25 })
 $checks = [ordered]@{
     recorded = $run.frames.Count -gt 100
-    placed = ($run.frames.cells | Measure-Object -Maximum).Maximum -gt 4
-    mined = @($run.frames | Where-Object { $_.time -gt 2 -and $_.time -lt 24 -and $_.cells -eq 4 }).Count -gt 5
+    placed = ($run.frames.vertices | Measure-Object -Maximum).Maximum -gt 16 * 6
+    mined = @($run.frames | Where-Object { $_.time -gt 2 -and $_.time -lt 24 -and $_.vertices -eq 16 * 6 }).Count -gt 5
     settled = $settled.Count -gt 10
-    noMissingFaces = @($settled | Where-Object { $_.expectedFaces -eq 0 -or $_.vertices -ne $_.expectedFaces * 6 }).Count -eq 0
+    noMissingFaces = @($settled | Where-Object { $_.vertices -ne 16 * 6 }).Count -eq 0
 }
 # Independent fixture truth: 55 cubes minus an eight-cube opening expose 108 faces.
-# This crosses both section boundaries and catches a stale mesh/voxel pair.
+# This crosses both section boundaries and checks exported geometry independently.
 Minecraft "fill -50 $FloorY 46 -46 $($FloorY+5) 51 air"
 Minecraft "fill -49 $FloorY 47 -47 $($FloorY+4) 49 minecraft:jungle_log"
 Minecraft "fill -48 $FloorY 50 -47 $($FloorY+4) 50 minecraft:jungle_log"

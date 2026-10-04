@@ -95,10 +95,6 @@ public final class StatePublisher {
         state.addProperty("terrainTestPhase", dev.garrycraft.testing.TerrainUseOracle.phase());
         state.addProperty("terrainTestYaw", player.getYRot());
         state.addProperty("terrainTestPitch", player.getXRot());
-        state.addProperty("lightingTestRequest", dev.garrycraft.testing.LightingOracle.request());
-        state.addProperty("lightingTestPhase", dev.garrycraft.testing.LightingOracle.phase());
-        state.addProperty("lightingTestYaw", player.getYRot());
-        state.addProperty("lightingTestPitch", player.getXRot());
         state.addProperty("fixture", PhysicsOracle.fixture());
         state.addProperty("polishRequest", dev.garrycraft.testing.GameplayOracle.request());
         state.addProperty("polishPhase", dev.garrycraft.testing.GameplayOracle.phase());

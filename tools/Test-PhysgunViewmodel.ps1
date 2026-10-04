@@ -1,6 +1,7 @@
 param([Parameter(Mandatory)][int]$GamePid, [Parameter(Mandatory)][string]$LabPath,
     [Parameter(Mandatory)][string]$RunRoot, [ValidateRange(1,9)][int]$GunSlot = 1,
-    [ValidateRange(1,9)][int]$OtherSlot = 2, [switch]$MissingSourceHands, [switch]$Armored)
+    [ValidateRange(1,9)][int]$OtherSlot = 2, [switch]$MissingSourceHands, [switch]$Armored,
+    [switch]$ConsoleInput)
 $ErrorActionPreference = 'Stop'
 $LabPath = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$LabPath/.garrycraft-lab")
 $data = "$LabPath/garrysmod/data"
@@ -30,34 +31,37 @@ if ($Armored) {
         & "$PSScriptRoot/Send-MinecraftLabCommand.ps1" -GamePid $GamePid -LabPath $LabPath -Command "item replace entity @s armor.$($piece[0]) with minecraft:netherite_$($piece[1])"
     }
 }
-[GarryCraftSourceInput]::Focus($game.MainWindowHandle)
+if (-not $ConsoleInput) { [GarryCraftSourceInput]::Focus($game.MainWindowHandle) }
 try {
     if ($MissingSourceHands) { Send 'lua_run Entity(1):GetHands():Remove()' }
-    Send "lua_run_cl RunString(file.Read('garrycraft-physgun-viewmodel.lua','DATA')) GarryCraft.PhysgunViewmodelTest.Begin('$request')"
+    $driver = if ($ConsoleInput) { 'Source console movement and hotbar binds' } else { 'Windows keyboard and mouse' }
+    Send "lua_run_cl RunString(file.Read('garrycraft-physgun-viewmodel.lua','DATA')) GarryCraft.PhysgunViewmodelTest.Begin('$request','$driver')"
     Wait-Record $false | Out-Null
     Start-Sleep -Seconds 1
     Mark 'walk'
-    [GarryCraftSourceInput]::KeyDown(0x57)
+    if ($ConsoleInput) { Send '+forward' } else { [GarryCraftSourceInput]::KeyDown(0x57) }
     Start-Sleep -Seconds 2
     Mark 'sprint'
-    [GarryCraftSourceInput]::KeyDown(0x10)
+    if ($ConsoleInput) { Send '+speed' } else { [GarryCraftSourceInput]::KeyDown(0x10) }
     Start-Sleep -Seconds 2
-    [GarryCraftSourceInput]::KeyUp(0x10)
-    [GarryCraftSourceInput]::KeyUp(0x57)
+    if ($ConsoleInput) { Send '-speed'; Send '-forward' }
+    else { [GarryCraftSourceInput]::KeyUp(0x10); [GarryCraftSourceInput]::KeyUp(0x57) }
     Start-Sleep -Seconds 2
     Mark 'stop'
     Start-Sleep -Seconds 1
-    [GarryCraftSourceInput]::Hold([ushort](0x30 + $OtherSlot), 100)
+    if ($ConsoleInput) { Send "lua_run_cl hook.Run('PlayerBindPress',LocalPlayer(),'slot$OtherSlot',true)" }
+    else { [GarryCraftSourceInput]::Hold([ushort](0x30 + $OtherSlot), 100) }
     Start-Sleep -Milliseconds 700
     Mark 'switch-away'
     Start-Sleep -Seconds 1
-    [GarryCraftSourceInput]::Hold([ushort](0x30 + $GunSlot), 100)
+    if ($ConsoleInput) { Send "lua_run_cl hook.Run('PlayerBindPress',LocalPlayer(),'slot$GunSlot',true)" }
+    else { [GarryCraftSourceInput]::Hold([ushort](0x30 + $GunSlot), 100) }
     Start-Sleep -Milliseconds 700
     Mark 'switch-back'
     Start-Sleep -Seconds 1
 } finally {
-    [GarryCraftSourceInput]::KeyUp(0x57)
-    [GarryCraftSourceInput]::KeyUp(0x10)
+    if ($ConsoleInput) { Send '-forward'; Send '-speed' }
+    else { [GarryCraftSourceInput]::Release() | Out-Null }
     if ($MissingSourceHands) { Send 'lua_run Entity(1):SetupHands()' }
     Send 'lua_run_cl GarryCraft.PhysgunViewmodelTest.Finish()'
 }

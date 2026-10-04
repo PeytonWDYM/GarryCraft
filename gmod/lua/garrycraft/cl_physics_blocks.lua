@@ -27,9 +27,9 @@ local function bind(entity, batches)
     entity.GarryCraftPhysicsBatch = nil
     entity:SetRenderBounds(minimum, maximum)
     garrycraft_bridge.shadow_update(entity, shadows)
-    local enabled = GetConVar("garrycraft_source_shadows"):GetBool()
-    entity:DrawShadow(enabled)
-    if enabled then entity:CreateShadow() entity:MarkShadowAsDirty() else entity:DestroyShadow() end
+    entity:DrawShadow(true)
+    entity:CreateShadow()
+    entity:MarkShadowAsDirty()
     return true
 end
 
@@ -48,15 +48,6 @@ function GC.ClearPhysicsBlockModels()
     nextReady = {}
     destructionTextures = {}
     crackDraws, lastCrackStage, lastCrackId, lastCrackTexture, lastCrackAt = 0, -1, 0, -1, 0
-end
-
-function GC.SetPhysicsBlockShadows(enabled)
-    for _, entity in ipairs(ents.FindByClass("gc_physics_block")) do
-        if entity.GarryCraftPhysicsBatches then
-            entity:DrawShadow(enabled)
-            if enabled then entity:CreateShadow() entity:MarkShadowAsDirty() else entity:DestroyShadow() end
-        end
-    end
 end
 
 function GC.SetPhysicsBlockModels(payload, body)
