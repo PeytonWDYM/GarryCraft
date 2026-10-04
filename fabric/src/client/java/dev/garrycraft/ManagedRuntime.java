@@ -23,6 +23,7 @@ public final class ManagedRuntime {
                 ready = true;
             }
             if (JsonParser.parseString(Files.readString(Path.of(CONTROL))).getAsJsonObject().get("stop").getAsBoolean()) {
+                GarryCraftClient.LOG.info("GarryCraft launcher requested Minecraft shutdown");
                 GarryCraftClient.restoreOptions(minecraft);
                 minecraft.options.save();
                 minecraft.stop();

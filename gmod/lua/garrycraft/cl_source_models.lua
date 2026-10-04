@@ -128,11 +128,13 @@ end
 -- Rebind a replaced owner's opaque slots before its old meshes retire. Source keeps each entity and shadow handle.
 function GC.SyncSourceModels(batches, previous, kind)
     local available = {}
+    local retained = {}
+    for _, batch in ipairs(batches) do retained[batch] = true end
     for _, batch in ipairs(previous) do
-        if batch.sourceModel then available[#available + 1] = batch.sourceModel end
+        if batch.sourceModel and not retained[batch] then available[#available + 1] = batch.sourceModel end
     end
     for _, batch in ipairs(batches) do
-        if not batch.translucent then
+        if not batch.translucent and not batch.sourceModel then
             local match = 1
             for index, candidate in ipairs(available) do
                 if candidate.batch.texture == batch.texture and candidate.batch.unlit == batch.unlit

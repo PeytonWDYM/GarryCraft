@@ -12,7 +12,7 @@ import java.util.HexFormat;
 /** Packs RGBA vertices on the transport thread. Lua reads only the small metadata header. */
 final class MeshPackets {
     private static final com.google.gson.Gson GEOMETRY_JSON = new com.google.gson.Gson();
-    private record Mesh(int texture, boolean translucent, boolean unlit, int tint, int offset, int count, float x, float y, float z) {}
+    private record Mesh(int texture, boolean translucent, boolean unlit, int tint, int offset, int count, float x, float y, float z, String geometry) {}
     private record Group(long revision, List<Mesh> batches) {}
     private record ItemModel(int id, List<Mesh> batches) {}
     private record PhysicsBlockModel(long id, List<Mesh> batches) {}
@@ -23,7 +23,7 @@ final class MeshPackets {
         Group leftArm, Group rightArm, PhysicsBlocks physicsBlocks) {}
     private record SectionHeader(String session, String instance, long sequence, String key, boolean clear,
         List<Mesh> meshes, List<double[]> boxes, List<WorldExporter.Light> lights, List<double[]> occluders,
-        VoxelLight voxelLighting, String geometry) {}
+        VoxelLight voxelLighting, String geometry, String collision) {}
     private record VoxelLight(int offset, int count, int width, float[] brightness) {}
     private final ByteBuffer body;
     private MeshPackets(int vertices) { this(vertices, 0); }
@@ -50,7 +50,9 @@ final class MeshPackets {
                 // VertexLitGeneric ignores vertex colors. Each water face supplies its Minecraft biome tint as a material color.
                 var color = batch.vertices().get(first);
                 int tint = batch.materialTint() ? (int) color[5] << 16 | (int) color[6] << 8 | (int) color[7] : 0xFFFFFF;
-                result.add(new Mesh(batch.texture(), batch.translucent(), batch.unlit(), tint, offset, count, x / count, y / count, z / count));
+                String geometry = sortFaces ? batch.texture() + ":" + batch.translucent() + ":" + batch.unlit() + ":" + tint
+                    + ":" + digest(body.array(), offset, count * 24) : null;
+                result.add(new Mesh(batch.texture(), batch.translucent(), batch.unlit(), tint, offset, count, x / count, y / count, z / count, geometry));
             }
         }
         return result;
@@ -62,6 +64,15 @@ final class MeshPackets {
             var digest = MessageDigest.getInstance("SHA-256");
             digest.update(GEOMETRY_JSON.toJson(meshes).getBytes(StandardCharsets.UTF_8));
             digest.update(body.array(), 0, body.position());
+            return HexFormat.of().formatHex(digest.digest());
+        } catch (NoSuchAlgorithmException exception) {
+            throw new AssertionError("The Java runtime must provide SHA-256", exception);
+        }
+    }
+    private static String digest(byte[] bytes, int offset, int length) {
+        try {
+            var digest = MessageDigest.getInstance("SHA-256");
+            digest.update(bytes, offset, length);
             return HexFormat.of().formatHex(digest.digest());
         } catch (NoSuchAlgorithmException exception) {
             throw new AssertionError("The Java runtime must provide SHA-256", exception);
@@ -88,8 +99,10 @@ final class MeshPackets {
         var geometry = packet.geometry(meshes);
         var voxel = new VoxelLight(packet.body.position(), section.voxelLighting().length, VoxelLighting.WIDTH, section.lightBrightness());
         packet.body.put(section.voxelLighting());
+        var collision = CollisionBoxes.merge(section.boxes());
+        byte[] boxes = GEOMETRY_JSON.toJson(collision).getBytes(StandardCharsets.UTF_8);
         var header = new SectionHeader(section.session(), section.instance(), section.sequence(), section.key(), section.clear(),
-            meshes, section.boxes(), section.lights(), section.occluders(), voxel, geometry);
+            meshes, collision, section.lights(), section.occluders(), voxel, geometry, digest(boxes, 0, boxes.length));
         return RenderTransport.packet(header, packet.body.array());
     }
 }

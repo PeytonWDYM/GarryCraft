@@ -89,6 +89,7 @@ public final class GarryCraftClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        dev.garrycraft.testing.NavigationScenario.register();
         dev.garrycraft.physicsblocks.PhysicsBlocks.initialize();
         dev.garrycraft.physicsblocks.DetachedBlockMining.initialize();
         EntityRendererRegistry.register(SourceCombat.TYPE, NoopRenderer::new);

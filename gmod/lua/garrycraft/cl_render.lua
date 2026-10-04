@@ -55,15 +55,29 @@ end
 
 local function buildMeshes(batches, viewmodel, world, body, sourceKind, previous)
     local result = {}
+    local available = {}
+    for _, batch in ipairs(previous or {}) do
+        if batch.geometry then
+            available[batch.geometry] = available[batch.geometry] or {}
+            table.insert(available[batch.geometry], batch)
+        end
+    end
     for _, batch in ipairs(batches) do
-        local mesh = Mesh(batch.unlit and colorFormat or meshFormat)
-        local minimum, maximum, normal, probe = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
-        local built = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
-            tintId = batch.tint,
-            tint = Vector(bit.rshift(batch.tint, 16) / 255, bit.band(bit.rshift(batch.tint, 8), 255) / 255, bit.band(batch.tint, 255) / 255),
-            vertices = batch.count, minimum = minimum, maximum = maximum, normal = normal, probe = probe,
-            center = world and GC.ToSource(batch.x, batch.y, batch.z) or GC.DirectionToSource(batch.x, batch.y, batch.z), lighting = {colors = {}}}
-        result[#result + 1] = built
+        local matches = batch.geometry and available[batch.geometry]
+        local retained = matches and table.remove(matches)
+        if retained then
+            result[#result + 1] = retained
+        else
+            local mesh = Mesh(batch.unlit and colorFormat or meshFormat)
+            local minimum, maximum, normal, probe = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
+            local built = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
+                tintId = batch.tint,
+                tint = Vector(bit.rshift(batch.tint, 16) / 255, bit.band(bit.rshift(batch.tint, 8), 255) / 255, bit.band(batch.tint, 255) / 255),
+                vertices = batch.count, minimum = minimum, maximum = maximum, normal = normal, probe = probe,
+                center = world and GC.ToSource(batch.x, batch.y, batch.z) or GC.DirectionToSource(batch.x, batch.y, batch.z), lighting = {colors = {}},
+                geometry = batch.geometry}
+            result[#result + 1] = built
+        end
     end
     if sourceKind then GC.SyncSourceModels(result, previous or {}, sourceKind) end
     return result
@@ -71,8 +85,12 @@ end
 GC.ReceiveRenderPacket = packet
 GC.BuildRenderMeshes = buildMeshes
 
-function GC.DestroyRenderMeshes(batches)
-    for _, batch in ipairs(batches) do GC.RemoveSourceMeshModels(batch) batch.mesh:Destroy() end
+function GC.DestroyRenderMeshes(batches, retained)
+    local keep = {}
+    for _, batch in ipairs(retained or {}) do keep[batch] = true end
+    for _, batch in ipairs(batches) do
+        if not keep[batch] then GC.RemoveSourceMeshModels(batch) batch.mesh:Destroy() end
+    end
 end
 
 -- Each Source draw selects its batch tint before the studio renderer reads the material.

@@ -8,16 +8,21 @@ import net.minecraft.world.phys.AABB;
 /** Supplies terrain classification and exact floor heights to Minecraft's existing pathfinder. */
 public final class SourceNavigation {
     private record Cell(boolean blocked, double floor) {}
-    private static final Long2ObjectOpenHashMap<Cell> CELLS = new Long2ObjectOpenHashMap<>();
-    private static long revision = -1;
+    private static final class Cache {
+        final Long2ObjectOpenHashMap<Cell> cells = new Long2ObjectOpenHashMap<>();
+        long revision = -1;
+    }
+    // The integrated server and client can query navigation. Fastutil maps need one owner.
+    private static final ThreadLocal<Cache> CACHE = ThreadLocal.withInitial(Cache::new);
     private SourceNavigation() {}
     private static Cell cell(BlockPos pos) {
         long current = SourceWorld.COLLISION.revision();
-        if (revision != current) { revision = current; CELLS.clear(); }
+        var cache = CACHE.get();
+        if (cache.revision != current) { cache.revision = current; cache.cells.clear(); }
         long key = pos.asLong();
-        var cached = CELLS.get(key);
+        var cached = cache.cells.get(key);
         if (cached != null) return cached;
-        if (CELLS.size() >= 65536) CELLS.clear();
+        if (cache.cells.size() >= 65536) cache.cells.clear();
         var triangles = new ArrayList<Triangle>();
         SourceWorld.COLLISION.staticTrianglesNear(new AABB(pos).inflate(.01, 1, .01), triangles);
         double x = pos.getX() + .5, z = pos.getZ() + .5;
@@ -33,7 +38,7 @@ public final class SourceNavigation {
         // The floor cell is blocked. The cell containing feet remains walkable, including tiny trace offsets.
         var upper = SourceRay.cast(triangles, x, pos.getY() + 1.08, z, x, pos.getY() + .08, z);
         if (upper != null && upper.ny() > .5) blocked = true;
-        var result = new Cell(blocked, floor); CELLS.put(key, result); return result;
+        var result = new Cell(blocked, floor); cache.cells.put(key, result); return result;
     }
     public static boolean blocked(BlockPos pos) {
         if (!SourceWorld.active) return false;

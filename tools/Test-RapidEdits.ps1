@@ -1,5 +1,5 @@
 param([Parameter(Mandatory)][int]$GamePid, [Parameter(Mandatory)][string]$LabPath,
-    [Parameter(Mandatory)][string]$RunRoot)
+    [Parameter(Mandatory)][string]$RunRoot, [int]$FloorY = -6)
 $ErrorActionPreference = 'Stop'
 $lab = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$LabPath/.garrycraft-lab")
 $data = "$lab/garrysmod/data"
@@ -11,15 +11,16 @@ function Minecraft($Command) { & "$PSScriptRoot/Send-MinecraftLabCommand.ps1" -G
 Send 'sv_cheats 1'
 Minecraft 'gamemode creative'
 Minecraft 'item replace entity @s hotbar.1 with minecraft:oak_log'
-Minecraft 'tp @s -47 -6 52'
-Minecraft 'fill -50 -6 46 -46 -1 51 air'
-Minecraft 'fill -49 -6 47 -48 -6 48 minecraft:oak_log'
+Minecraft "tp @s -47 $FloorY 52"
+Minecraft "fill -50 $FloorY 46 -46 $($FloorY+5) 51 air"
+Minecraft "fill -49 $FloorY 47 -48 $FloorY 48 minecraft:oak_log"
 Start-Sleep -Seconds 3
 Remove-Item -LiteralPath "$data/garrycraft-rapid-edits.json", "$data/garrycraft-rapid-edits.png" -ErrorAction SilentlyContinue
 try {
-    Send "lua_run_cl RunString(file.Read('garrycraft-rapid-edits.lua','DATA')) GarryCraft.RapidEditTest.Begin(-49,-6,47)"
+    Send "lua_run_cl RunString(file.Read('garrycraft-rapid-edits.lua','DATA')) GarryCraft.RapidEditTest.Begin(-49,$FloorY,47)"
     $deadline = [DateTime]::UtcNow.AddSeconds(45)
-    while (-not (Test-Path -LiteralPath "$data/garrycraft-rapid-edits.json")) {
+    while (-not ((Test-Path -LiteralPath "$data/garrycraft-rapid-edits.json") -and
+        (Test-Path -LiteralPath "$data/garrycraft-rapid-edits.png"))) {
         if ([DateTime]::UtcNow -gt $deadline) { throw 'Rapid edit capture timed out.' }
         Start-Sleep -Milliseconds 200
     }
@@ -38,10 +39,10 @@ $checks = [ordered]@{
 }
 # Independent fixture truth: 55 cubes minus an eight-cube opening expose 108 faces.
 # This crosses both section boundaries and catches a stale mesh/voxel pair.
-Minecraft 'fill -50 -6 46 -46 -1 51 air'
-Minecraft 'fill -49 -6 47 -47 -2 49 minecraft:jungle_log'
-Minecraft 'fill -48 -6 50 -47 -2 50 minecraft:jungle_log'
-Minecraft 'fill -48 -4 48 -47 -3 49 air'
+Minecraft "fill -50 $FloorY 46 -46 $($FloorY+5) 51 air"
+Minecraft "fill -49 $FloorY 47 -47 $($FloorY+4) 49 minecraft:jungle_log"
+Minecraft "fill -48 $FloorY 50 -47 $($FloorY+4) 50 minecraft:jungle_log"
+Minecraft "fill -48 $($FloorY+2) 48 -47 $($FloorY+3) 49 air"
 Start-Sleep -Seconds 3
 Remove-Item -LiteralPath "$data/garrycraft-rapid-edits-truth.json" -ErrorAction SilentlyContinue
 Send "lua_run_cl file.Write('garrycraft-rapid-edits-truth.json',util.TableToJSON(GarryCraft.BlockRenderReport(),true))"

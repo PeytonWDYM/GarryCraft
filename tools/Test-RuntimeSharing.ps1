@@ -22,6 +22,7 @@ $helper = $null
 $statusReader = $null
 $controlReader = $null
 $clientPid = 0
+$requestReader = $null
 function Request($Enabled) {
     @{id='sharing-fixture'; map='sharing_fixture'; enabled=$Enabled} |
         ConvertTo-Json -Compress | Set-Content $requestPath -Encoding utf8NoBOM
@@ -55,6 +56,24 @@ try {
     $written = [IO.File]::GetLastWriteTimeUtc($statusPath)
     Start-Sleep -Seconds 3
     $checks.unchangedStatusNotRewritten = [IO.File]::GetLastWriteTimeUtc($statusPath) -eq $written
+    # Source truncates its heartbeat before writing JSON. A read between those writes
+    # must retain the live client. Empty, partial, missing, and locked reads can occur.
+    foreach ($kind in 'empty', 'partial', 'missing', 'locked') {
+        switch ($kind) {
+            'empty' { [IO.File]::WriteAllText($requestPath, '') }
+            'partial' { [IO.File]::WriteAllText($requestPath, '{"id":"sharing-fixture",') }
+            'missing' { Remove-Item -LiteralPath $requestPath }
+            'locked' { $requestReader = [IO.FileStream]::new($requestPath, 'Open', 'ReadWrite', 'None') }
+        }
+        Start-Sleep -Seconds 2
+        $checks["${kind}RequestRetainsClient"] = [bool](Get-Process -Id $clientPid -ErrorAction SilentlyContinue) -and
+            -not (Get-Content "$mapRoot/control.json" -Raw | ConvertFrom-Json).stop
+        if ($requestReader) { $requestReader.Dispose(); $requestReader = $null }
+        Request $true
+        if (-not $checks["${kind}RequestRetainsClient"]) { throw "Minecraft stopped after a $kind heartbeat read." }
+        Start-Sleep -Seconds 1
+    }
+    $checks.sameClientAfterHeartbeatRecovery = (Status).javaPid -eq $clientPid
     $controlReader = [IO.FileStream]::new("$mapRoot/control.json", 'Open', 'Read', 'ReadWrite')
     Request $false
     Wait-Until 'pending save' { (Status).state -eq 'saving' }
@@ -75,6 +94,7 @@ try {
 } finally {
     if ($statusReader) { $statusReader.Dispose() }
     if ($controlReader) { $controlReader.Dispose() }
+    if ($requestReader) { $requestReader.Dispose() }
     Request $false
     if ($clientPid -and (Get-Process -Id $clientPid -ErrorAction SilentlyContinue)) {
         [IO.File]::WriteAllText("$mapRoot/control.json", '{"stop":true}')
