@@ -31,9 +31,15 @@ Source frame P99 was 5.899 ms and 6.869 ms. Maximum intervals were 18.660 ms and
 This is candidate coverage, without a matched pre-fix Downtown timing comparison.
 The lab lacks assets for 52 static props, which limits its geometry coverage.
 
+Review follow-up artifacts: `%LOCALAPPDATA%/GarryCraft/render-review-verified/20261004-084126/artifacts`.
+The mixed-direction probe checks failed in all three coordinate spaces before the fix.
+The native mesh fixture then passed all 15 checks, including public/native pixel comparisons.
+The edit fixture passed seven checks, including a torch lighting change on matching faces.
+Both physics gun passes passed 14 checks after the shared pose and texture readiness changes.
+
 ## Limits
 
 Lighting still uses one sample per face batch and estimates the sun's share of baked Source irradiance.
 Native lightmap tiles update over several frames. Shadows do not update instantly everywhere.
 These fixtures do not certify every map, material, player addon, or large-map frame budget.
-The configured daily installation and its saved worlds were not changed.
+All fixtures used the separate lab and owned test worlds.

@@ -3,6 +3,7 @@
 -- and nonfinite vertices must fail before the native mesh lock.
 -- Native/public pixels must match in all three coordinate spaces.
 -- Repeated create/build/draw/destroy cycles must leave the renderer usable.
+-- A mixed-direction batch must offset its probe along the selected triangle's normal.
 assert(game.SinglePlayer(), "Native mesh tests require single-player")
 local bridge = garrycraft_bridge
 local zero = string.char(0, 0, 0, 0)
@@ -13,6 +14,10 @@ end
 local triangle = vertex(zero, zero, zero, zero, zero, 255, 64, 32, 255)
     .. vertex(one, zero, zero, one, zero, 32, 255, 64, 255)
     .. vertex(zero, one, zero, zero, one, 64, 32, 255, 128)
+local half = string.char(0, 0, 0, 63)
+local mixed = triangle .. vertex(half, half, zero, zero, zero, 255, 255, 255, 255)
+    .. vertex(half, half, one, zero, zero, 255, 255, 255, 255)
+    .. vertex(one, half, zero, zero, zero, 255, 255, 255, 255)
 local material = CreateMaterial("garrycraft/test/native-meshes", "UnlitGeneric", {
     ["$basetexture"] = "color/white", ["$vertexcolor"] = 1,
     ["$vertexalpha"] = 1, ["$translucent"] = 1, ["$nocull"] = 1
@@ -75,6 +80,9 @@ hook.Add("PostRender", "GarryCraftNativeMeshTest", function()
     for space = 0, 2 do
         local native, public = Mesh(material), Mesh(material)
         local height = space == 1 and 64 or 0
+        local _, _, _, probe = bridge.build_mesh(native, mixed, 0, 6, space, height)
+        local expected = space == 2 and Vector(-32 / 3, -64 / 3, 16.5) or Vector(64 / 3, -32 / 3, 16.5 + height)
+        check("coordinate space " .. space .. " uses selected triangle normal", probe:Distance(expected) < .001)
         bridge.build_mesh(native, triangle, 0, 3, space, height)
         bridge.build_mesh(public, triangle, 0, 3, space, height, true)
         local nativePixels, nativeDrawn = pixels(native, space)

@@ -26,10 +26,10 @@ function Wait-Record([bool]$Finished) {
 }
 $game = Get-Process -Id $GamePid
 [GarryCraftSourceInput]::Focus($game.MainWindowHandle)
-if ($MissingSourceHands) { Send 'lua_run Entity(1):GetHands():Remove()' }
-Send "lua_run_cl RunString(file.Read('garrycraft-physgun-viewmodel.lua','DATA')) GarryCraft.PhysgunViewmodelTest.Begin('$request')"
-Wait-Record $false | Out-Null
 try {
+    if ($MissingSourceHands) { Send 'lua_run Entity(1):GetHands():Remove()' }
+    Send "lua_run_cl RunString(file.Read('garrycraft-physgun-viewmodel.lua','DATA')) GarryCraft.PhysgunViewmodelTest.Begin('$request')"
+    Wait-Record $false | Out-Null
     Start-Sleep -Seconds 1
     Mark 'walk'
     [GarryCraftSourceInput]::KeyDown(0x57)
@@ -53,8 +53,8 @@ try {
 } finally {
     [GarryCraftSourceInput]::KeyUp(0x57)
     [GarryCraftSourceInput]::KeyUp(0x10)
-    Send 'lua_run_cl GarryCraft.PhysgunViewmodelTest.Finish()'
     if ($MissingSourceHands) { Send 'lua_run Entity(1):SetupHands()' }
+    Send 'lua_run_cl GarryCraft.PhysgunViewmodelTest.Finish()'
 }
 $run = Wait-Record $true
 Copy-Item "$data/garrycraft-physgun-viewmodel*" $destination -Force

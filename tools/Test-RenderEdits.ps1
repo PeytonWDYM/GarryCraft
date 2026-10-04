@@ -54,6 +54,20 @@ $after = Get-Content "$output/boundary-exposed.json" -Raw | ConvertFrom-Json
 $transitions = Get-Content "$output/transitions.json" -Raw | ConvertFrom-Json
 $broken = Get-Content "$output/broken.json" -Raw | ConvertFrom-Json
 $replaced = Get-Content "$output/replaced.json" -Raw | ConvertFrom-Json
+$torchOn = Get-Content "$output/torch-on.json" -Raw | ConvertFrom-Json
+$torchOff = Get-Content "$output/torch-off.json" -Raw | ConvertFrom-Json
+$torchLightingChanged = $false
+foreach ($offFace in $torchOff.faces) {
+    $key = (@($offFace.minimum) + @($offFace.maximum) + @($offFace.normal)) -join ','
+    $onFace = $torchOn.faces | Where-Object {
+        ((@($_.minimum) + @($_.maximum) + @($_.normal)) -join ',') -eq $key
+    } | Select-Object -First 1
+    if ($onFace -and (($onFace.lighting | ConvertTo-Json -Compress -Depth 10) -ne
+        ($offFace.lighting | ConvertTo-Json -Compress -Depth 10))) {
+        $torchLightingChanged = $true
+        break
+    }
+}
 $checks = [ordered]@{
     capturedFaces = $tower.faces.Count -gt 0
     exteriorProbes = @($tower.faces | Where-Object { $_.voxel.opaque -or $_.voxel.centerBlocked }).Count -eq 0
@@ -61,6 +75,7 @@ $checks = [ordered]@{
     boundaryFaceExposed = @($after.faces | Where-Object { $_.normal[0] -gt .99 -and [Math]::Abs($_.minimum[0]-1536) -lt .01 }).Count -eq 1
     transitionFrames = $transitions.frames.Count -gt 100
     noBlackProbeTransitions = @($transitions.frames | Where-Object { $_.blockedProbes -gt 0 }).Count -eq 0
+    torchLightingChanged = $torchLightingChanged
 }
 @{checks=$checks;passed=-not($checks.Values -contains $false)} | ConvertTo-Json | Set-Content "$output/result.json"
 Get-Content "$output/result.json"
