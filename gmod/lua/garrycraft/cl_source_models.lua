@@ -1,11 +1,42 @@
 local GC = GarryCraft
 local entries = {}
 local removals = {}
-local shadows = true
 local class = "garrycraft_source_model"
 local backing = "models/hunter/blocks/cube025x025x025.mdl"
 local draws = {avatar = 0, world = 0, item = 0}
 local created, rebound = 0, 0
+local manual
+local manualDraws = 0
+
+-- One hidden model submits sorted fluids, hands, and arms through Source's normal studio lighting.
+scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERGROUP_OTHER,
+    Initialize = function(self)
+        self:SetModel(backing)
+        self:SetMoveType(MOVETYPE_NONE)
+        self:SetSolid(SOLID_NONE)
+        self:SetNoDraw(true)
+        self:DrawShadow(false)
+    end,
+    GetRenderMesh = function(self)
+        local batch = self.GarryCraftBatch
+        if not batch then return end
+        return {Mesh = batch.mesh, Material = GC.RenderMaterial(batch), Matrix = self.GarryCraftMatrix}
+    end}, "garrycraft_manual_model")
+
+function GC.DrawSourceMesh(batch, position, transform)
+    if not IsValid(manual) then return end
+    local matrix = Matrix()
+    if transform then matrix:Set(transform) end
+    position = position or batch.surfaceOrigin
+    matrix:SetTranslation(matrix:GetTranslation() - position)
+    manual:SetPos(position)
+    manual.GarryCraftBatch, manual.GarryCraftMatrix = batch, matrix
+    -- Source caches the first draw's pose. Refresh it for each position in the sorted pass.
+    manual:SetupBones()
+    manual:DrawModel()
+    manual.GarryCraftBatch = nil
+    manualDraws = manualDraws + 1
+end
 
 scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERGROUP_OPAQUE,
     Initialize = function(self)
@@ -27,19 +58,7 @@ scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERG
         if entry.kind == "avatar" and ((GC.State.camera == 0 and not depth) or not LocalPlayer():Alive()
             or GC.State.teleportAck ~= LocalPlayer():GetNWInt("GarryCraftTeleport")) then return end
         draws[entry.kind] = draws[entry.kind] + 1
-        if not depth and not entry.batch.unlit then
-            local position = entry.position
-            if entry.kind == "world" then position = entry.batch.probe end
-            GC.PrepareLighting(position, entry.batch.lighting)
-            render.SuppressEngineLighting(true)
-            garrycraft_bridge.source_model_lighting_override(entry.batch.lighting.colors)
-        end
         self:DrawModel(flags)
-        if not depth and not entry.batch.unlit then
-            garrycraft_bridge.source_model_lighting_clear_override()
-            render.SuppressEngineLighting(false)
-            GC.RestoreLighting()
-        end
     end,
     OnRemove = function(self)
         local entry = self.GarryCraftSourceModel
@@ -64,7 +83,8 @@ local function create(entry)
     entity:Spawn()
     entity:SetRenderBounds(entry.minimum, entry.maximum)
     register(entry)
-    if shadows then entity:DrawShadow(true) entity:CreateShadow() end
+    entity:DrawShadow(true)
+    entity:CreateShadow()
     created = created + 1
 end
 
@@ -142,7 +162,8 @@ function GC.SyncSourceModels(batches, previous, kind)
             end
             local entry
             if #available > 0 then entry = table.remove(available, match) end
-            local position = kind == "avatar" and (entry and entry.position or GC.ToSource(GC.State.x, GC.State.y, GC.State.z)) or batch.center
+            local position = kind == "avatar" and (entry and entry.position or GC.ToSource(GC.State.x, GC.State.y, GC.State.z))
+                or batch.surfaceOrigin
             local transform = Matrix()
             if kind == "avatar" then transform:SetTranslation(position) end
             if entry then
@@ -179,20 +200,10 @@ function GC.ClearSourceModels()
     garrycraft_bridge.shadow_clear()
 end
 
-function GC.SetSourceModelShadows(enabled)
-    shadows = enabled
-    for entry in pairs(entries) do
-        local entity = entry.entity
-        if IsValid(entity) then
-            entity:DrawShadow(enabled)
-            if enabled then entity:CreateShadow() entity:MarkShadowAsDirty() else entity:DestroyShadow() end
-        end
-    end
-end
-
 function GC.SourceModelReport()
     local counts = {avatar = 0, world = 0, item = 0, pending = 0, retiring = table.Count(removals),
-        created = created, rebound = rebound, colorDraws = table.Copy(draws)}
+        created = created, rebound = rebound, colorDraws = table.Copy(draws), manualDraws = manualDraws,
+        manualReady = IsValid(manual)}
     for entry in pairs(entries) do
         if IsValid(entry.entity) then counts[entry.kind] = counts[entry.kind] + 1 else counts.pending = counts.pending + 1 end
     end
@@ -219,7 +230,13 @@ hook.Add("Think", "GarryCraftSourceModels", function()
         -- A bridge stall retains mesh revisions. Keep their bindings so they can resume unchanged.
         for entry in pairs(entries) do if IsValid(entry.entity) then retireEntity(entry) end end
         removeEntities()
+        if IsValid(manual) then manual:Remove() end
+        manual = nil
         return
+    end
+    if not IsValid(manual) then
+        manual = ents.CreateClientside("garrycraft_manual_model")
+        manual:Spawn()
     end
     local avatarReady = player:Alive() and GC.State.teleportAck == player:GetNWInt("GarryCraftTeleport")
     for entry in pairs(entries) do
@@ -232,6 +249,7 @@ hook.Add("Think", "GarryCraftSourceModels", function()
     removeEntities()
 end)
 hook.Add("ShutDown", "GarryCraftSourceModelCleanup", function()
+    if IsValid(manual) then manual:Remove() end
     GC.ClearSourceModels()
     removeEntities()
 end)

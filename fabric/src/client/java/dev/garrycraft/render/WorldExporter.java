@@ -9,19 +9,14 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.SectionPos;
 import net.minecraft.world.level.chunk.status.ChunkStatus;
 
-/** Sends one section until both Source realms acknowledge its model, light, and collision snapshot. */
+/** Sends one section until both Source realms acknowledge its model and collision snapshot. */
 public final class WorldExporter {
-    record Light(float x, float y, float z, int emission, int color) {}
     record Section(String session, String instance, long sequence, String key, boolean clear,
-        List<ModelCollector.Batch> meshes, List<double[]> boxes, List<Light> lights, List<double[]> occluders,
-        byte[] voxelLighting, float[] lightBrightness) {}
+        List<ModelCollector.Batch> meshes, List<double[]> boxes) {}
     private static final LongLinkedOpenHashSet DIRTY = new LongLinkedOpenHashSet();
     private static final LongOpenHashSet SENT = new LongOpenHashSet();
     private static final LongOpenHashSet URGENT = new LongOpenHashSet();
     private static final LongOpenHashSet DEFERRED = new LongOpenHashSet();
-    private static final it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<Section> snapshots = new it.unimi.dsi.fastutil.longs.Long2ObjectOpenHashMap<>();
-    private static final LongOpenHashSet GEOMETRY = new LongOpenHashSet();
-    private static final ThreadLocal<Boolean> lightUpdate = ThreadLocal.withInitial(() -> false);
     private static Section pending;
     private static SectionBuilder building;
     private static long sequence, scanTick = -1;
@@ -35,8 +30,7 @@ public final class WorldExporter {
     private static boolean clear;
     private WorldExporter() {}
     public static void reset() {
-        synchronized (DIRTY) { DIRTY.clear(); URGENT.clear(); GEOMETRY.clear(); }
-        snapshots.clear();
+        synchronized (DIRTY) { DIRTY.clear(); URGENT.clear(); }
         SENT.clear(); DEFERRED.clear(); pending = null; building = null; sequence = 0; scanTick = -1; scanColumn = 49; clear = true;
         detached.clear(); committed.clear(); detachSequences.clear(); pendingDetach = 0; clearSequence = 0;
         handoffs.clear();
@@ -83,12 +77,10 @@ public final class WorldExporter {
         detached.clear(); committed.clear(); detachSequences.clear(); handoffs.clear();
     }
     public static long clearSequence() { return clearSequence; }
-    public static void lightUpdate(boolean active) { lightUpdate.set(active); }
     public static void dirty(int x, int y, int z) {
         synchronized (DIRTY) {
             long key = SectionPos.asLong(x, y, z);
             DIRTY.add(key);
-            if (!lightUpdate.get()) GEOMETRY.add(key);
         }
     }
     public static void urgent(BlockPos position) {
@@ -97,12 +89,12 @@ public final class WorldExporter {
             for (var section : detached.values()) if (section.position.equals(position)) section.clientChanged = true;
             var pending = handoffs.get(key);
             if (pending != null) for (var section : pending) if (section.position.equals(position)) section.clientChanged = true;
-            // Face culling and the light halo depend on cells across section boundaries.
+            // Face culling and fluid surfaces depend on cells across section boundaries.
             for (int x = (position.getX() - 1) >> 4; x <= (position.getX() + 1) >> 4; x++)
                 for (int y = (position.getY() - 1) >> 4; y <= (position.getY() + 1) >> 4; y++)
                     for (int z = (position.getZ() - 1) >> 4; z <= (position.getZ() + 1) >> 4; z++) {
                         long neighbor = SectionPos.asLong(x, y, z);
-                        DIRTY.addAndMoveToFirst(neighbor); URGENT.add(neighbor); GEOMETRY.add(neighbor);
+                        DIRTY.addAndMoveToFirst(neighbor); URGENT.add(neighbor);
                     }
         }
     }
@@ -133,7 +125,7 @@ public final class WorldExporter {
         }
         if (clear) {
             clear = false;
-            pending = new Section(session, instance, ++sequence, "", true, List.of(), List.of(), List.of(), List.of(), new byte[0], new float[0]);
+            pending = new Section(session, instance, ++sequence, "", true, List.of(), List.of());
             clearSequence = pending.sequence();
             RenderTransport.world(pending);
             return;
@@ -142,7 +134,7 @@ public final class WorldExporter {
             long id = committed.firstLong();
             var snapshot = detached.get(id).snapshot;
             pending = new Section(session, instance, ++sequence, snapshot.key(), false,
-                snapshot.meshes(), snapshot.boxes(), snapshot.lights(), snapshot.occluders(), snapshot.voxelLighting(), snapshot.lightBrightness());
+                snapshot.meshes(), snapshot.boxes());
             pendingKey = detached.get(id).builder.key;
             pendingDetach = id;
             detachSequences.put(id, pending.sequence());
@@ -153,10 +145,9 @@ public final class WorldExporter {
             return;
         }
         if (building != null) {
-            if (building.ready()) {
+            if (building.step()) {
                 pending = building.finish(session, instance, ++sequence);
                 pendingKey = building.key;
-                snapshots.put(pendingKey, pending);
                 SENT.add(pendingKey);
                 building = null;
                 RenderTransport.world(pending);
@@ -167,23 +158,9 @@ public final class WorldExporter {
         // Ignore empty dirty sections without spending the frame budget on their geometry.
         for (int attempts = 0; attempts < 64; attempts++) {
             long key;
-            boolean geometry;
             synchronized (DIRTY) {
                 if (DIRTY.isEmpty()) return;
-                key = DIRTY.removeFirstLong(); URGENT.remove(key); geometry = GEOMETRY.remove(key);
-            }
-            var previous = snapshots.get(key);
-            if (!geometry && previous != null && !handoffs.containsKey(key)
-                    && Math.abs(SectionPos.x(key) - (mc.player.getBlockX() >> 4)) <= 3
-                    && Math.abs(SectionPos.z(key) - (mc.player.getBlockZ() >> 4)) <= 3
-                    && mc.level.getChunkSource().getChunk(SectionPos.x(key), SectionPos.z(key), ChunkStatus.FULL, false) != null) {
-                var origin = SectionPos.of(key).origin();
-                pending = new Section(session, instance, ++sequence, previous.key(), false,
-                    previous.meshes(), previous.boxes(), previous.lights(), previous.occluders(),
-                    VoxelLighting.capture(mc.level, origin, mc.level), VoxelLighting.brightness(mc.level.dimensionType()));
-                pendingKey = key;
-                RenderTransport.world(pending);
-                return;
+                key = DIRTY.removeFirstLong(); URGENT.remove(key);
             }
             var section = build(mc, key);
             if (section == null) continue;
@@ -198,8 +175,6 @@ public final class WorldExporter {
             if (scanTick >= 0 && tick - scanTick < 20) return;
             scanTick = tick;
             scanX = mc.player.getBlockX() >> 4; scanZ = mc.player.getBlockZ() >> 4;
-            snapshots.long2ObjectEntrySet().removeIf(entry -> Math.abs(SectionPos.x(entry.getLongKey()) - scanX) > 3
-                || Math.abs(SectionPos.z(entry.getLongKey()) - scanZ) > 3);
             scanColumn = scanSection = 0;
         }
         long deadline = System.nanoTime() + 250_000L;
@@ -211,7 +186,7 @@ public final class WorldExporter {
             long key = SectionPos.asLong(x, chunk.getSectionYFromSectionIndex(index), z);
             // An off-range edit can remove the last block. Its clear snapshot must still reach Source.
             if (DEFERRED.remove(key) || (!SENT.contains(key)
-                    && (!chunk.getSections()[index].hasOnlyAir() || VoxelLighting.affectsAir(mc.level, key))))
+                    && !chunk.getSections()[index].hasOnlyAir()))
                 dirty(x, SectionPos.y(key), z);
             if (System.nanoTime() >= deadline) return;
         }
@@ -235,7 +210,7 @@ public final class WorldExporter {
         }
         int index = level.getSectionIndexFromSectionY(sy);
         if (index < 0 || index >= chunk.getSections().length) return null;
-        if (chunk.getSections()[index].hasOnlyAir() && !SENT.contains(key) && !VoxelLighting.affectsAir(level, key)) return null;
+        if (chunk.getSections()[index].hasOnlyAir() && !SENT.contains(key)) return null;
         return new SectionBuilder(mc, key);
     }
 }

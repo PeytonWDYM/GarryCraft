@@ -11,6 +11,14 @@ $running = Get-Process gmod -ErrorAction SilentlyContinue | Where-Object {
 }
 if ($running) { throw 'Close the isolated GarryCraft game before installation.' }
 New-Item -ItemType Directory -Path "$lab\garrysmod\lua\bin","$lab\garrysmod\addons\garrycraft\lua" -Force | Out-Null
+$addonLua = "$lab\garrysmod\addons\garrycraft\lua"
+# Remove retired addon code while retaining game settings, data, and saved worlds.
+foreach ($installed in Get-ChildItem -LiteralPath $addonLua -File -Recurse) {
+    $relative = [IO.Path]::GetRelativePath($addonLua, $installed.FullName)
+    if (-not (Test-Path -LiteralPath "$repository\gmod\lua\$relative")) {
+        Remove-Item -LiteralPath $installed.FullName
+    }
+}
 foreach ($realm in @('gmcl', 'gmsv')) {
     Copy-Item -LiteralPath "$repository\native\build\Release\${realm}_garrycraft_win64.dll" -Destination "$lab\garrysmod\lua\bin"
 }

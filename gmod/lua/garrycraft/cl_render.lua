@@ -69,12 +69,12 @@ local function buildMeshes(batches, viewmodel, world, body, sourceKind, previous
             result[#result + 1] = retained
         else
             local mesh = Mesh(batch.unlit and colorFormat or meshFormat)
-            local minimum, maximum, normal, probe = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
+            local minimum, maximum, normal, surfaceOrigin = garrycraft_bridge.build_mesh(mesh, body, batch.offset, batch.count, viewmodel and 2 or world and 1 or 0, GC.GridHeight)
             local built = {mesh = mesh, texture = batch.texture, translucent = batch.translucent, unlit = batch.unlit,
                 tintId = batch.tint,
                 tint = Vector(bit.rshift(batch.tint, 16) / 255, bit.band(bit.rshift(batch.tint, 8), 255) / 255, bit.band(batch.tint, 255) / 255),
-                vertices = batch.count, minimum = minimum, maximum = maximum, normal = normal, probe = probe,
-                center = world and GC.ToSource(batch.x, batch.y, batch.z) or GC.DirectionToSource(batch.x, batch.y, batch.z), lighting = {colors = {}},
+                vertices = batch.count, minimum = minimum, maximum = maximum, normal = normal, surfaceOrigin = surfaceOrigin,
+                center = world and GC.ToSource(batch.x, batch.y, batch.z) or GC.DirectionToSource(batch.x, batch.y, batch.z),
                 geometry = batch.geometry}
             result[#result + 1] = built
         end
@@ -99,29 +99,24 @@ function GC.RenderMaterial(batch, unlit)
     local material = (unlit or batch.unlit) and (batch.translucent and texture.unlit or texture.emissive)
         or batch.translucent and texture.translucent or texture.opaque
     if materialTints[material] ~= batch.tintId then
-        material:SetVector("$color2", batch.tint)
+        material:SetVector("$color2", (unlit or batch.unlit) and Vector(1, 1, 1) or batch.tint)
         materialTints[material] = batch.tintId
     end
     return material
 end
 
-function GC.DrawRenderMeshes(batches, unlit, position, depth)
+function GC.DrawRenderMeshes(batches, unlit, position, transform)
     local drawn = 0
     for _, batch in ipairs(batches) do
         local texture = textures[batch.texture]
         if texture and not batch.sourceModel then
-            if not depth and not unlit and not batch.unlit then
-                local samplePosition = position or batch.probe
-                GC.PrepareLighting(samplePosition, batch.lighting)
-            end
-            local material = GC.RenderMaterial(batch, unlit)
-            render.SetMaterial(material)
-            batch.mesh:Draw()
-            if not depth and not unlit and not batch.unlit then
-                render.RenderFlashlights(function()
-                    render.SetMaterial(material)
-                    batch.mesh:Draw()
-                end)
+            if not unlit and not batch.unlit then
+                GC.DrawSourceMesh(batch, position, transform)
+            else
+                if transform then cam.PushModelMatrix(transform) end
+                render.SetMaterial(GC.RenderMaterial(batch, unlit))
+                batch.mesh:Draw()
+                if transform then cam.PopModelMatrix() end
             end
             drawn = drawn + batch.vertices
         end
@@ -270,30 +265,19 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftHands", function(depth, sk
     if not IsValid(LocalPlayer()) or not LocalPlayer():GetNWBool("GarryCraft") or not LocalPlayer():Alive() then return end
     local fov = math.deg(2 * math.atan(math.tan(math.rad(handFov) / 2) * 4 / 3))
     cam.Start3D(GC.ViewOrigin, GC.ViewAngles, fov, 0, 0, ScrW(), ScrH(), 0.1, 4096)
-    GC.PrepareLighting(GC.ViewOrigin)
     local transform = Matrix()
     transform:SetTranslation(GC.ViewOrigin)
     transform:SetAngles(GC.ViewAngles)
-    cam.PushModelMatrix(transform)
     render.DepthRange(0, 0.01)
-    local function drawHands()
-        for _, batch in ipairs(hands) do
-            local material = textures[batch.texture]
-            if material then render.SetMaterial(material.opaque) batch.mesh:Draw() end
-        end
-    end
     if RealTime() >= nextTiming then
         nextTiming = RealTime() + 0.5
         timing[#timing + 1] = {time = RealTime(), fps = GC.FrameStats, sceneMs = stats.sceneMs,
             overlayMs = stats.overlayMs, blocks = GC.BlockRenderReport()}
         if #timing > 180 then table.remove(timing, 1) end
     end
-    drawHands()
-    render.RenderFlashlights(drawHands)
+    GC.DrawRenderMeshes(hands, false, GC.ViewOrigin, transform)
     render.DepthRange(0, 1)
-    cam.PopModelMatrix()
     cam.End3D()
-    GC.RestoreLighting()
 end)
 
 hook.Add("PrePlayerDraw", "GarryCraftHideSourceBody", function(player)
@@ -338,7 +322,8 @@ concommand.Add("garrycraft_render_report", function()
     stats.session = session
     stats.polishRequest = GC.State.polishRequest
     stats.fps = GC.FrameStats
-    stats.lights = GC.LightReport()
+    stats.sourceModels = GC.SourceModelReport()
+    stats.shadows = garrycraft_bridge.shadow_stats()
     stats.timing = timing
     file.Write("garrycraft-render.json", util.TableToJSON(stats))
     print("GarryCraft render: " .. util.TableToJSON(stats))

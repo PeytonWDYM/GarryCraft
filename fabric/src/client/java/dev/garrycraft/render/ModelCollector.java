@@ -57,8 +57,13 @@ class ModelCollector extends EmptyCollector {
         capture.flush();
         var result = new ArrayList<Batch>();
         batches.forEach((texture, quads) -> {
-            var triangles = VertexCapture.triangles(quads);
-            if (!triangles.isEmpty()) result.add(new Batch(texture, triangles));
+            // Source model materials use one tint per draw, including item and armor colors.
+            var tinted = new LinkedHashMap<Integer, List<VertexCapture.Vertex>>();
+            for (int first = 0; first + 4 <= quads.size(); first += 4) {
+                int tint = quads.get(first).color() & 0xFFFFFF;
+                tinted.computeIfAbsent(tint, ignored -> new ArrayList<>()).addAll(quads.subList(first, first + 4));
+            }
+            tinted.forEach((tint, vertices) -> result.add(new Batch(texture, VertexCapture.triangles(vertices), false, false, true)));
         });
         return result;
     }
@@ -163,8 +168,12 @@ class ModelCollector extends EmptyCollector {
         var mc = net.minecraft.client.Minecraft.getInstance();
         var renderer = new net.minecraft.client.renderer.block.ModelBlockRenderer(false, true, mc.getBlockColors());
         renderer.tesselateBlock((x, y, z, baked, instance) -> {
-            int[] tint = {instance.getColor(0)};
-            quad(pose.last().pose(), baked, baked.materialInfo().isTinted() ? tint : new int[0]);
+            int index = baked.materialInfo().tintIndex();
+            var source = baked.materialInfo().isTinted() ? mc.getBlockColors().getTintSource(state.blockState, index) : null;
+            int[] tints = new int[index + 1];
+            java.util.Arrays.fill(tints, -1);
+            if (source != null) tints[index] = source.colorInWorld(state.blockState, state, state.blockPos);
+            quad(pose.last().pose(), baked, tints);
         }, 0, 0, 0, state, state.blockPos, state.blockState,
             mc.getModelManager().getBlockStateModelSet().get(state.blockState), state.blockState.getSeed(state.randomSeedPos));
     }

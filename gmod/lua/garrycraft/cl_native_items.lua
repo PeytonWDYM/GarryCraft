@@ -10,23 +10,19 @@ scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERG
         self:SetModel("models/weapons/w_physics.mdl")
         self:SetMoveType(MOVETYPE_NONE)
         self:SetSolid(SOLID_NONE)
-        self:DrawShadow(false)
+        self:DrawShadow(true)
     end,
     Draw = function(self, flags)
         if self.GarryCraftRetired or GC.VideoReset or not GC.PhysgunEquipped() or not GC.State.linked then return end
         local depth = bit.band(flags, STUDIO_SHADOWDEPTHTEXTURE + STUDIO_SSAODEPTHTEXTURE) ~= 0
         if GC.State.camera == 0 and not depth then return end
         self:DrawModel(flags)
-    end,
-    OnRemove = function(self)
-        if not self.GarryCraftRetired then garrycraft_bridge.shadow_remove(self) end
     end}, class)
 
 local function retireModel(model)
     if not IsValid(model) then return end
     model.GarryCraftRetired = true
     model:SetNoDraw(true)
-    garrycraft_bridge.shadow_remove(model)
     model:DestroyShadow()
     removals[model] = true
 end
@@ -62,8 +58,6 @@ hook.Add("Think", "GarryCraftNativeItems", function()
     if GC.VideoReset or not GC.PhysgunEquipped() or not GC.State.linked then clearItems() removeRetired() return end
     if pendingSession ~= GC.State.session or pendingInstance ~= GC.State.renderInstance then clearItems() removeRetired() return end
     if not GC.RenderFeet then return end
-    local shadows = GetConVar("garrycraft_source_shadows"):GetBool()
-    local receiveShadows = garrycraft_bridge.shadow_stats().rttReceiversSupported
     local player = LocalPlayer()
     local weapon = player:GetActiveWeapon()
     for index, item in ipairs(pending) do
@@ -76,7 +70,7 @@ hook.Add("Think", "GarryCraftNativeItems", function()
             model.GarryCraftMaterialSlots = #model:GetMaterials()
             model:SetOwner(player)
             model:SetNoDraw(false)
-            if receiveShadows then garrycraft_bridge.shadow_receive(model, true) end
+            model:CreateShadow()
             items[index] = model
         end
         -- Source selects the physics gun's skin and material overrides on its native weapon.
@@ -114,13 +108,7 @@ hook.Add("Think", "GarryCraftNativeItems", function()
         local size = model.GarryCraftScale
         model:SetRenderBounds(Vector(minimum.x * size.x, minimum.y * size.y, minimum.z * size.z),
             Vector(maximum.x * size.x, maximum.y * size.y, maximum.z * size.z))
-        if model.GarryCraftShadows ~= shadows then
-            model.GarryCraftShadows = shadows
-            model:DrawShadow(shadows)
-            if shadows then model:CreateShadow() else model:DestroyShadow() end
-            changed = true
-        end
-        if changed and shadows then model:MarkShadowAsDirty() end
+        if changed then model:MarkShadowAsDirty() end
     end
     for index = #items, #pending + 1, -1 do retireModel(items[index]) items[index] = nil end
     removeRetired()
@@ -133,7 +121,7 @@ function GC.UpdateNativeItemPosition(feet)
             local position = feet + model.GarryCraftRelativePosition
             if model:GetPos() ~= position then
                 model:SetPos(position)
-                if model.GarryCraftShadows then model:MarkShadowAsDirty() end
+                model:MarkShadowAsDirty()
             end
         end
     end
@@ -152,7 +140,7 @@ function GC.NativeItemReport()
         world[#world + 1] = {position = tostring(item:GetPos()), angles = tostring(item:GetAngles()),
             minimum = tostring(minimum), maximum = tostring(maximum),
             appearance = appearance(item), owner = item:GetOwner():EntIndex(),
-            noDraw = item:GetNoDraw(), shadowEnabled = item.GarryCraftShadows, entity = item:EntIndex()}
+            noDraw = item:GetNoDraw(), entity = item:EntIndex()}
     end
     local report = GC.PhysgunArmReport()
     report.worldModel, report.viewmodel = "models/weapons/w_physics.mdl", LocalPlayer():GetViewModel():GetModel()

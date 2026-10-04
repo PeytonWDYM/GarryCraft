@@ -11,11 +11,6 @@
 #include "meshes.hpp"
 #include "receiver.hpp"
 #include "packets.hpp"
-#include "lighting.hpp"
-#include "voxel_lighting.hpp"
-#include "source_model_lighting.hpp"
-#include "source_lightmaps.hpp"
-#include "source_sun_lighting.hpp"
 #include "shadows.hpp"
 #endif
 
@@ -87,11 +82,6 @@ namespace {
     LUA_FUNCTION_STATIC(close) {
 #ifdef GARRYCRAFT_CLIENT
         receiver.stop();
-        releaseSourceModelLighting();
-        releaseSourceLightmaps();
-        releaseSourceSunLighting();
-        releaseLighting();
-        releaseVoxelLighting();
         releaseShadows(LUA);
 #else
         releaseGeometry();
@@ -130,11 +120,6 @@ GMOD_MODULE_OPEN() {
     registerTextures(LUA);
     registerFramerate(LUA);
     registerMeshes(LUA);
-    registerLighting(LUA);
-    registerVoxelLighting(LUA);
-    registerSourceModelLighting(LUA);
-    registerSourceLightmaps(LUA);
-    registerSourceSunLighting(LUA);
     registerShadows(LUA);
 #endif
     LUA->PushCFunction(clock);
@@ -155,14 +140,9 @@ GMOD_MODULE_OPEN() {
 GMOD_MODULE_CLOSE() {
 #ifdef GARRYCRAFT_CLIENT
     receiver.stop();
-    releaseSourceModelLighting();
-    releaseSourceLightmaps();
-    releaseSourceSunLighting();
     releaseShadows(LUA);
     releaseTextures();
     releaseMeshes(LUA);
-    releaseLighting();
-    releaseVoxelLighting();
 #else
     releaseGeometry();
 #endif

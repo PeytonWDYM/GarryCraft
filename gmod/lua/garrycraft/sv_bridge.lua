@@ -257,10 +257,6 @@ hook.Add("Think", "GarryCraftBridge", function()
             GC.DamageTestSample(owner, state)
             GC.TerrainTestSample(owner, state)
             GC.PolishSample(state)
-            -- Normal play also has an empty request. Only an active lighting test may control the host's look.
-            if string.StartWith(testId, "lighting:") and state.lightingTestPhase ~= "done" and state.lightingTestRequest == testId then
-                owner:SetEyeAngles(Angle(state.lightingTestPitch, -state.lightingTestYaw - 90, 0))
-            end
             lastFrame = state.frame
             GC.GeometryPeer(state)
             geometryShapeAck = state.geometryShapeAck or 0

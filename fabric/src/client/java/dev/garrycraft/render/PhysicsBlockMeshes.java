@@ -75,7 +75,7 @@ public final class PhysicsBlockMeshes {
         moving.cardinalLighting = mc.level.cardinalLighting();
         moving.lightEngine = mc.level.getLightEngine();
         var mesh = new BlockMeshBuilder(0, 0, 0);
-        mesh.emissive(block.state().getLightEmission() > 0);
+        mesh.block(block.state(), moving, block.position(), mc.getBlockColors());
         if (block.state().getRenderShape() == RenderShape.MODEL) {
             new ModelBlockRenderer(false, true, mc.getBlockColors()).tesselateBlock(mesh, -.5f, -.5f, -.5f,
                 moving, block.position(), block.state(), mc.getModelManager().getBlockStateModelSet().get(block.state()), block.state().getSeed(block.position()));

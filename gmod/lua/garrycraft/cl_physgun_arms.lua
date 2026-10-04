@@ -124,16 +124,13 @@ hook.Add("PostDrawViewModel", "GarryCraftMinecraftPhysgunArms", function(viewmod
         transform:SetTranslation(grip.tip)
         transform:SetAngles(grip.angles)
         transform:Scale(grip.scale)
-        cam.PushModelMatrix(transform)
-        armsDrawn = armsDrawn + GC.DrawRenderMeshes(grip.batches, false, grip.wrist)
-        cam.PopModelMatrix()
+        armsDrawn = armsDrawn + GC.DrawRenderMeshes(grip.batches, false, grip.wrist, transform)
         lastGrips[#lastGrips + 1] = {side = grip.side, wrist = tostring(grip.wrist), elbow = tostring(grip.elbow),
             tip = tostring(grip.tip), angles = tostring(grip.angles), scale = tostring(grip.scale),
             elbowLocal = tostring(WorldToLocal(grip.elbow, Angle(), viewmodel:GetPos(), viewmodel:GetAngles()))}
     end
     lastGripAt = RealTime()
     drawStatus = armsDrawn > 0 and "drawn" or "missing-texture"
-    GC.RestoreLighting()
 end)
 
 function GC.PhysgunArmReport()

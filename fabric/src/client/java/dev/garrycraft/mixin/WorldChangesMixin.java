@@ -9,8 +9,12 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(LevelExtractor.class)
 public abstract class WorldChangesMixin {
-    @Inject(method = "setSectionDirty(IIIZ)V", at = @At("HEAD"))
-    private void garrycraft$section(int x, int y, int z, boolean urgent, CallbackInfo callback) { WorldExporter.dirty(x, y, z); }
+    @Inject(method = "setBlocksDirty(IIIIII)V", at = @At("HEAD"))
+    private void garrycraft$blocks(int minX, int minY, int minZ, int maxX, int maxY, int maxZ, CallbackInfo callback) {
+        for (int x = (minX - 1) >> 4; x <= (maxX + 1) >> 4; x++)
+            for (int y = (minY - 1) >> 4; y <= (maxY + 1) >> 4; y++)
+                for (int z = (minZ - 1) >> 4; z <= (maxZ + 1) >> 4; z++) WorldExporter.dirty(x, y, z);
+    }
     @Inject(method = "setBlockDirty(Lnet/minecraft/core/BlockPos;Z)V", at = @At("HEAD"))
     private void garrycraft$block(net.minecraft.core.BlockPos pos, boolean neighbors, CallbackInfo callback) { WorldExporter.urgent(pos); }
     @Inject(method = "setBlockDirty(Lnet/minecraft/core/BlockPos;Lnet/minecraft/world/level/block/state/BlockState;Lnet/minecraft/world/level/block/state/BlockState;)V", at = @At("HEAD"))

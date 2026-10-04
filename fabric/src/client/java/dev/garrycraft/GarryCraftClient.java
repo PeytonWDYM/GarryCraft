@@ -212,8 +212,7 @@ public final class GarryCraftClient implements ClientModInitializer {
             }
         }
         if (linked() && minecraft.player != null && !minecraft.player.isDeadOrDying()
-                && input.teleportSeq() == SpawnBridge.acknowledged() && !PhysicsOracle.running() && !ParityOracle.running() && !dev.garrycraft.testing.DamageOracle.running() && !dev.garrycraft.testing.TerrainUseOracle.running()
-                && !dev.garrycraft.testing.LightingOracle.running()) InputBridge.apply(minecraft, input, controls(), false);
+                && input.teleportSeq() == SpawnBridge.acknowledged() && !PhysicsOracle.running() && !ParityOracle.running() && !dev.garrycraft.testing.DamageOracle.running() && !dev.garrycraft.testing.TerrainUseOracle.running()) InputBridge.apply(minecraft, input, controls(), false);
         dev.garrycraft.testing.ResponsivenessOracle.frame(minecraft);
     }
 
@@ -299,16 +298,11 @@ public final class GarryCraftClient implements ClientModInitializer {
             wasLinked = active;
             return;
         }
-        // Cancel a previous damage test before lighting can capture its restored game mode.
+        // Restore a canceled damage fixture before a replacement test captures the game mode.
         if (!loading && dev.garrycraft.testing.DamageOracle.running()
                 && (!active || !input.test().equals(dev.garrycraft.testing.DamageOracle.request()))) {
             dev.garrycraft.testing.DamageOracle.update(minecraft, active ? input : HostInput.idle());
             if (dev.garrycraft.testing.DamageOracle.running()) { wasLinked = active; return; }
-        }
-        // Lighting cleanup must finish before a replacement test captures game mode or creates fixtures.
-        if (!loading && dev.garrycraft.testing.LightingOracle.beforeTick(minecraft, active ? input : HostInput.idle())) {
-            wasLinked = active;
-            return;
         }
         if (!loading) dev.garrycraft.testing.ParticleReloadOracle.tick(minecraft, input);
         if (!loading && (active || dev.garrycraft.testing.DamageOracle.running()))

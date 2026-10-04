@@ -16,14 +16,11 @@ local function collect()
             target[#target + 1] = mesh
         end
     end
-    GC.SetBlockLights(sections)
 end
 
 local function clear()
     for _, section in pairs(sections) do GC.DestroyRenderMeshes(section.meshes) end
     sections = {}
-    garrycraft_bridge.clear_light_occluders()
-    garrycraft_bridge.clear_voxel_lighting()
     collect()
 end
 
@@ -45,15 +42,12 @@ hook.Add("PreRender", "GarryCraftBlockTransfers", function()
         local started = SysTime()
         if section.clear then clear() else
             local previous = sections[section.key]
-            garrycraft_bridge.set_light_occluders(section.key, section.occluders, GC.GridHeight)
-            garrycraft_bridge.set_voxel_lighting(section.key, section.voxelLighting, body)
             local same = previous and previous.geometry == section.geometry
             local meshes = same and previous.meshes
                 or GC.BuildRenderMeshes(section.meshes, false, true, body, "world", previous and previous.meshes)
-            sections[section.key] = {meshes = meshes, lights = section.lights, geometry = section.geometry}
+            sections[section.key] = {meshes = meshes, geometry = section.geometry}
             if same then
                 reused = reused + 1
-                GC.SetBlockLights(sections)
             else
                 rebuilt = rebuilt + 1
                 if previous then GC.DestroyRenderMeshes(previous.meshes, meshes) end
@@ -76,7 +70,7 @@ local function active(depth, skybox)
     return not skybox and not GC.VideoReset and GC.State and GC.State.linked
         and IsValid(LocalPlayer()) and LocalPlayer():GetNWBool("GarryCraft")
 end
--- Opaque sections render through Source model proxies and receive the engine's projected shadows.
+-- Source shades opaque model entities and sorted transparent faces.
 hook.Add("PostDrawTranslucentRenderables", "GarryCraftTransparentBlocks", function(depth, skybox)
     if depth or not active(depth, skybox) then return end
     local eye = EyePos()
@@ -86,23 +80,22 @@ hook.Add("PostDrawTranslucentRenderables", "GarryCraftTransparentBlocks", functi
         sortedFrom = eye
     end
     GC.DrawRenderMeshes(transparent, false)
-    GC.RestoreLighting()
 end)
 
 function GC.BlockRenderReport()
-    local report = {sections = table.Count(sections), lights = 0, vertices = 0, transparentFaces = #transparent,
-        ack = acknowledged, gridHeight = GC.GridHeight, lighting = GC.LightReport(),
+    local report = {sections = table.Count(sections), vertices = 0, opaqueBatches = #opaque, transparentFaces = #transparent,
+        ack = acknowledged, gridHeight = GC.GridHeight, renderer = "source", sourceModels = GC.SourceModelReport(),
         rebuilt = rebuilt, reused = reused, transferMs = transferMs, maxTransferMs = maximumTransferMs}
     for _, section in pairs(sections) do
-        report.lights = report.lights + #section.lights
         for _, batch in ipairs(section.meshes) do report.vertices = report.vertices + batch.vertices end
     end
     return report
 end
 function GC.BlockShadowMeshes() return opaque end
+function GC.BlockMeshes() return opaque, transparent end
 
--- The owned lighting scenario places only water inside this probe radius.
-function GC.WaterLightingReport(position)
+-- Report material and geometry state near the fluid fixture.
+function GC.WaterRenderReport(position)
     local faces, unlit, twoSided = 0, 0, 0
     local tints = {}
     for _, mesh in ipairs(transparent) do
@@ -115,7 +108,7 @@ function GC.WaterLightingReport(position)
             tints[#tints + 1] = {expected = {mesh.tint.x, mesh.tint.y, mesh.tint.z}, actual = {tint.x, tint.y, tint.z}}
         end
     end
-    return {faces = faces, unlit = unlit, twoSided = twoSided, tints = tints, modelLights = #GC.ModelLights(position)}
+    return {faces = faces, unlit = unlit, twoSided = twoSided, tints = tints}
 end
 concommand.Add("garrycraft_blocks_report", function()
     file.Write("garrycraft-blocks.json", util.TableToJSON(GC.BlockRenderReport()))

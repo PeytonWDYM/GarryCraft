@@ -33,22 +33,8 @@ function GC.RapidEditTest.Begin(x, y, z)
         local elapsed = RealTime() - started
         if elapsed < nextSample then return end
         nextSample = elapsed + .1
-        local occupied, count = {}, 0
-        local function key(dx,dy,dz) return dx .. "," .. dy .. "," .. dz end
-        for dx = -2, 4 do for dy = -2, 4 do for dz = -2, 4 do
-            local voxel = GC.VoxelLight(GC.ToSource(x + dx + .5, y + dy + .5, z + dz + .5))
-            if voxel and voxel.opaque then occupied[key(dx,dy,dz)] = true count = count + 1 end
-        end end end
-        local faces = 0
-        for dx = -1, 3 do for dy = -1, 3 do for dz = -1, 3 do
-            if occupied[key(dx,dy,dz)] then
-                for _, direction in ipairs({Vector(1,0,0),Vector(-1,0,0),Vector(0,1,0),Vector(0,-1,0),Vector(0,0,1),Vector(0,0,-1)}) do
-                    if not occupied[key(dx+direction.x,dy+direction.y,dz+direction.z)] then faces = faces + 1 end
-                end
-            end
-        end end end
         local report = GC.BlockRenderReport()
-        run.frames[#run.frames + 1] = {time = elapsed, cells = count, expectedFaces = faces,
+        run.frames[#run.frames + 1] = {time = elapsed,
             vertices = report.vertices, ack = report.ack, rebuilt = report.rebuilt, reused = report.reused}
         if elapsed >= 27 then
             file.Write("garrycraft-rapid-edits.json", util.TableToJSON(run, true))

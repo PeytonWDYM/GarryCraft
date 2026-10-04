@@ -56,7 +56,7 @@ tasks.register('prepareRuntime') {
         def copyDependency = { File source ->
             if (!paths.containsKey(source.absolutePath)) {
                 def target = new File(destination, "lib/${paths.size()}-${source.name}")
-                if (source.isDirectory()) project.copy { from source; into target }
+                if (source.isDirectory()) project.sync { from source; into target }
                 else { target.parentFile.mkdirs(); java.nio.file.Files.copy(source.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING) }
                 paths[source.absolutePath] = target.toPath().toRealPath().toString()
             }
