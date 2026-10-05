@@ -681,3 +681,17 @@ Unchanged ready status retained its modification time. A locked shutdown control
 Minecraft then saved and exited without an orphan. The test did not open the user's Downtown world.
 Evidence remains in `%LOCALAPPDATA%\GarryCraft\runtime-sharing\20261001-202444`.
 The failed session's original logs remain in the prepared runtime's `diagnostics/20261001-201626` directory.
+
+## V1.0.1 installation and README
+
+The release package passed all 20 installation and recovery checks in `readme-patch-install-check/release-install-result.json`.
+The source checkout's actual CMD entry point passed all eight checks against the published V1.0.0 installer.
+It forwarded game and runtime paths, installed both Minecraft mods, and preserved an unrelated addon.
+The incomplete-package case printed extraction instructions. Evidence remains in `readme-source-install-check-2/source-install-result.json`.
+
+The V1.0.1 player launcher passed all three checks in `readme-player-addons-check-3/player-addons-result.json`.
+The probe addon loaded on `gm_construct` in single-player. The launch command retained Workshop and local addon support.
+The game exited normally. This check does not certify compatibility with every addon.
+The launcher used 1920×1080 windowed mode. An earlier default-video launch stalled, and the first map attempt exceeded 90 seconds.
+The test now allows 180 seconds for the map. The successful run saved its addon report and launch command.
+All evidence directories are under `%LOCALAPPDATA%\GarryCraft`, outside tracked source.

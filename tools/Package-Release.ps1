@@ -18,6 +18,7 @@ Copy-Item "$repository/installer/*.cmd" "$stage/installer/"
 foreach ($name in 'Runtime.ps1','RuntimeFiles.ps1','Resolve-LocalPath.ps1') { Copy-Item "$PSScriptRoot/$name" "$stage/installer/" }
 foreach ($name in 'README.md','LICENSE','THIRD_PARTY_NOTICES.md','MODLOG.md','PARITY.md','AGENTS.md','Install.cmd') { Copy-Item "$repository/$name" "$stage/" }
 foreach ($name in 'INSTALL.md','ARCHITECTURE.md','RELEASING.md') { Copy-Item "$repository/docs/$name" "$stage/docs/" }
+Copy-Item "$repository/docs/images" "$stage/docs/" -Recurse
 New-Item -ItemType Directory -Path "$stage/protocol", "$stage/tests" -Force | Out-Null
 Copy-Item "$repository/protocol/README.md" "$stage/protocol/"
 foreach ($name in 'release-install.md','RESULTS.md','physics-blocks.md') { Copy-Item "$repository/tests/$name" "$stage/tests/" }

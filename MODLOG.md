@@ -2,6 +2,12 @@
 
 ## October 5, 2026
 
+V1.0.1 simplifies the player README and adds the supplied showcase screenshot.
+The source checkout's `Install.cmd` downloads and verifies the matching compiled release instead of requiring a local `release.json`.
+The CMD entry point isolates Windows PowerShell's module path from an inherited PowerShell 7 environment.
+Player setup now suggests any single-player Sandbox map. The normal launcher retains enabled Workshop and local addons.
+The player launcher uses the tested 1920×1080 windowed mode to avoid a default-video startup stall.
+
 V1 adds a Windows x64 release installer and player documentation.
 The release ZIP contains matching Fabric, Lua, and native modules. Setup downloads private Java and Minecraft dependencies with checksum checks.
 Setup detects Steam libraries, checks native engine builds, and installs a separate Minecraft mod directory.

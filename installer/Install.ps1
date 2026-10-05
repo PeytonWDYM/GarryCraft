@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 . "$PSScriptRoot/Downloads.ps1"
+. "$PSScriptRoot/Release.ps1"
 . "$PSScriptRoot/GameFiles.ps1"
 . "$PSScriptRoot/Prepare-Runtime.ps1"
 $package = Split-Path -Parent $PSScriptRoot
@@ -14,6 +15,14 @@ try {
     Write-Host 'GarryCraft V1 - Windows x64 / single-player' -ForegroundColor Cyan
     Write-Host '[1/4] Check package and Garry''s Mod' -ForegroundColor Cyan
     if (-not [Environment]::Is64BitOperatingSystem -or $env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { throw 'GarryCraft requires Windows x64 on an Intel or AMD processor.' }
+    if (-not (Test-Path -LiteralPath "$package/release.json")) {
+        $properties = "$package/fabric/gradle.properties"
+        if (-not (Test-Path -LiteralPath $properties)) { throw 'Extract the entire release ZIP, then open Install.cmd from its folder.' }
+        $version = [regex]::Match([IO.File]::ReadAllText($properties), '(?m)^version=(.+)').Groups[1].Value.Trim()
+        $release = Get-ReleasePackage $version
+        & "$release/installer/Install.ps1" @PSBoundParameters
+        exit $LASTEXITCODE
+    }
     $manifest = Get-Content -LiteralPath "$package/release.json" -Raw | ConvertFrom-Json
     foreach ($file in $manifest.payload) {
         if ((Get-FileHash -LiteralPath "$package/payload/$($file.path)" -Algorithm SHA256).Hash -ne $file.sha256) {
@@ -69,7 +78,7 @@ try {
         $backup = "$InstallRoot/backups/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff'))"
         Install-GameFiles $manual $GmodPath $backup $paths
         Write-Host '[4/4] Installation complete' -ForegroundColor Green
-        Write-Host "Open $InstallRoot\Play.cmd. Select Start New Game > Sandbox > gm_construct > Single Player."
+        Write-Host "Open $InstallRoot\Play.cmd. Select Start New Game > Sandbox > any map > Single Player."
         Write-Host 'Use Spawn Menu > Utilities > GarryCraft to enable or disable the bridge.'
     }
     Write-Host "Install log: $log"
