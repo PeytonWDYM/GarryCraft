@@ -10,14 +10,11 @@ Minecraft gameplay inside Garry's Mod. Minecraft handles movement, blocks, inven
 Own Garry's Mod and Minecraft Java Edition. Setup downloads Minecraft Java 26.3, Fabric, and a private Java 25 runtime.
 You do not need build tools, a separate Java installation, or PowerShell 7.
 
-1. In Steam, open **Garry's Mod > Properties > Betas**.
-2. Select **x86-64** under **Beta Participation**, then wait for the update.
-3. Close Garry's Mod.
-4. Download **GarryCraft-1.0.1-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest).
-5. Extract the entire ZIP into a folder.
-6. Open **Install.cmd**.
-7. After setup completes, open the printed **Play.cmd** path.
-8. Select **Start New Game > Sandbox > any map > Single Player**.
+1. In Steam, select **Garry's Mod > Properties > Betas > x86-64**.
+2. Wait for the update, then close Garry's Mod.
+3. Download **GarryCraft-1.0.2-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest). Use this asset, not the Source code archives.
+4. Extract the entire ZIP and open **Install.cmd**.
+5. Open the printed **Play.cmd** path and select **Sandbox > gm_construct > Single Player**.
 
 Setup finds Garry's Mod in your Steam libraries and installs GarryCraft.
 If asked for the game folder, use Steam's **Properties > Installed Files > Browse** and paste that path.
@@ -32,6 +29,7 @@ Minecraft starts when you load a map. Each map keeps a separate Minecraft world.
 Use **Spawn Menu > Utilities > GarryCraft**, or `garrycraft_menu`, to enable or disable the bridge.
 
 From a source checkout, `Install.cmd` downloads and runs the matching compiled release installer automatically.
+If `release` contains the matching ZIP and checksum, setup verifies and uses that local package.
 
 ## Current limits
 

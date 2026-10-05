@@ -8,11 +8,18 @@ Use only a separate game installation with a `.garrycraft-lab` marker for game t
 | --- | --- |
 | Extract the release into a path with spaces and Unicode | Installation succeeds without build tools or PowerShell 7. |
 | Open `Install.cmd` from a source checkout without `release.json` | Setup downloads and verifies the matching release, then forwards the chosen game and runtime paths. |
+| Run source setup with a matching compiled ZIP and checksum in `release` | Setup verifies the local ZIP and prepares the folder launcher without requiring a published release. |
 | Open setup from an incomplete release without source files | Setup explains that the entire release ZIP must be extracted. |
+| Inspect the extracted ZIP before setup | `Install.cmd` and `Play.cmd` are beside each other. The internal player launcher template uses `.template`. |
+| Open the extracted folder's `Play.cmd` before setup | The launcher exits with setup instructions and the full `Install.cmd` path. It does not print a missing-file error. |
+| Open a copied player launcher without `install.json` | The launcher explains that setup is incomplete and asks the player to rerun `Install.cmd`. |
+| Open the installed launcher after the game folder moves | The launcher asks the player to rerun setup with the new game folder. |
 | Launch the player runtime with an installed addon | GMod loads the addon. The launch command has no `-noworkshop` or `-noaddons` flags. |
 | Launch with the lab's default video settings | The player launcher opens in 1920×1080 windowed mode and accepts a map command. |
 | Install into a game-shaped fixture with real x64 engine files | Both modules, all Lua files, and the runtime pointer match the package. |
 | Run setup again | Existing worlds, preferences, and unrelated addons retain their contents. |
+| Complete automatic setup | `Play.cmd` in the same extracted folder launches the installed player runtime, including a custom player path. |
+| Prepare runtime-only setup | Setup prints the private player launcher path for use after manual game copies. |
 | Wrong game path or missing x64 executable | Setup fails before downloads or game writes and explains Steam's folder selection. |
 | Unsupported native engine build | Setup rejects the build and prints the mismatched file. |
 | Corrupt a packaged DLL | Setup rejects its checksum before game writes. |
@@ -26,5 +33,16 @@ Use only a separate game installation with a `.garrycraft-lab` marker for game t
 `tools/Test-ReleaseInstall.ps1` records the package checks and failure cases in `release-install-result.json`.
 `tools/Test-RuntimeSharing.ps1` records real Minecraft startup and save behavior in `runtime-sharing-result.json`.
 `tools/Test-SourceInstall.ps1` checks the source checkout entry point and saves `source-install-result.json`.
-`tools/Test-PlayerAddons.ps1` launches the player runtime in the owned lab and saves `player-addons-result.json`.
+`tools/Test-PlayerLaunch.ps1` checks launcher recovery messages from the extracted ZIP and saves `player-launch-result.json`.
+`tools/Test-PlayerAddons.ps1 -LabPath <marked-lab> -RuntimeRoot <player-folder> -PackageRoot <extracted-folder>` tests the folder launcher.
+It checks addon loading, bridge readiness, and Minecraft shutdown. It saves `player-addons-result.json` and runtime observations.
 Save bridge observations and game logs for the paired game run. Read these files before reporting a pass.
+
+## Clean installation evidence
+
+Every clean-install run must record the exact game and runtime folders before setup.
+Confirm that the runtime, addon, native modules, and runtime pointer are absent.
+Use `-NoDownloadCache` for a first-download test. Record that external cache reuse is disabled in the result.
+Report repeat-install checks separately from the clean-install checks.
+For a requested wipe, record the deleted GarryCraft paths and confirm their absence before setup.
+Keep the deletion record outside the removed installation. Preserve the game itself and unrelated addons.

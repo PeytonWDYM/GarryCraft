@@ -1,4 +1,4 @@
-param([string]$GmodPath, [string]$InstallRoot = "$env:LOCALAPPDATA/GarryCraft/player", [switch]$RuntimeOnly)
+param([string]$GmodPath, [string]$InstallRoot = "$env:LOCALAPPDATA/GarryCraft/player", [switch]$RuntimeOnly, [switch]$NoDownloadCache)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -21,7 +21,11 @@ try {
         $version = [regex]::Match([IO.File]::ReadAllText($properties), '(?m)^version=(.+)').Groups[1].Value.Trim()
         $release = Get-ReleasePackage $version
         & "$release/installer/Install.ps1" @PSBoundParameters
-        exit $LASTEXITCODE
+        $result = $LASTEXITCODE
+        if ($result -eq 0 -and -not $RuntimeOnly) {
+            Copy-Item -LiteralPath "$release/player.json" -Destination "$package/player.json" -Force
+        }
+        exit $result
     }
     $manifest = Get-Content -LiteralPath "$package/release.json" -Raw | ConvertFrom-Json
     foreach ($file in $manifest.payload) {
@@ -59,7 +63,7 @@ try {
     Start-Transcript -Path $log | Out-Null
     $transcript = $true
     Write-Host "Player installation: $InstallRoot"
-    Prepare-Runtime $manifest $InstallRoot $package
+    Prepare-Runtime $manifest $InstallRoot $package ([bool]$NoDownloadCache)
     Write-Host '[3/4] Prepare game files' -ForegroundColor Cyan
     $manual = "$InstallRoot/manual"
     foreach ($file in $manifest.payload | Where-Object { $_.path.StartsWith('garrysmod/') }) {
@@ -77,8 +81,9 @@ try {
         $paths = @($manifest.payload | Where-Object { $_.path.StartsWith('garrysmod/') } | ForEach-Object { $_.path }) + @('garrysmod/data/garrycraft-runtime.json')
         $backup = "$InstallRoot/backups/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff'))"
         Install-GameFiles $manual $GmodPath $backup $paths
+        [IO.File]::WriteAllText("$package/player.json", (@{root=$InstallRoot} | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
         Write-Host '[4/4] Installation complete' -ForegroundColor Green
-        Write-Host "Open $InstallRoot\Play.cmd. Select Start New Game > Sandbox > any map > Single Player."
+        Write-Host "Open $package\Play.cmd. Select Start New Game > Sandbox > any map > Single Player."
         Write-Host 'Use Spawn Menu > Utilities > GarryCraft to enable or disable the bridge.'
     }
     Write-Host "Install log: $log"

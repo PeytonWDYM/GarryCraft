@@ -1,4 +1,5 @@
 param([Parameter(Mandatory)][string]$LabPath, [Parameter(Mandatory)][string]$RuntimeRoot,
+    [Parameter(Mandatory)][string]$PackageRoot,
     [string]$RunRoot = "$env:LOCALAPPDATA/GarryCraft/player-addon-tests/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))")
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path "$LabPath/.garrycraft-lab")) { throw 'Use a marked, separate game installation.' }
@@ -12,13 +13,17 @@ New-Item -ItemType Directory -Path $RunRoot | Out-Null
 $probe = "$LabPath/garrysmod/addons/garrycraft-launch-check/lua/autorun/server/garrycraft_launch_check.lua"
 if (Test-Path $probe) { throw 'The test addon already exists.' }
 New-Item -ItemType Directory -Path (Split-Path -Parent $probe) -Force | Out-Null
-$reportName = "garrycraft-launch-check-$([DateTime]::Now.ToString('yyyyMMdd-HHmmss')).json"
+$reportId = [DateTime]::Now.ToString('yyyyMMdd-HHmmss')
+$reportName = "garrycraft-launch-check-$reportId.json"
+$consoleLog = "$LabPath/garrysmod/garrycraft-launch-$reportId.log"
 "hook.Add('InitPostEntity','GarryCraftLauncherCheck',function() file.Write('$reportName',util.TableToJSON({addonLoaded=true,singlePlayer=game.SinglePlayer(),map=game.GetMap()})) end)" |
     Set-Content -LiteralPath $probe -Encoding ascii
 $checks = [ordered]@{}
 $game = $null
 try {
-    & "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "$RuntimeRoot/Play.ps1"
+    $checks.folderLauncherTargetsPlayer = (Get-Content "$PackageRoot/player.json" -Raw | ConvertFrom-Json).root -eq $RuntimeRoot
+    if (-not $checks.folderLauncherTargetsPlayer) { throw 'The folder launcher must target the owned player runtime.' }
+    Start-Process -FilePath "$env:WINDIR/System32/cmd.exe" -ArgumentList @('/d', '/c', ('call "' + "$PackageRoot/Play.cmd" + '"')) -WindowStyle Hidden
     $deadline = [DateTime]::UtcNow.AddSeconds(90)
     do {
         Start-Sleep -Seconds 1
@@ -29,7 +34,7 @@ try {
     $checks.addonsEnabled = $commandLine -notmatch '-noworkshop|-noaddons'
     $commandLine | Set-Content "$RunRoot/launch-command.txt"
     Start-Sleep -Seconds 5
-    & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'con_logfile garrycraft-launch-test.log'
+    & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command "con_logfile garrycraft-launch-$reportId.log"
     & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'map gm_construct'
     $deadline = [DateTime]::UtcNow.AddSeconds(180)
     do { Start-Sleep -Seconds 1 } until ((Test-Path "$LabPath/garrysmod/data/$reportName") -or [DateTime]::UtcNow -gt $deadline)
@@ -37,6 +42,27 @@ try {
     Copy-Item "$LabPath/garrysmod/data/$reportName" "$RunRoot/addon-report.json"
     $checks.addonLoaded = $report.addonLoaded
     $checks.singlePlayer = $report.singlePlayer
+    & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'garrycraft_enable'
+    $deadline = [DateTime]::UtcNow.AddSeconds(180)
+    do {
+        Start-Sleep -Seconds 1
+        $status = & "$PSScriptRoot/Read-JsonSnapshot.ps1" -Path "$LabPath/garrysmod/data/garrycraft-runtime-status.json"
+        $linked = $false
+        if ($status.state -eq 'ready') {
+            $state = & "$PSScriptRoot/Observe.ps1" -Bridge "$RuntimeRoot/worlds/gm_construct/bridge.bin"
+            $linked = $state.linked -and $state.geometryReady
+        }
+    } until ($linked -or [DateTime]::UtcNow -gt $deadline)
+    $checks.bridgeLinkedWithGeometry = $linked
+    $status | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/bridge-ready.json"
+    & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'garrycraft_disable'
+    $deadline = [DateTime]::UtcNow.AddSeconds(120)
+    do {
+        Start-Sleep -Seconds 1
+        $status = & "$PSScriptRoot/Read-JsonSnapshot.ps1" -Path "$LabPath/garrysmod/data/garrycraft-runtime-status.json"
+    } until ($status.state -eq 'off' -or [DateTime]::UtcNow -gt $deadline)
+    $checks.minecraftStoppedAfterDisable = $status.state -eq 'off'
+    $status | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/bridge-stopped.json"
     $passed = -not ($checks.Values -contains $false)
     @{passed=$passed; checks=$checks; directory=$RunRoot} | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/player-addons-result.json"
     if (-not $passed) { throw 'Player addon checks failed.' }
@@ -50,5 +76,8 @@ try {
             & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'quit'
             $game.WaitForExit(30000) | Out-Null
         }
-    } finally { Remove-Item -LiteralPath $probe }
+    } finally {
+        Remove-Item -LiteralPath $probe
+        if (Test-Path -LiteralPath $consoleLog) { Copy-Item -LiteralPath $consoleLog -Destination "$RunRoot/source-console.log" }
+    }
 }

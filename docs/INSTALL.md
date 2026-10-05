@@ -17,7 +17,9 @@ Setup installs its private Java 25 runtime without changing `JAVA_HOME` or `PATH
 It preserves existing worlds, preferences, and unrelated addons when you rerun it.
 It saves replaced game files under the player installation's `backups` directory.
 
-Open the printed `Play.cmd` path after setup. Keep Steam open with your Garry's Mod license available.
+Open `Play.cmd` beside `Install.cmd` in the extracted folder after setup.
+You can also open the printed `Play.cmd` path, usually `%LOCALAPPDATA%\GarryCraft\player\Play.cmd`.
+Keep Steam open with your Garry's Mod license available.
 The launcher starts in 1920×1080 windowed mode. You can change video settings in GMod.
 Select **Start New Game > Sandbox > any map > Single Player**.
 Minecraft starts automatically. Its first start can take longer while it creates the mirror world.
@@ -89,6 +91,8 @@ If setup reports an unsupported build, use a matching GarryCraft release. Do not
 
 | Message or symptom | Recovery |
 | --- | --- |
+| Cannot find `installer/install.json`, or launcher says to run setup first | Open `Install.cmd` in the extracted release folder. After setup, open the printed player `Play.cmd` path. |
+| Setup is incomplete for this player folder | Rerun `Install.cmd` from the extracted release ZIP. Select the same player folder with `-InstallRoot` if you changed its location. |
 | Cannot find `bin\win64\gmod.exe` | Select Steam's x86-64 branch. Wait for its update. Select the outer game folder. |
 | Multiple Steam installations | Paste the intended game folder into the prompt, or pass `-GmodPath`. |
 | Unsupported engine build | Read the reported DLL path and the table above. A newer game build needs a compatible GarryCraft release. |

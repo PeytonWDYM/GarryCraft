@@ -1,4 +1,5 @@
 param([Parameter(Mandatory)][string]$LabPath, [Parameter(Mandatory)][string]$RuntimeRoot,
+    [string]$Package,
     [string]$RunRoot = "$env:LOCALAPPDATA/GarryCraft/source-install-tests/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))")
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path -Parent $PSScriptRoot
@@ -13,9 +14,16 @@ $checkout = "$RunRoot/source checkout"
 $fixture = "$RunRoot/game fixture"
 New-Item -ItemType Directory -Path "$checkout/fabric", "$checkout/docs", "$fixture/bin/win64", "$fixture/garrysmod/addons/unrelated" -Force | Out-Null
 Copy-Item "$repository/Install.cmd" $checkout
+Copy-Item "$repository/Play.cmd" $checkout
 Copy-Item "$repository/installer" $checkout -Recurse
 Copy-Item "$repository/fabric/gradle.properties" "$checkout/fabric/"
 Copy-Item "$repository/docs/INSTALL.md" "$checkout/docs/"
+if ($Package) {
+    New-Item -ItemType Directory -Path "$checkout/release" | Out-Null
+    $packageName = [IO.Path]::GetFileName($Package)
+    Copy-Item -LiteralPath $Package -Destination "$checkout/release/$packageName"
+    "$((Get-FileHash -LiteralPath $Package -Algorithm SHA256).Hash)  $packageName" | Set-Content "$checkout/release/$packageName.sha256" -Encoding ascii
+}
 foreach ($name in 'gmod.exe','client.dll','engine.dll','studiorender.dll','materialsystem.dll') {
     Copy-Item "$LabPath/bin/win64/$name" "$fixture/bin/win64/"
 }
@@ -29,6 +37,7 @@ try {
     $checks.sourceRemainsWithoutManifest = -not (Test-Path "$checkout/release.json")
     $checks.noBuildToolsRequired = -not (Test-Path "$checkout/native")
     $checks.forwardedRuntime = (Get-Content "$fixture/garrysmod/data/garrycraft-runtime.json" -Raw | ConvertFrom-Json).root -eq $RuntimeRoot.Replace('\','/')
+    $checks.sourceFolderLauncherTargetsPlayer = (Get-Content "$checkout/player.json" -Raw | ConvertFrom-Json).root -eq $RuntimeRoot
     $checks.modsInstalled = (Test-Path "$RuntimeRoot/minecraft/mods/garrycraft.jar") -and (Test-Path "$RuntimeRoot/minecraft/mods/fabric-api.jar")
     $checks.addonPreserved = [IO.File]::ReadAllText("$fixture/garrysmod/addons/unrelated/keep.txt") -eq 'addon'
     # The same entry point must explain an incomplete ZIP instead of reporting a missing JSON file.

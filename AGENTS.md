@@ -7,8 +7,11 @@ Read `README.md`, `MODLOG.md`, and `protocol/README.md` first.
 Keep player installation steps in `README.md` and `docs/INSTALL.md`. Keep agent instructions in this file.
 Use `tools/Build.ps1` to build the native module and Fabric mod.
 Use `tools/Package-Release.ps1` for release archives. Do not package a developer runtime.
+Use its generated release notes for every release. Keep the five installation steps and omit change logs from release descriptions.
 Write installer end-to-end scenarios before changing installation behavior.
 Test the extracted ZIP with Windows PowerShell 5.1 and a separate, marked game installation.
+For clean-install tests, record the exact folders and confirm the runtime and GarryCraft game files are absent before setup.
+Disable external download caches for first-download tests. Save deletion records for requested wipes and label clean and repeat installs separately.
 Keep release payload versions matched across Fabric, Lua, and both native modules.
 Preserve normal Minecraft installations, existing worlds, preferences, and unrelated addons.
 Read installation transcripts and runtime traces before reporting a release as verified.

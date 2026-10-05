@@ -2,6 +2,12 @@
 
 ## October 5, 2026
 
+The packaged launcher now explains how to run setup when its player configuration is missing.
+Player documentation gives the default installed launcher path and recovery steps for the missing `installer/install.json` error.
+V1.0.2 puts `Install.cmd` and `Play.cmd` beside each other in the extracted release folder.
+Setup records the installed player path so the folder launcher can use a custom runtime location.
+Clean-install tests record empty runtime and game payload folders before setup and disable external download caches.
+
 V1.0.1 simplifies the player README and adds the supplied showcase screenshot.
 The source checkout's `Install.cmd` downloads and verifies the matching compiled release instead of requiring a local `release.json`.
 The CMD entry point isolates Windows PowerShell's module path from an inherited PowerShell 7 environment.

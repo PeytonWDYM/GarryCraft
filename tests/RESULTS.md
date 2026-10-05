@@ -1,5 +1,29 @@
 # Local test record
 
+## October 5: clean installation and launcher recovery
+
+The current desktop shortcut identified the marked `responsiveness-gmod-lab` and its developer runtime.
+The requested wipe removed that runtime, its worlds, its shared settings, and its GarryCraft game files.
+The deletion record confirms all 97 selected paths were absent before setup.
+
+After another recorded reset, the V1.0.2 ZIP installed into an empty player folder and the wiped game installation.
+External download caches were disabled. Setup downloaded and verified all 5,232 dependencies under Windows PowerShell 5.1.
+The final folder launcher passed six game checks on single-player `gm_construct`.
+The addon loaded, the bridge linked with completed map geometry, and Minecraft stopped after Disable.
+The folder game run required a second Enable command after map startup. The saved enable switch was off.
+The Minecraft log records player and world saves before exit.
+
+The final extracted-ZIP fixture passed all 24 installer checks and all nine launcher recovery checks.
+The source checkout with a local compiled ZIP passed all nine setup and folder launcher checks.
+Installer checks cover clean state, repeat installation, preserved files, locked DLL rollback, and failed downloads.
+An overlapping game run blocked an earlier installer test. The final installer run completed with GMod closed.
+These checks do not certify other engine builds, maps, or Workshop addons.
+
+Read `%LOCALAPPDATA%/GarryCraft/current-clean-install-20261005/wipe-result.json`, `final-clean-before.json`, and `final-clean-install.log`.
+Final evidence is saved in the ignored `release/verification` folder before the requested PC cleanup.
+Read its installation, launcher, source setup, game, and deletion results.
+The final installer uses Windows PowerShell 5.1 on Windows 11. Windows 10 was not available for a separate OS run.
+
 ## October 5: V1 installer and production runtime
 
 The extracted V1 ZIP passed all 20 installer checks under Windows PowerShell 5.1.

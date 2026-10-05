@@ -1,6 +1,8 @@
-function Prepare-Runtime($Manifest, [string]$Root, [string]$Package) {
-    $cacheRoots = @("$env:APPDATA/.minecraft", "$env:USERPROFILE/.gradle/caches/fabric-loom")
+function Prepare-Runtime($Manifest, [string]$Root, [string]$Package, [bool]$NoDownloadCache = $false) {
+    $cacheRoots = @()
+    if (-not $NoDownloadCache) { $cacheRoots = @("$env:APPDATA/.minecraft", "$env:USERPROFILE/.gradle/caches/fabric-loom") }
     Write-Host '[2/4] Download Java 25, Minecraft, Fabric, and assets' -ForegroundColor Cyan
+    if ($NoDownloadCache) { Write-Host 'External download caches disabled. Fresh installations download every dependency.' }
     Get-Downloads $Manifest.downloads $Root $cacheRoots
     $javaDirectory = Join-Path $Root 'java'
     if (-not (Test-Path -LiteralPath "$javaDirectory/$($Manifest.javaHome)/bin/java.exe")) {
@@ -22,7 +24,7 @@ function Prepare-Runtime($Manifest, [string]$Root, [string]$Package) {
     foreach ($file in 'Runtime.ps1', 'RuntimeFiles.ps1', 'Play.ps1') {
         Copy-Item -LiteralPath "$PSScriptRoot/$file" -Destination "$Root/$file" -Force
     }
-    Copy-Item -LiteralPath "$PSScriptRoot/Play.cmd" -Destination "$Root/Play.cmd" -Force
+    Copy-Item -LiteralPath "$PSScriptRoot/Play.cmd.template" -Destination "$Root/Play.cmd" -Force
     $config = @{java=$java; worlds="$Root/worlds"; settings="$Root/settings"}
     [IO.File]::WriteAllText("$Root/config.json", ($config | ConvertTo-Json), (New-Object Text.UTF8Encoding($false)))
 }
