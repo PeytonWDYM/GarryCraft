@@ -1,0 +1,207 @@
+# Bridge protocol
+
+The bridge uses a local 128 MiB memory-mapped file with nine single-writer mailboxes.
+Each mailbox has a 64-byte header and a fixed payload capacity.
+
+| Lane | Writer | Capacity | Content |
+| --- | --- | --- | --- |
+| 0 | Source server | 64 KiB | Input, session, viewport, acknowledgments, mob damage |
+| 1 | Minecraft | 4 MiB | Player state, camera, combat events, mob states |
+| 2 | Source server | 16 MiB | Static collision batches |
+| 3 | Source server | 8 MiB | Moving collision shapes and transforms, entity bounds, native water |
+| 4 | Minecraft | 16 MiB | Texture header and RGBA pixels |
+| 5 | Minecraft | 8 MiB | Scene header and packed meshes |
+| 6 | Minecraft | 64 MiB | HUD header and visible RGBA tiles |
+| 7 | Minecraft | 8 MiB | Block section header, meshes, collision boxes |
+| 8 | Source client | 64 KiB | Render-rate look, cursor, menu buttons, wheel, keys, viewport, and hotbar selection |
+
+All integers use little endian. Each header contains a sequence at byte 0 and payload length at byte 4.
+The writer sets an odd sequence, writes the payload, then publishes the next even sequence.
+The reader copies an even sequence, copies the payload, and checks the sequence again.
+A changed or odd sequence means the reader must retry on the next frame.
+Sequence access uses acquire/release ordering across processes.
+
+Lanes 0 through 2 and lane 8 contain UTF-8 JSON. Protocol version 1 rejects other versions.
+Lane 3 uses a JSON header, a newline, and the binary moving collision format below.
+Render lanes contain one JSON header, a newline, and a binary body.
+Each mesh vertex occupies 24 bytes: five float32 values for `x,y,z,u,v`, then four uint8 RGBA values.
+Mesh metadata stores byte offsets and vertex counts. Each mesh contains at most 65,532 triangle vertices.
+
+Positions map Source `(x,y,z)` to Minecraft `(x/32,(z-gridHeight)/32,-y/32)`.
+Relative vectors omit `gridHeight`. Source units per block are fixed at 32.
+Source persists the vertical grid alignment per map with alignment format version 2.
+Flat terrain aligns to block faces. Slopes retain their native triangles.
+Yaw maps to `-SourceYaw - 90`. Pitch uses the Source pitch.
+Minecraft remains the owner of player position after the initial attachment.
+
+Static geometry uses numbered batches and acknowledgments. Input snapshots must not replace geometry batches.
+Each static packet includes `batch` and `total`. Minecraft publishes one immutable map index after the last batch.
+The static stream includes BSP static props. Update the Source addon and Fabric mod together.
+Minecraft releases input after one second without Source. Manual sessions stop after five seconds without Minecraft state.
+Managed sessions allow 120 seconds for loading stalls. The launcher detects Minecraft process exit and stops the bridge independently.
+
+Lane 0 includes `jump` for the current held state and `jumpPress` for the session's cumulative press count.
+Source increments `jumpPress` when a command changes Jump from released to pressed.
+Minecraft keeps a new press pending until its next movement tick, even if a later snapshot reports release.
+Render frames collect presses but do not change the Jump mapping. Inactive input and session changes clear pending presses.
+
+Source issues a monotonically increasing `teleportSeq` on attachment and respawn.
+Input origin remains the chosen spawn until Minecraft publishes its matching `teleportAck`.
+Both Source movement and camera reject poses with an older acknowledgement.
+Minecraft sends a cumulative `deaths` counter to trigger the matching Source respawn.
+
+Lane 3 also supplies a 9-by-9 water-surface grid. Minecraft substitutes this water during entity fluid checks.
+
+## Moving collision
+
+The lane 3 JSON header includes `session`, `movingGeometry: 2`, `gridHeight`, `water`, and `geometryTrace`.
+All binary fields use little endian. Shape vertices and instance matrices use Source coordinates and units.
+
+| Record | Fields |
+| --- | --- |
+| Packet prefix | uint32 shape definition count, instance count, highest assigned shape ID, actor count |
+| Shape definition | uint32 shape ID, vertex count, then float32 local XYZ for each vertex |
+| Instance | uint32 entity index, creation ID, physics part, shape ID, then 12 float32 values for a 3-by-4 Source transform |
+| Actor | uint32 entity index and creation ID; float64 Minecraft XYZ; float32 yaw, width, height; uint8 NPC flag; uint32 UTF-8 name length; name bytes |
+
+Instances occupy 64 bytes. Part `0xffffffff` identifies an entity bounds shape.
+Actor records follow all instances and occupy 49 fixed bytes plus their name. Each packet replaces the complete nearby actor list.
+The matrix uses row order. Minecraft applies it before converting the resulting points to Minecraft coordinates.
+Each packet includes all nearby instances. A missing instance removes that body from the collision snapshot.
+Source repeats current definitions above `geometryShapeAck`. Minecraft publishes this acknowledgment after accepting the complete snapshot.
+Skipped packets cannot discard a required definition. Range return allocates a new shape ID if Source retired the previous cache entry.
+
+Minecraft decodes and constructs collision indexes on a geometry worker. Game-thread publication retains the newest complete result.
+Static import and moving bodies share one immutable query snapshot. A different session cannot publish into that snapshot.
+The optional trace includes received body triangles for the owned comparison fixture.
+## Current clock and camera
+
+The native client reads lane 1 directly. Player state includes previous/current raw tick positions, tick period, and a Windows performance-counter timestamp.
+The Source camera interpolates the raw tick history on the same clock. It never treats post-gravity velocity as camera displacement.
+Minecraft publishes camera FOV and bob after its render frame. Source converts the vertical FOV to the horizontal 4:3 setting.
+Lane 1 also carries `nativeViewmodelPose`: twelve floats in row order for the camera-relative 3-by-4 vanilla first-person bob/hurt matrix.
+The matrix uses Source axes and units, without camera rotation. Source applies it to the native physics gun and its attached Minecraft arms.
+Native weapon bone animation remains in the installed model. Source viewmodel bob and sway are replaced by this matrix.
+Minecraft releases bridge controls after one second without Source input. Source restores its player after the session's state timeout.
+
+## Sessions and delivery
+
+Each Source attachment creates a new session. Each Minecraft process has an instance ID.
+Texture and scene packets carry a render instance ID, which changes after attachment, resource reload, or Source video reset.
+Source rejects render packets from another session or render instance.
+
+Texture transfers use ordered IDs and acknowledgments that include the render instance.
+Source accepts acknowledgments only from the attached owner and current instance. Acknowledgments never move backward.
+Animated sprites replace pending updates with their latest pixels.
+Pending sprite IDs retain arrival order so one busy animation cannot starve other sprites.
+Block sections repeat until both Source realms acknowledge them. Their acknowledgment includes the render instance.
+Scene and HUD snapshots contain complete current state. Skipped mailbox frames must not leave stale items or HUD tiles.
+HUD tiles carry content revisions. Source uploads a tile only when its revision changes.
+HUD capture timestamps use the shared performance counter to measure capture-to-Source delivery.
+Scenes carry cached item model IDs and twelve matrix values per item instance.
+Item transforms come from Minecraft's renderer, including its bob, rotation, and stack offsets.
+
+Combat events retain IDs until acknowledged. Source entity index and creation ID identify a combat target.
+Minecraft stand-ins resolve vanilla weapon damage before Source applies `garrycraft_damage_scale`.
+The default scale is ten Source health points per Minecraft damage point.
+Hits carry environmental damage separately from attacker damage, so lava and fire use the environmental multiplier.
+Archived damage controls provide separate player-to-Source, mob-to-Source, Source-to-player, Source-to-mob,
+player-to-mob, mob-to-player, mob-to-mob, and environmental multipliers.
+Source publishes these controls to Minecraft. Minecraft applies its directional multiplier before vanilla armor calculations.
+Explosion events include Minecraft's three-dimensional impulse in blocks per tick.
+Source converts that impulse to units per second before it changes a loose prop's velocity.
+
+Minecraft mob states use UUIDs. Invisible Source bullseyes provide native aim targets for Source NPCs.
+Bullseyes are excluded from exported bounds and geometry to prevent a feedback loop.
+Source damage events include the mob UUID and the Source attacker's creation ID.
+Minecraft applies each acknowledged event once through its normal damage API.
+Removed mobs, stopped bridges, and new sessions remove their Source bullseyes.
+
+Lane 1's `gameMode` controls native NPC targeting while linked. In creative mode, Source temporarily neutralizes hostile and fearful player relationships.
+Source clears the player from enemy memory and cancels a schedule that targets the player. Friendly relationships remain available.
+Leaving creative mode or stopping the bridge restores each saved disposition and priority.
+Minecraft mob targeting uses the NPC's original player disposition, so creative protection does not change its allegiance toward mobs.
+
+Source increments `renderEpoch` after a video reset. Minecraft changes its render instance and resends textures and sections.
+Player state and gameplay continue during render resynchronization.
+Mesh metadata includes a center. Source uses that center to sort transparent block faces across sections.
+Mesh metadata also includes an RGB material tint. Water passes Minecraft's biome color to the lit material because VertexLitGeneric ignores vertex colors.
+
+Block meshes retain separate receiving face directions and planes within four-block tiles, grouped by texture and emissive state.
+Native lighting probes use a real triangle near each batch's center. They cannot sample holes between disconnected faces.
+Their vertex positions, UVs, and colors retain the existing packet format. Native mesh construction computes each triangle's normal and exact bounds.
+Transparent block faces retain their sorting and manual lighting path.
+
+Source binds opaque meshes to model entities through public `GetRenderMesh` callbacks. Source supplies native lighting and shadows.
+A shared hidden model draws lit water, hands, and arms. A minimal native caster adapter supplies actual mesh silhouettes to Source RTT shadows.
+No Minecraft light field or native lighting overrides enter the renderer. Source retains its map lightmaps and receiver behavior.
+
+## Section geometry
+
+Lane 7 contains mesh vertices and metadata, collision boxes, geometry fingerprints, and collision fingerprints.
+It has no `lights`, `occluders`, or `voxelLighting` fields. The binary body contains vertices only.
+The `geometry` SHA-256 digest covers mesh metadata and vertex bytes. Each batch has its own fingerprint for reuse across edits.
+The `collision` digest covers merged collision boxes. Matching geometry and collision retain native meshes, entities, shadows, and physics bodies.
+Block and chunk changes trigger exports. Light propagation does not dirty exported geometry. Empty sections export only to clear prior geometry.
+Raw vertex RGB supplies authored material or biome tint, without Minecraft ambient occlusion or cardinal shading.
+Source materials receive native lighting and preserve transparency and self-illumination.
+Install matching Fabric, Lua, and native module versions together.
+
+## Native physics gun
+
+Minecraft publishes lane 1 `physgunEquipped` each render frame.
+It is true only when a living, linked, nonspectator player holds `garrycraft:physics_gun` in the main hand.
+Source selects its installed `weapon_physgun`. Its native weapon code controls prop targeting, holding, rotation, freezing, and unfreezing.
+Source retains the weapon's native hooks and permissions. Minecraft keeps player movement and game rules.
+
+Minecraft suppresses gameplay attack and use while this item is selected. Menu clicks retain normal Minecraft behavior.
+Source keeps the native gun's attack, secondary attack, use, reload, speed modifier, and mouse wheel inputs.
+While the gun is equipped, GMod's bound Use key controls native prop rotation and I opens Minecraft inventory.
+The mouse wheel controls native gun distance. Number keys still select Minecraft hotbar slots.
+Lane 8 publishes I through the existing `inventory` field while the gun is equipped.
+Other items retain E inventory input and mouse wheel hotbar selection.
+
+Source renders the installed gun's viewmodel and beam. Minecraft omits its first-person hands during this selection.
+Separate captured Minecraft skin and sleeve meshes attach to the native gun's animated support bones in Source.
+Source suppresses its default human hands during mesh delivery and resets. The gun and Minecraft arms share `nativeViewmodelPose`.
+An owned installed citizen skeleton supplies the support pose, independently of the Source player's optional hands entity.
+The full Minecraft avatar still exports for player shadows and third-person rendering.
+Deselection, death, session replacement, and Disable release the native held body through Source weapon cleanup.
+
+## Thread ownership
+
+Minecraft owns movement, attacks, fluids, projectiles, and mob AI.
+Source owns its map, NPC health, props, input, lighting, and final rendering.
+Minecraft's integrated server and render thread call their own game APIs.
+A transport thread packs snapshots and transfers bytes. It does not call game engine APIs.
+Minecraft uses separate input and render transfer threads. HUD packing cannot delay an input mailbox read.
+The Source client uses a native worker to copy incoming render packets.
+Lua receives the JSON header and an immutable native body handle. It releases the body after upload or mesh construction.
+Source mesh creation, drawing, and destruction use GMod's public mesh API on the client thread.
+The verified Windows x64 build fills locked SDK mesh buffers directly. Other client builds use the public mesh functions.
+
+GMod defaults to 240 FPS. Minecraft retains its saved limit and defaults to Unlimited in a new mirror profile.
+While linked, the hidden Minecraft renderer stops at the Source target rate or a lower saved limit.
+Render exports follow the Source target rate. HUD captures run at 30 Hz. Open menus use the Source target rate.
+Lane 8 bypasses the Source server tick for look and menu input. Movement and session authority remain in lane 0.
+Client controls require the active session and teleport sequence. Controls expire after 250 milliseconds without an update.
+Menu events retain IDs until Minecraft acknowledges them. Each event includes its cursor position.
+Wheel events use Minecraft's normal screen handler. Menu wheel input does not change the hotbar.
+Yaw stays continuous across the Source wrap boundary so vanilla hand sway cannot make a full turn.
+This file layout is incompatible with the original four-lane bridge.
+Install matching Fabric, client DLL, server DLL, and Lua versions together.
+
+## Managed local lifecycle
+
+`garrycraft_enabled` persists the single-player enable switch. The server writes a map request and heartbeat to its DATA directory.
+The native server module starts the prepared helper without waiting for Java on the game thread.
+The helper owns one Java process through a runtime mutex. Each map has its own world, mailbox, and shutdown control file.
+Map changes and Disable request a normal Minecraft save and exit before another process opens a world.
+The helper also stops Java when the host exits or its map heartbeat expires.
+It retains ownership if saving takes too long. It does not kill a saving process or permit a second writer.
+Source closes both mappings when disabled. It restores player state, frame limits, and menu input.
+Minecraft restores temporary bridge options before saving its shared options file.
+Local launch files and assets remain outside the source repository.
+
+Manual launchers resolve Windows redirected paths before passing them to either game.
+Source deletes each manual control request before execution. Completed or failed commands cannot replay on the next map.

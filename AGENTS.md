@@ -4,7 +4,14 @@ Build a local Minecraft Java and 64-bit Garry's Mod bridge. Minecraft owns playe
 Source owns the host world and renderer. Keep both games in separate processes.
 
 Read `README.md`, `MODLOG.md`, and `protocol/README.md` first.
+Keep player installation steps in `README.md` and `docs/INSTALL.md`. Keep agent instructions in this file.
 Use `tools/Build.ps1` to build the native module and Fabric mod.
+Use `tools/Package-Release.ps1` for release archives. Do not package a developer runtime.
+Write installer end-to-end scenarios before changing installation behavior.
+Test the extracted ZIP with Windows PowerShell 5.1 and a separate, marked game installation.
+Keep release payload versions matched across Fabric, Lua, and both native modules.
+Preserve normal Minecraft installations, existing worlds, preferences, and unrelated addons.
+Read installation transcripts and runtime traces before reporting a release as verified.
 Run physics comparisons through `garrycraft_test` in a separate local game installation.
 Read the generated traces before you report a result.
 

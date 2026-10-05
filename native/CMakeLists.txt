@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.24)
 project(garrycraft LANGUAGES CXX)
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 if(NOT WIN32 OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
   message(FATAL_ERROR "GarryCraft requires 64-bit Windows")
 endif()

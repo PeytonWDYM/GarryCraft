@@ -36,7 +36,7 @@ try {
         Wait-Until 'missing configuration report' { Test-Path -LiteralPath $probe }
         Copy-Item -LiteralPath $probe -Destination $artifacts
         $report = Get-Content -LiteralPath $probe -Raw | ConvertFrom-Json
-        $checks.missingConfiguration = -not $report.active -and $report.message.Contains('Setup-Lab.ps1')
+        $checks.missingConfiguration = -not $report.active -and $report.message.Contains('Install.cmd')
     } finally { [IO.File]::WriteAllText($runtimeConfig, $savedConfig) }
     Send 'garrycraft_disable'
     Send 'garrycraft_enable'
