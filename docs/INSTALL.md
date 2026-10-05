@@ -18,9 +18,14 @@ It preserves existing worlds, preferences, and unrelated addons when you rerun i
 It saves replaced game files under the player installation's `backups` directory.
 
 Open the printed `Play.cmd` path after setup. Keep Steam open with your Garry's Mod license available.
-Select **Start New Game > Sandbox > gm_construct > Single Player**.
+The launcher starts in 1920×1080 windowed mode. You can change video settings in GMod.
+Select **Start New Game > Sandbox > any map > Single Player**.
 Minecraft starts automatically. Its first start can take longer while it creates the mirror world.
 The control panel shows startup and save status.
+Your enabled GMod addons load as usual. The player launcher does not disable Workshop or local addons.
+
+If you run `Install.cmd` from a source checkout, setup downloads the matching compiled release and verifies its checksum.
+You do not need to build the project or create `release.json` yourself.
 
 ## Select a folder explicitly
 
@@ -92,6 +97,7 @@ If setup reports an unsupported build, use a matching GarryCraft release. Do not
 | Access denied or locked game file | Close GMod. Use a writable installation, or follow the printed manual copy paths. |
 | Minecraft still running or saving | Wait for Minecraft to save and exit before rerunning setup. Read its logs if it remains active. |
 | Setup window disappears | Run `Install.cmd` from a terminal to retain the error text. |
+| Incomplete release folder | Extract the entire release ZIP before running `Install.cmd`. |
 | Runtime location moved | Rerun setup with `-InstallRoot` and the correct `-GmodPath` to rebuild absolute paths. |
 | Realms or user-properties authentication errors | V1 uses a local identity. These online-service messages do not prevent its single-player mirror world from starting. |
 
