@@ -25,7 +25,7 @@ local function begin()
     configuration = source and util.JSONToTable(source)
     if not configuration then
         failed = true
-        status("Run tools/Setup-Lab.ps1 once to prepare Minecraft")
+        status("Run Install.cmd from the GarryCraft release ZIP to prepare Minecraft")
         return
     end
     failed = false
