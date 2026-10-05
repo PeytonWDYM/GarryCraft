@@ -2,6 +2,7 @@ param([Parameter(Mandatory)][string]$Package, [Parameter(Mandatory)][string]$Lab
     [string]$RunRoot = "$env:LOCALAPPDATA/GarryCraft/release-tests/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))")
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path "$LabPath/.garrycraft-lab")) { throw 'Use a marked, separate game installation.' }
+if (Get-Process gmod -ErrorAction SilentlyContinue) { throw 'Close Garry''s Mod before installer tests. Run game-launch tests after this script completes.' }
 if (Test-Path $RunRoot) { throw 'Use a new test directory.' }
 New-Item -ItemType Directory -Path $RunRoot | Out-Null
 [IO.File]::WriteAllText("$RunRoot/owner", 'release-install-tests')
@@ -9,11 +10,13 @@ $RunRoot = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$R
 $checks = [ordered]@{}
 $fixture = "$RunRoot/game fixture"
 $runtime = Join-Path $RunRoot 'player runtime'
+$checks.cleanRuntimeBeforeSetup = -not (Test-Path -LiteralPath $runtime)
+Write-Host "CLEAN INSTALL TEST: runtime=$runtime; game=$fixture; external download caches are disabled."
 $extract = "$RunRoot/package space caf$([char]0xe9)"
 Expand-Archive -LiteralPath $Package -DestinationPath $extract
 $shell = "$env:WINDIR/System32/WindowsPowerShell/v1.0/powershell.exe"
 function Install($Name, [string[]]$Extra, [string]$Game = $fixture) {
-    & $shell -NoProfile -ExecutionPolicy Bypass -File "$extract/installer/Install.ps1" -GmodPath $Game -InstallRoot $runtime @Extra *> "$RunRoot/$Name.log"
+    & $shell -NoProfile -ExecutionPolicy Bypass -File "$extract/installer/Install.ps1" -GmodPath $Game -InstallRoot $runtime -NoDownloadCache @Extra *> "$RunRoot/$Name.log"
     return $LASTEXITCODE
 }
 try {
@@ -22,6 +25,8 @@ try {
     foreach ($name in 'gmod.exe', 'client.dll', 'engine.dll', 'materialsystem.dll', 'studiorender.dll') {
         Copy-Item "$LabPath/bin/win64/$name" "$fixture/bin/win64/$name"
     }
+    $checks.cleanGameBeforeSetup = -not (Test-Path "$fixture/garrysmod/addons/garrycraft") -and
+        -not (Test-Path "$fixture/garrysmod/lua/bin") -and -not (Test-Path "$fixture/garrysmod/data/garrycraft-runtime.json")
     $checks.invalidPath = (Install 'invalid-path' @() "$RunRoot/missing") -ne 0
     $checks.noWritesForInvalidPath = -not (Test-Path $runtime)
     $dll = "$extract/payload/garrysmod/lua/bin/gmcl_garrycraft_win64.dll"
@@ -37,8 +42,10 @@ try {
     [IO.File]::WriteAllBytes($engine, $originalEngine)
     $checks.runtimeOnly = (Install 'runtime-only' @('-RuntimeOnly')) -eq 0
     $checks.noGameWriteForRuntimeOnly = -not (Test-Path "$fixture/garrysmod/lua/bin")
+    $checks.noFolderLauncherForRuntimeOnly = -not (Test-Path -LiteralPath "$extract/player.json")
     $checks.manualPointer = (Get-Content "$runtime/manual/garrysmod/data/garrycraft-runtime.json" -Raw | ConvertFrom-Json).root -eq $runtime.Replace('\','/')
     $checks.freshInstall = (Install 'fresh-install' @()) -eq 0
+    $checks.folderLauncherTargetsPlayer = (Get-Content "$extract/player.json" -Raw | ConvertFrom-Json).root -eq $runtime
     $manifest = Get-Content "$extract/release.json" -Raw | ConvertFrom-Json
     $checks.installedFilesMatch = $true
     foreach ($file in $manifest.payload | Where-Object { $_.path.StartsWith('garrysmod/') }) {
@@ -80,7 +87,7 @@ try {
         $checks.wrongChecksum = $false
     } catch { $checks.wrongChecksum = $_.Exception.Message -match 'wrong checksum' -and -not (Test-Path "$RunRoot/downloads/checksum.bin") }
     $passed = -not ($checks.Values -contains $false)
-    @{passed=$passed; checks=$checks; package=$Package; directory=$RunRoot} |
+    @{passed=$passed; checks=$checks; package=$Package; directory=$RunRoot; cleanInstall=@{runtime=$runtime; game=$fixture; externalDownloadCaches=$false}} |
         ConvertTo-Json -Depth 6 | Set-Content "$RunRoot/release-install-result.json"
     if (-not $passed) { throw 'Release installation failed. Read release-install-result.json.' }
     Get-Content "$RunRoot/release-install-result.json"

@@ -39,7 +39,8 @@ scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERG
 local entity = ents.CreateClientside("garrycraft_source_shadow_probe")
 entity:SetPos(origin)
 entity:Spawn()
-garrycraft_bridge.shadow_update(entity, {{mesh = mesh, material = material, matrix = Matrix()}})
+local ready, failure = garrycraft_bridge.shadow_update(entity, {{mesh = mesh, material = material, matrix = Matrix()}})
+assert(ready, failure)
 file.Write("garrycraft-source-shadow-bounds.json", util.TableToJSON({pos = entity:GetPos(), bounds = {entity:GetRenderBounds()},
     model = entity:GetModel(), scale = entity:GetModelScale(), vertices = {vertices[1].pos, vertices[2].pos, vertices[3].pos}}, true))
 entity:DrawShadow(false)

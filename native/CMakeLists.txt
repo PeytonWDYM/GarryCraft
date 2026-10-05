@@ -21,3 +21,11 @@ target_sources(gmcl_garrycraft PRIVATE src/textures.cpp src/framerate.cpp src/me
 target_include_directories(gmcl_garrycraft PRIVATE ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public
     ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier0 ${gmod_sdk_SOURCE_DIR}/sourcesdk-minimal/public/tier1)
 target_compile_definitions(gmcl_garrycraft PRIVATE GARRYCRAFT_CLIENT GMOD_USE_SOURCESDK _WIN32 _WINDOWS COMPILER_MSVC COMPILER_MSVC64)
+
+# Build explicitly for renderer compatibility E2E tests. Release packaging copies only the two bridge modules.
+add_library(garrycraft_shadow_test MODULE EXCLUDE_FROM_ALL ../tests/shadow-hooks.cpp)
+get_target_property(shadow_test_includes gmcl_garrycraft INCLUDE_DIRECTORIES)
+target_include_directories(garrycraft_shadow_test PRIVATE ${shadow_test_includes})
+target_compile_features(garrycraft_shadow_test PRIVATE cxx_std_20)
+target_compile_definitions(garrycraft_shadow_test PRIVATE GMMODULE WIN32_LEAN_AND_MEAN NOMINMAX GMOD_USE_SOURCESDK _WIN32 _WINDOWS COMPILER_MSVC COMPILER_MSVC64)
+set_target_properties(garrycraft_shadow_test PROPERTIES PREFIX "" OUTPUT_NAME "gmcl_garrycraft_shadow_test_win64")

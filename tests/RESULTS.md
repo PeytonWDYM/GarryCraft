@@ -1,5 +1,62 @@
 # Local test record
 
+## October 5: renderer hook compatibility and V1.0.3
+
+The owned game copy reproduced the user's shadow failure with DLib and the enabled Workshop addons.
+The failing check was `VEngineModel016` slot 20. Its callback belonged to `gmcl_zxcmodule_win64.dll`, at offset `0x4750`.
+The engine build checks passed. The previous error combined this callback conflict with unsupported-build failures.
+The requested removal moved 152 ZXC module files and installed backups from the normal game and test copy into the Recycle Bin.
+The recorded paths are absent. Other addons remain enabled.
+
+The corrected adapter passed 42 source-only checks in `release/verification/shadow-final-hooks/result.json`.
+These checks cover native silhouettes, a hook installed before GarryCraft, a later hook, bridge reopen, and a rejected studio adapter.
+The later callback retained calls through shutdown and reopen. Native mesh and thread error counts remained zero.
+The rejected studio adapter completed ten real Lua mesh updates, retained visible mesh draws, and emitted one specific warning.
+Paired screenshots and native reports support each shadow probe. The fallback probe does not test Minecraft gameplay independently.
+
+The V1.0.3 ZIP passed a clean installation through its actual `Install.cmd` under Windows PowerShell 5.1.
+The runtime and GarryCraft game payload were absent before setup. External download caches were disabled.
+Setup downloaded and verified 5,232 dependencies. The package folder included spaces and an accented character.
+The folder's `Play.cmd` passed nine game checks with `-RequireAutoStart`, without an Enable command.
+The bridge linked with map geometry, rendered six world models and two avatar models, and recorded 8,563 custom shadow draws.
+Native mesh and thread error counts were zero. Disable saved the test world and stopped Minecraft.
+The launcher entry-point and recovery checks also passed all nine cases.
+
+Read `release/verification/shadow-clean-before.json`, `shadow-clean-install.log`, and `shadow-clean-game`.
+The Minecraft logs record attachment, player saving, and world saving. Installed game payload hashes matched the tested ZIP.
+These tests used Windows 11, the verified x64 engine, and single-player `gm_construct`. Windows 10 needs a separate OS run.
+The test copy and its private runtime were removed. The normal GarryCraft installation was not replaced during these tests.
+
+The publication fixture passed 24 installer checks, nine PowerShell 5.1 launcher checks, and 12 real Minecraft runtime-sharing checks.
+The source checkout passed ten checks. Its final Play path points to the launcher beside the checkout's `Install.cmd`.
+Read `release/verification/v103-release-install`, `v103-launcher-ps51`, `v103-runtime-sharing`, and `v103-source-print-final`.
+Minecraft's runtime-sharing log records the requested shutdown, player saves, world saves, and process exit.
+The small installer fixture contains five engine files. It does not copy the complete game.
+
+## October 5: clean installation and launcher recovery
+
+The current desktop shortcut identified the marked `responsiveness-gmod-lab` and its developer runtime.
+The requested wipe removed that runtime, its worlds, its shared settings, and its GarryCraft game files.
+The deletion record confirms all 97 selected paths were absent before setup.
+
+After another recorded reset, the V1.0.2 ZIP installed into an empty player folder and the wiped game installation.
+External download caches were disabled. Setup downloaded and verified all 5,232 dependencies under Windows PowerShell 5.1.
+The final folder launcher passed six game checks on single-player `gm_construct`.
+The addon loaded, the bridge linked with completed map geometry, and Minecraft stopped after Disable.
+The folder game run required a second Enable command after map startup. The saved enable switch was off.
+The Minecraft log records player and world saves before exit.
+
+The final extracted-ZIP fixture passed all 24 installer checks and all nine launcher recovery checks.
+The source checkout with a local compiled ZIP passed all nine setup and folder launcher checks.
+Installer checks cover clean state, repeat installation, preserved files, locked DLL rollback, and failed downloads.
+An overlapping game run blocked an earlier installer test. The final installer run completed with GMod closed.
+These checks do not certify other engine builds, maps, or Workshop addons.
+
+Read `%LOCALAPPDATA%/GarryCraft/current-clean-install-20261005/wipe-result.json`, `final-clean-before.json`, and `final-clean-install.log`.
+Final evidence is saved in the ignored `release/verification` folder before the requested PC cleanup.
+Read its installation, launcher, source setup, game, and deletion results.
+The final installer uses Windows PowerShell 5.1 on Windows 11. Windows 10 was not available for a separate OS run.
+
 ## October 5: V1 installer and production runtime
 
 The extracted V1 ZIP passed all 20 installer checks under Windows PowerShell 5.1.

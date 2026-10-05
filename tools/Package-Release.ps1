@@ -2,6 +2,7 @@ param([string]$OutputRoot = "$env:LOCALAPPDATA/GarryCraft/releases",
     [string]$JavaHome = "$env:LOCALAPPDATA/GarryCraft/tools/java/jdk-25.0.4.1+1")
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path -Parent $PSScriptRoot
+$OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 & "$PSScriptRoot/Build.ps1" -JavaHome $JavaHome
 $properties = Get-Content "$repository/fabric/gradle.properties" -Raw
 $version = [regex]::Match($properties, '(?m)^version=(.+)').Groups[1].Value.Trim()
@@ -14,9 +15,9 @@ foreach ($realm in 'gmcl','gmsv') {
 Copy-Item "$repository/gmod/lua" "$stage/payload/garrysmod/addons/garrycraft/" -Recurse
 Copy-Item "$repository/fabric/build/libs/garrycraft-$version.jar" "$stage/payload/minecraft/mods/garrycraft.jar"
 Copy-Item "$repository/installer/*.ps1" "$stage/installer/"
-Copy-Item "$repository/installer/*.cmd" "$stage/installer/"
+Copy-Item "$repository/installer/*.template" "$stage/installer/"
 foreach ($name in 'Runtime.ps1','RuntimeFiles.ps1','Resolve-LocalPath.ps1') { Copy-Item "$PSScriptRoot/$name" "$stage/installer/" }
-foreach ($name in 'README.md','LICENSE','THIRD_PARTY_NOTICES.md','MODLOG.md','PARITY.md','AGENTS.md','Install.cmd') { Copy-Item "$repository/$name" "$stage/" }
+foreach ($name in 'README.md','LICENSE','THIRD_PARTY_NOTICES.md','MODLOG.md','PARITY.md','AGENTS.md','Install.cmd','Play.cmd') { Copy-Item "$repository/$name" "$stage/" }
 foreach ($name in 'INSTALL.md','ARCHITECTURE.md','RELEASING.md') { Copy-Item "$repository/docs/$name" "$stage/docs/" }
 Copy-Item "$repository/docs/images" "$stage/docs/" -Recurse
 New-Item -ItemType Directory -Path "$stage/protocol", "$stage/tests" -Force | Out-Null
@@ -103,3 +104,7 @@ Compress-Archive -Path "$stage/*" -DestinationPath $zip
     Set-Content "$zip.sha256" -Encoding ascii
 Write-Output "Release: $zip"
 Write-Output "Checksum: $zip.sha256"
+$notes = Join-Path $OutputRoot "GarryCraft-$version-release-notes.md"
+([IO.File]::ReadAllText("$repository/docs/RELEASE_NOTES.md")).Replace('{version}', $version) |
+    Set-Content -LiteralPath $notes -Encoding utf8NoBOM
+Write-Output "Release notes: $notes"
