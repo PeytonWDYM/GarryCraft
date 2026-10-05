@@ -2,6 +2,7 @@ param([string]$OutputRoot = "$env:LOCALAPPDATA/GarryCraft/releases",
     [string]$JavaHome = "$env:LOCALAPPDATA/GarryCraft/tools/java/jdk-25.0.4.1+1")
 $ErrorActionPreference = 'Stop'
 $repository = Split-Path -Parent $PSScriptRoot
+$OutputRoot = [IO.Path]::GetFullPath($OutputRoot)
 & "$PSScriptRoot/Build.ps1" -JavaHome $JavaHome
 $properties = Get-Content "$repository/fabric/gradle.properties" -Raw
 $version = [regex]::Match($properties, '(?m)^version=(.+)').Groups[1].Value.Trim()

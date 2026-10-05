@@ -7,6 +7,7 @@ Use only a separate game installation with a `.garrycraft-lab` marker for game t
 | Scenario | Required result |
 | --- | --- |
 | Extract the release into a path with spaces and Unicode | Installation succeeds without build tools or PowerShell 7. |
+| Package a release with a relative output folder | The manifest contains paths relative to `payload`, with unchanged native and Fabric payload hashes. |
 | Open `Install.cmd` from a source checkout without `release.json` | Setup downloads and verifies the matching release, then forwards the chosen game and runtime paths. |
 | Run source setup with a matching compiled ZIP and checksum in `release` | Setup verifies the local ZIP and prepares the folder launcher without requiring a published release. |
 | Complete setup from a source checkout | The final Play path points to `Play.cmd` beside the source checkout's `Install.cmd`. |
