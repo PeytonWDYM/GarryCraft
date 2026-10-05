@@ -1,5 +1,6 @@
 param([Parameter(Mandatory)][string]$LabPath, [Parameter(Mandatory)][string]$RuntimeRoot,
     [Parameter(Mandatory)][string]$PackageRoot,
+    [switch]$RequireAutoStart,
     [string]$RunRoot = "$env:LOCALAPPDATA/GarryCraft/player-addon-tests/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))")
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path "$LabPath/.garrycraft-lab")) { throw 'Use a marked, separate game installation.' }
@@ -42,7 +43,9 @@ try {
     Copy-Item "$LabPath/garrysmod/data/$reportName" "$RunRoot/addon-report.json"
     $checks.addonLoaded = $report.addonLoaded
     $checks.singlePlayer = $report.singlePlayer
-    & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'garrycraft_enable'
+    if (-not $RequireAutoStart) {
+        & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'garrycraft_enable'
+    }
     $deadline = [DateTime]::UtcNow.AddSeconds(180)
     do {
         Start-Sleep -Seconds 1
@@ -55,6 +58,16 @@ try {
     } until ($linked -or [DateTime]::UtcNow -gt $deadline)
     $checks.bridgeLinkedWithGeometry = $linked
     $status | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/bridge-ready.json"
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    do {
+        & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'garrycraft_render_report'
+        Start-Sleep -Seconds 2
+        $render = & "$PSScriptRoot/Read-JsonSnapshot.ps1" -Path "$LabPath/garrysmod/data/garrycraft-render.json"
+    } until (($render.sourceModels.world -gt 0 -and $render.shadows.castDraws -gt 0) -or [DateTime]::UtcNow -gt $deadline)
+    $render | ConvertTo-Json -Depth 8 | Set-Content "$RunRoot/render-live.json"
+    $checks.sceneMeshesDraw = $render.frames -gt 0 -and $render.sourceModels.world -gt 0
+    $checks.customMeshShadows = $render.shadows.installed -and $render.shadows.castDraws -gt 0
+    $checks.validShadowDraws = $render.shadows.invalidMeshes -eq 0 -and $render.shadows.wrongThread -eq 0
     & "$PSScriptRoot/Send-LabCommand.ps1" -LabPath $LabPath -GamePid $game.Id -Command 'garrycraft_disable'
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     do {
@@ -64,7 +77,7 @@ try {
     $checks.minecraftStoppedAfterDisable = $status.state -eq 'off'
     $status | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/bridge-stopped.json"
     $passed = -not ($checks.Values -contains $false)
-    @{passed=$passed; checks=$checks; directory=$RunRoot} | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/player-addons-result.json"
+    @{passed=$passed; checks=$checks; directory=$RunRoot; requiredAutoStart=[bool]$RequireAutoStart} | ConvertTo-Json -Depth 5 | Set-Content "$RunRoot/player-addons-result.json"
     if (-not $passed) { throw 'Player addon checks failed.' }
     Get-Content "$RunRoot/player-addons-result.json"
 } catch {

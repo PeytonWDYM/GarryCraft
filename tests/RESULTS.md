@@ -1,5 +1,32 @@
 # Local test record
 
+## October 5: renderer hook compatibility and V1.0.3
+
+The owned game copy reproduced the user's shadow failure with DLib and the enabled Workshop addons.
+The failing check was `VEngineModel016` slot 20. Its callback belonged to `gmcl_zxcmodule_win64.dll`, at offset `0x4750`.
+The engine build checks passed. The previous error combined this callback conflict with unsupported-build failures.
+The requested removal moved 152 ZXC module files and installed backups from the normal game and test copy into the Recycle Bin.
+The recorded paths are absent. Other addons remain enabled.
+
+The corrected adapter passed 42 source-only checks in `release/verification/shadow-final-hooks/result.json`.
+These checks cover native silhouettes, a hook installed before GarryCraft, a later hook, bridge reopen, and a rejected studio adapter.
+The later callback retained calls through shutdown and reopen. Native mesh and thread error counts remained zero.
+The rejected studio adapter completed ten real Lua mesh updates, retained visible mesh draws, and emitted one specific warning.
+Paired screenshots and native reports support each shadow probe. The fallback probe does not test Minecraft gameplay independently.
+
+The V1.0.3 ZIP passed a clean installation through its actual `Install.cmd` under Windows PowerShell 5.1.
+The runtime and GarryCraft game payload were absent before setup. External download caches were disabled.
+Setup downloaded and verified 5,232 dependencies. The package folder included spaces and an accented character.
+The folder's `Play.cmd` passed nine game checks with `-RequireAutoStart`, without an Enable command.
+The bridge linked with map geometry, rendered six world models and two avatar models, and recorded 8,563 custom shadow draws.
+Native mesh and thread error counts were zero. Disable saved the test world and stopped Minecraft.
+The launcher entry-point and recovery checks also passed all nine cases.
+
+Read `release/verification/shadow-clean-before.json`, `shadow-clean-install.log`, and `shadow-clean-game`.
+The Minecraft logs record attachment, player saving, and world saving. Installed game payload hashes matched the tested ZIP.
+These tests used Windows 11, the verified x64 engine, and single-player `gm_construct`. Windows 10 needs a separate OS run.
+The test copy and its private runtime are disposable. The normal GarryCraft installation was not replaced during these tests.
+
 ## October 5: clean installation and launcher recovery
 
 The current desktop shortcut identified the marked `responsiveness-gmod-lab` and its developer runtime.

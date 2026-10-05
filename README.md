@@ -12,7 +12,7 @@ You do not need build tools, a separate Java installation, or PowerShell 7.
 
 1. In Steam, select **Garry's Mod > Properties > Betas > x86-64**.
 2. Wait for the update, then close Garry's Mod.
-3. Download **GarryCraft-1.0.2-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest). Use this asset, not the Source code archives.
+3. Download **GarryCraft-1.0.3-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest). Use this asset, not the Source code archives.
 4. Extract the entire ZIP and open **Install.cmd**.
 5. Open the printed **Play.cmd** path and select **Sandbox > gm_construct > Single Player**.
 

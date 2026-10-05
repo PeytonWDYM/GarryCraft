@@ -104,6 +104,7 @@ If setup reports an unsupported build, use a matching GarryCraft release. Do not
 | Incomplete release folder | Extract the entire release ZIP before running `Install.cmd`. |
 | Runtime location moved | Rerun setup with `-InstallRoot` and the correct `-GmodPath` to rebuild absolute paths. |
 | Realms or user-properties authentication errors | V1 uses a local identity. These online-service messages do not prevent its single-player mirror world from starting. |
+| Custom mesh shadows are unavailable | Rendering and gameplay continue. Include the complete warning when you report the affected renderer or engine build. |
 
 Failed downloads do not become verified files. Reruns reuse downloads that pass checksum checks.
 If a game copy fails, setup restores replaced files and retains backups.
@@ -140,7 +141,7 @@ If setup failed before Minecraft preparation completed, correct the reported err
 | `<Player>\worlds\<map>\minecraft\crash-reports` | Minecraft crash reports |
 
 For missing modules, rerun setup with the correct game folder and start the x64 executable through `Play.cmd`.
-For startup failures, try Sandbox on `gm_construct` with conflicting Workshop addons disabled.
+For startup failures, use Sandbox on `gm_construct` and include the complete error and enabled addon list.
 For a stalled save, read the logs before restarting. The helper waits for a safe save instead of killing Java.
 Include the setup version, reported engine file, and relevant log when you [report an issue](https://github.com/PeytonWDYM/GarryCraft/issues).
 

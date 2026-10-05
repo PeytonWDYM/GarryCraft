@@ -7,6 +7,7 @@ local draws = {avatar = 0, world = 0, item = 0}
 local created, rebound = 0, 0
 local manual
 local manualDraws = 0
+local shadowWarning
 
 -- One hidden model submits sorted fluids, hands, and arms through Source's normal studio lighting.
 scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERGROUP_OTHER,
@@ -70,9 +71,20 @@ scripted_ents.Register({Type = "anim", Base = "base_anim", RenderGroup = RENDERG
 
 local function register(entry)
     local entity = entry.entity
-    garrycraft_bridge.shadow_update(entity, {{mesh = entry.batch.mesh,
+    local ready, failure = garrycraft_bridge.shadow_update(entity, {{mesh = entry.batch.mesh,
         material = GC.RenderMaterial(entry.batch), matrix = entry.matrix}})
-    entity:MarkShadowAsDirty()
+    if entry.shadowReady ~= ready then
+        entity:DrawShadow(ready)
+        if ready then entity:CreateShadow() end
+        entry.shadowReady = ready
+    end
+    if ready then
+        entity:MarkShadowAsDirty()
+    elseif not shadowWarning then
+        shadowWarning = failure
+        ErrorNoHalt("[GarryCraft] Custom mesh shadows are unavailable. Rendering and gameplay remain active. " .. failure .. "\n")
+    end
+    return ready
 end
 
 local function create(entry)
@@ -82,9 +94,8 @@ local function create(entry)
     entity:SetPos(entry.position)
     entity:Spawn()
     entity:SetRenderBounds(entry.minimum, entry.maximum)
+    entry.shadowReady = nil
     register(entry)
-    entity:DrawShadow(true)
-    entity:CreateShadow()
     created = created + 1
 end
 

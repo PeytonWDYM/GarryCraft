@@ -40,6 +40,9 @@ namespace {
     DWORD ownerThread;
     bool installed;
     bool pinned;
+    bool chainedModel;
+    bool chainedShadow;
+    const char* installFailure = "";
     const char* closeMode = "none";
     std::uint64_t castDraws, castGroups, modelDraws, invalidMeshes, staleEntities;
     std::uint64_t depthDraws, customDepthDraws, invalidDepthMeshState;
@@ -128,24 +131,36 @@ namespace {
 
     bool install() {
         if (installed) return true;
-        if (!sdkcompat::supportedClient() || !sdkcompat::supportedEngine()) return false;
+        installFailure = "Source mesh shadows: unsupported client.dll layout";
+        if (!sdkcompat::supportedClient()) return false;
+        installFailure = "Source mesh shadows: unsupported engine.dll layout";
+        if (!sdkcompat::supportedEngine()) return false;
+        installFailure = "Source mesh shadows: VStudioRender025 is unavailable or its build is unsupported";
         studio = sdkcompat::studioRender();
         if (!studio) return false;
         auto clientFactory = reinterpret_cast<CreateInterfaceFn>(GetProcAddress(GetModuleHandleW(L"client.dll"), "CreateInterface"));
         auto engineFactory = reinterpret_cast<CreateInterfaceFn>(GetProcAddress(GetModuleHandleW(L"engine.dll"), "CreateInterface"));
+        installFailure = "Source mesh shadows: client or engine CreateInterface is unavailable";
         if (!clientFactory || !engineFactory) return false;
         entities = static_cast<IClientEntityList*>(clientFactory("VClientEntityList003", nullptr));
         modelRenderer = engineFactory("VEngineModel016", nullptr);
+        installFailure = "Source mesh shadows: VClientEntityList003 or VEngineModel016 is unavailable";
         if (!entities || !modelRenderer) return false;
         originalTable = *static_cast<void***>(modelRenderer);
         auto* studioTable = *static_cast<void***>(studio);
         auto* engineBase = reinterpret_cast<unsigned char*>(GetModuleHandleW(L"engine.dll"));
         auto* studioBase = reinterpret_cast<unsigned char*>(GetModuleHandleW(L"studiorender.dll"));
-        // Reject other hooks as well as changed ABI before cloning the instance's verified 26-method table.
-        if (originalTable[13] != engineBase + 0xfbf10 || originalTable[20] != engineBase + 0xff1c0
-            || studioTable[54] != studioBase + 0x627d0 || studioTable[55] != studioBase + 0x62780) return false;
+        // The verified interface fixes the callback ABI. Retain existing hooks, including ZXC's model callback.
+        chainedShadow = originalTable[13] != engineBase + 0xfbf10;
+        chainedModel = originalTable[20] != engineBase + 0xff1c0;
+        // Studio state uses private offsets. Reject a replaced studio implementation before reading that state.
+        installFailure = "Source mesh shadows: VStudioRender025 mesh-count callback differs from the verified engine function";
+        if (studioTable[54] != studioBase + 0x627d0) return false;
+        installFailure = "Source mesh shadows: VStudioRender025 mesh callback differs from the verified engine function";
+        if (studioTable[55] != studioBase + 0x62780) return false;
         // A later hook can retain our callback address. Keep its forwarding code and table alive until process exit.
         HMODULE module;
+        installFailure = "Source mesh shadows: Windows could not retain the native callback module";
         if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_PIN,
             reinterpret_cast<LPCWSTR>(&drawShadow), &module)) return false;
         pinned = true;
@@ -158,6 +173,7 @@ namespace {
         hookTable[21] = reinterpret_cast<void*>(drawModel);
         InterlockedExchangePointer(reinterpret_cast<void* volatile*>(modelRenderer), hookTable.data() + 1);
         installed = true;
+        installFailure = "";
         closeMode = "active";
         return true;
     }
@@ -174,7 +190,10 @@ namespace {
         if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Update Source shadows on the client thread"), 0;
         LUA->CheckType(1, GarrysMod::Lua::Type::Entity);
         LUA->CheckType(2, GarrysMod::Lua::Type::Table);
-        if (!install()) return LUA->ThrowError("Source mesh shadows require the verified Windows x64 engine build and unmodified render interfaces"), 0;
+        if (!install()) {
+            LUA->PushBool(false); LUA->PushString(installFailure);
+            return 2;
+        }
         auto* handle = LUA->GetUserType<CBaseHandle>(1, GarrysMod::Lua::Type::Entity);
         auto* entity = handle ? entities->GetClientUnknownFromHandle(*handle) : nullptr;
         if (!entity) return LUA->ThrowError("Source shadow proxy has no live entity handle"), 0;
@@ -223,7 +242,8 @@ namespace {
         auto found = proxies.find(renderable);
         if (found != proxies.end()) freeProxy(LUA, found->second);
         proxies.insert_or_assign(renderable, std::move(replacement));
-        return 0;
+        LUA->PushBool(true);
+        return 1;
     }
 
     LUA_FUNCTION_STATIC(remove) {
@@ -245,6 +265,9 @@ namespace {
         LUA->CreateTable();
         LUA->PushBool(installed); LUA->SetField(-2, "installed");
         LUA->PushBool(pinned); LUA->SetField(-2, "pinned");
+        LUA->PushBool(chainedModel); LUA->SetField(-2, "chainedModel");
+        LUA->PushBool(chainedShadow); LUA->SetField(-2, "chainedShadow");
+        LUA->PushString(installFailure); LUA->SetField(-2, "installFailure");
         LUA->PushString(closeMode); LUA->SetField(-2, "closeMode");
         const std::pair<const char*, std::uint64_t> values[] = {{"registered", proxies.size()}, {"castDraws", castDraws},
             {"castGroups", castGroups}, {"modelDraws", modelDraws}, {"modelDrawFlags", modelDrawFlags},
@@ -281,9 +304,13 @@ void registerShadows(GarrysMod::Lua::ILuaBase* lua) {
 void releaseShadows(GarrysMod::Lua::ILuaBase* lua) {
     clear(lua);
     if (installed) {
-        auto* previous = InterlockedCompareExchangePointer(
-            reinterpret_cast<void* volatile*>(modelRenderer), originalTable, hookTable.data() + 1);
-        closeMode = previous == hookTable.data() + 1 ? "restored" : "forwarding";
-        installed = false;
+        // A later hook can replace the table or write a callback into our table. Keep either chain alive.
+        bool ownsCallbacks = hookTable[14] == reinterpret_cast<void*>(drawShadow)
+            && hookTable[21] == reinterpret_cast<void*>(drawModel);
+        bool restored = ownsCallbacks && InterlockedCompareExchangePointer(
+            reinterpret_cast<void* volatile*>(modelRenderer), originalTable, hookTable.data() + 1) == hookTable.data() + 1;
+        closeMode = restored ? "restored" : "forwarding";
+        // Reuse a retained layer on reopen. Installing it twice would make its callback chain recursive.
+        installed = !restored;
     }
 }

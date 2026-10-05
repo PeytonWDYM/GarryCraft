@@ -35,3 +35,4 @@ release/
 !tests/physgun-controls.md
 !tests/physics-gun-visuals.md
 !tests/physics-blocks.md
+!tests/shadow-compatibility.md

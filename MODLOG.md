@@ -2,6 +2,10 @@
 
 ## October 5, 2026
 
+V1.0.3 retains existing model-render callbacks instead of rejecting hooks such as ZXC.
+Shadow shutdown retains callbacks installed later and reuses that layer when the bridge starts again.
+A rejected shadow adapter reports its exact check once. Mesh rendering and gameplay continue without custom mesh shadows.
+
 The packaged launcher now explains how to run setup when its player configuration is missing.
 Player documentation gives the default installed launcher path and recovery steps for the missing `installer/install.json` error.
 V1.0.2 puts `Install.cmd` and `Play.cmd` beside each other in the extracted release folder.
