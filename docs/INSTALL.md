@@ -18,7 +18,7 @@ It preserves existing worlds, preferences, and unrelated addons when you rerun i
 It saves replaced game files under the player installation's `backups` directory.
 
 Open `Play.cmd` beside `Install.cmd` in the extracted folder after setup.
-You can also open the printed `Play.cmd` path, usually `%LOCALAPPDATA%\GarryCraft\player\Play.cmd`.
+Setup prints this folder's `Play.cmd` path.
 Keep Steam open with your Garry's Mod license available.
 The launcher starts in 1920×1080 windowed mode. You can change video settings in GMod.
 Select **Start New Game > Sandbox > any map > Single Player**.

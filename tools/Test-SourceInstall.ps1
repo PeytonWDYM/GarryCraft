@@ -38,6 +38,9 @@ try {
     $checks.noBuildToolsRequired = -not (Test-Path "$checkout/native")
     $checks.forwardedRuntime = (Get-Content "$fixture/garrysmod/data/garrycraft-runtime.json" -Raw | ConvertFrom-Json).root -eq $RuntimeRoot.Replace('\','/')
     $checks.sourceFolderLauncherTargetsPlayer = (Get-Content "$checkout/player.json" -Raw | ConvertFrom-Json).root -eq $RuntimeRoot
+    $playMessages = @((Get-Content "$RunRoot/source-install.log") | Where-Object { $_ -like 'Open *Play.cmd.*' })
+    $sourcePlay = [IO.Path]::GetFullPath("$checkout/Play.cmd")
+    $checks.printedSourceFolderLauncher = $playMessages.Count -gt 0 -and $playMessages[-1].StartsWith("Open $sourcePlay.")
     $checks.modsInstalled = (Test-Path "$RuntimeRoot/minecraft/mods/garrycraft.jar") -and (Test-Path "$RuntimeRoot/minecraft/mods/fabric-api.jar")
     $checks.addonPreserved = [IO.File]::ReadAllText("$fixture/garrysmod/addons/unrelated/keep.txt") -eq 'addon'
     # The same entry point must explain an incomplete ZIP instead of reporting a missing JSON file.

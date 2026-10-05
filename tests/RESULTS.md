@@ -25,7 +25,13 @@ The launcher entry-point and recovery checks also passed all nine cases.
 Read `release/verification/shadow-clean-before.json`, `shadow-clean-install.log`, and `shadow-clean-game`.
 The Minecraft logs record attachment, player saving, and world saving. Installed game payload hashes matched the tested ZIP.
 These tests used Windows 11, the verified x64 engine, and single-player `gm_construct`. Windows 10 needs a separate OS run.
-The test copy and its private runtime are disposable. The normal GarryCraft installation was not replaced during these tests.
+The test copy and its private runtime were removed. The normal GarryCraft installation was not replaced during these tests.
+
+The publication fixture passed 24 installer checks, nine PowerShell 5.1 launcher checks, and 12 real Minecraft runtime-sharing checks.
+The source checkout passed ten checks. Its final Play path points to the launcher beside the checkout's `Install.cmd`.
+Read `release/verification/v103-release-install`, `v103-launcher-ps51`, `v103-runtime-sharing`, and `v103-source-print-final`.
+Minecraft's runtime-sharing log records the requested shutdown, player saves, world saves, and process exit.
+The small installer fixture contains five engine files. It does not copy the complete game.
 
 ## October 5: clean installation and launcher recovery
 

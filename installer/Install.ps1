@@ -24,6 +24,7 @@ try {
         $result = $LASTEXITCODE
         if ($result -eq 0 -and -not $RuntimeOnly) {
             Copy-Item -LiteralPath "$release/player.json" -Destination "$package/player.json" -Force
+            Write-Host "Open $package\Play.cmd. Select Start New Game > Sandbox > any map > Single Player."
         }
         exit $result
     }
