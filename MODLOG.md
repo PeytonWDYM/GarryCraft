@@ -22,6 +22,8 @@ because GMod starts the Minecraft runtime from inside it.
 `play.sh` passes game options through `steam://run`. Steam ran `+` options from `steam -applaunch`
 as its own console commands, so the session marker never reached GMod. `play.sh --map <name>`
 starts a map directly for Flatpak Steam, whose sandbox stops GMod's HTML main menu from loading.
+The server module starts `runtime.sh` with bash and clears GMod's library paths. `/bin/sh` is dash
+inside the Steam Runtime container, so the Minecraft launcher previously exited before writing its log.
 
 ## October 5, 2026
 

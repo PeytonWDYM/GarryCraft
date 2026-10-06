@@ -93,7 +93,11 @@ namespace {
                 ::close(STDERR_FILENO);
                 ::open("/dev/null", O_WRONLY);
                 ::open("/dev/null", O_WRONLY);
-                ::execl("/bin/sh", "sh", script.c_str(),
+                // GMod's library paths point at the game's bundled libraries; Java and python3 need the system ones.
+                ::unsetenv("LD_PRELOAD");
+                ::unsetenv("LD_LIBRARY_PATH");
+                // runtime.sh needs bash. /bin/sh is dash inside the Steam Runtime container.
+                ::execl("/bin/bash", "bash", script.c_str(),
                     "-Config", config.c_str(), "-DataPath", dataPath.c_str(), "-HostPid", pid.c_str(), nullptr);
                 ::_exit(127);
             }
