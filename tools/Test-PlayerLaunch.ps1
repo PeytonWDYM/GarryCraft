@@ -17,7 +17,7 @@ function Launch([string]$Name, [string]$Root) {
     return $LASTEXITCODE
 }
 try {
-    $checks.setupAndPlayInPackageFolder = @(Get-ChildItem -LiteralPath $extract -Filter '*.cmd' -Recurse).Count -eq 2 -and (Test-Path -LiteralPath "$extract/Install.cmd") -and (Test-Path -LiteralPath "$extract/Play.cmd")
+    $checks.setupAndPlayInPackageFolder = @(Get-ChildItem -LiteralPath $extract -Filter '*.cmd' -Recurse).Count -eq 3 -and (Test-Path -LiteralPath "$extract/Install.cmd") -and (Test-Path -LiteralPath "$extract/Play.cmd") -and (Test-Path -LiteralPath "$extract/Uninstall.cmd")
     $checks.packageLauncherFails = (Launch 'package-launch' $extract) -ne 0
     $packageLog = Get-Content -LiteralPath "$RunRoot/package-launch.log" -Raw
     $checks.packageSetupPath = $packageLog.Contains([IO.Path]::GetFullPath("$extract/Install.cmd"))

@@ -6,10 +6,15 @@ if (Test-Path -LiteralPath $RunRoot) { throw 'Use a new owned run directory for 
 New-Item -ItemType Directory -Path "$RunRoot/data", "$RunRoot/settings" -Force | Out-Null
 [IO.File]::WriteAllText("$RunRoot/owner", 'runtime-sharing')
 $RunRoot = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$RunRoot/owner")
-Copy-Item "$RuntimeRoot/java.args" "$RunRoot/java.args"
-Copy-Item "$PSScriptRoot/Runtime.ps1" "$RunRoot/Runtime.ps1"
-Copy-Item "$PSScriptRoot/RuntimeFiles.ps1" "$RunRoot/RuntimeFiles.ps1"
-$configuration = Get-Content "$RuntimeRoot/config.json" -Raw | ConvertFrom-Json
+Copy-Item -LiteralPath "$RuntimeRoot/java.args" "$RunRoot/java.args"
+# Share immutable dependencies. The helper writes only this run's worlds and settings.
+foreach ($directory in 'libraries','versions','assets','minecraft') {
+    New-Item -ItemType Junction -Path "$RunRoot/$directory" -Target "$RuntimeRoot/$directory" | Out-Null
+}
+Copy-Item -LiteralPath "$PSScriptRoot/Runtime.ps1" "$RunRoot/Runtime.ps1"
+Copy-Item -LiteralPath "$PSScriptRoot/RuntimeFiles.ps1" "$RunRoot/RuntimeFiles.ps1"
+Copy-Item -LiteralPath "$PSScriptRoot/RuntimeProcess.ps1" "$RunRoot/RuntimeProcess.ps1"
+$configuration = Get-Content -LiteralPath "$RuntimeRoot/config.json" -Raw -Encoding UTF8 | ConvertFrom-Json
 @{java=$configuration.java; settings="$RunRoot/settings"; worlds="$RunRoot/worlds"} |
     ConvertTo-Json | Set-Content "$RunRoot/config.json" -Encoding utf8NoBOM
 "maxFps:60`nenableVsync:false`npauseOnLostFocus:false`nautoJump:false`n" |
@@ -32,6 +37,7 @@ function Wait-Until($Description, [scriptblock]$Condition) {
     $deadline = [DateTime]::UtcNow.AddSeconds(120)
     do {
         if (& $Condition) { return }
+        if ((Test-Path -LiteralPath $statusPath) -and (Status).state -eq 'error') { throw "Runtime error: $((Status).message)" }
         Start-Sleep -Milliseconds 100
     } while ([DateTime]::UtcNow -lt $deadline)
     throw "Timed out: $Description"
@@ -45,7 +51,7 @@ try {
     $clientPid = (Status).javaPid
     # Source's reader can deny replacement while it reads a status snapshot.
     $statusReader = [IO.FileStream]::new($statusPath, 'Open', 'Read', 'ReadWrite')
-    Wait-Until 'Minecraft world ready' { Test-Path "$mapRoot/ready.json" }
+    Wait-Until 'Minecraft world ready' { Test-Path -LiteralPath "$mapRoot/ready.json" }
     Start-Sleep -Seconds 5
     $checks.readerDoesNotStopLauncher = -not $helper.HasExited
     $checks.readerDoesNotStopMinecraft = [bool](Get-Process -Id $clientPid -ErrorAction SilentlyContinue)
@@ -67,7 +73,7 @@ try {
         }
         Start-Sleep -Seconds 2
         $checks["${kind}RequestRetainsClient"] = [bool](Get-Process -Id $clientPid -ErrorAction SilentlyContinue) -and
-            -not (Get-Content "$mapRoot/control.json" -Raw | ConvertFrom-Json).stop
+            -not (Get-Content -LiteralPath "$mapRoot/control.json" -Raw -Encoding UTF8 | ConvertFrom-Json).stop
         if ($requestReader) { $requestReader.Dispose(); $requestReader = $null }
         Request $true
         if (-not $checks["${kind}RequestRetainsClient"]) { throw "Minecraft stopped after a $kind heartbeat read." }
@@ -86,7 +92,7 @@ try {
     @{passed=$passed; checks=$checks; javaPid=$clientPid; launcherPid=$helper.Id; directory=$RunRoot} |
         ConvertTo-Json -Depth 6 | Set-Content "$RunRoot/runtime-sharing-result.json"
     if (-not $passed) { throw 'Runtime sharing checks failed. Read runtime-sharing-result.json.' }
-    Get-Content "$RunRoot/runtime-sharing-result.json"
+    Get-Content -LiteralPath "$RunRoot/runtime-sharing-result.json"
 } catch {
     @{passed=$false; checks=$checks; error=$_.Exception.Message; javaPid=$clientPid} |
         ConvertTo-Json -Depth 6 | Set-Content "$RunRoot/runtime-sharing-result.json"
@@ -101,4 +107,8 @@ try {
         Wait-Until 'test cleanup save' { -not (Get-Process -Id $clientPid -ErrorAction SilentlyContinue) }
     }
     if ($helper) { $helper.Dispose() }
+    # Keep traces, but remove links before the installed test runtime is purged.
+    foreach ($directory in 'libraries','versions','assets','minecraft') {
+        [IO.Directory]::Delete("$RunRoot/$directory")
+    }
 }

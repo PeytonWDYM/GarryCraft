@@ -32,7 +32,7 @@ Set-Location -LiteralPath '$repoLiteral'
 Start-Process -FilePath pwsh -ArgumentList @('-NoProfile','-File',"`"$launcher`"") -WindowStyle Hidden `
     -RedirectStandardOutput "$root\minecraft-stdout.log" -RedirectStandardError "$root\minecraft-stderr.log"
 Start-Process -FilePath "$LabPath\bin\win64\gmod.exe" -WorkingDirectory $LabPath `
-    -ArgumentList @('-insecure','-noworkshop','-windowed','-w','1280','-h','720','-novid','-condebug','+sv_lan','1','+maxplayers','1','+map','gm_construct')
+    -ArgumentList @('-insecure','-noworkshop','-windowed','-w','1280','-h','720','-novid','-condebug','+sv_lan','1','+maxplayers','1','+exec','garrycraft-session.cfg','+map','gm_construct')
 if ($Test) {
     $deadline = [DateTime]::UtcNow.AddMinutes(2)
     do {

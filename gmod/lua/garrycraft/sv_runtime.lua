@@ -1,5 +1,5 @@
 local GC = GarryCraft
-local enabled = CreateConVar("garrycraft_enabled", "1", FCVAR_ARCHIVE, "Start GarryCraft when entering a single-player map")
+local enabled = CreateConVar("garrycraft_enabled", "1", FCVAR_NONE, "Enable GarryCraft during the current Play.cmd session")
 local request
 local configuration
 local startingAt

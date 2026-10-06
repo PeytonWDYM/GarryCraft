@@ -11,7 +11,7 @@ local function controls(panel)
     function enable:DoClick() setEnabled(true) end
     local disable = panel:Button("Disable GarryCraft and return to normal play")
     function disable:DoClick() setEnabled(false) end
-    panel:Help("Disable saves Minecraft and restores your Source weapon, movement, and frame limits. This choice persists across maps.")
+    panel:Help("Disable saves Minecraft and restores your Source weapon, movement, and frame limits. This choice lasts for this session.")
 end
 hook.Add("PopulateToolMenu", "GarryCraftSettings", function()
     spawnmenu.AddToolMenuOption("Utilities", "GarryCraft", "GarryCraftRuntime", "GarryCraft", "", "", controls)

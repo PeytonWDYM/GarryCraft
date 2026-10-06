@@ -23,6 +23,9 @@ It disables external download caches and records the clean state in `release-ins
 It tests repeat installation separately, including preservation of worlds, preferences, and unrelated addons.
 For a requested wipe, save the deleted paths and confirm their absence before setup.
 Use `Test-PlayerAddons.ps1` with the extracted folder to check real game startup, bridge readiness, and Minecraft shutdown.
+Run `Test-NormalLaunch.ps1` against the installed lab to prove that an ordinary launch loads no bridge code or native modules.
+Run `Test-Uninstall.ps1` with Windows PowerShell 5.1 against a marked fixture. Include a second drive and custom paths.
+Read its removal and preservation results, including installed-entry purge, locked files, ownership, redirects, and moved folders.
 
 Publish `GarryCraft-<version>-windows-x64.zip` and its `.sha256` file with a `v<version>` tag on the tested source commit.
 Use the generated `GarryCraft-<version>-release-notes.md` as the release description.

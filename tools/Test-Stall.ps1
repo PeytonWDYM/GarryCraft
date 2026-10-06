@@ -62,7 +62,7 @@ try {
     @{root=$RunRoot.Replace('\','/')} | ConvertTo-Json | Set-Content $runtimeConfiguration -Encoding utf8NoBOM
     [IO.File]::WriteAllText($serverSettingsPath, ($previousServerSettings -replace '("garrycraft_enabled"\s+")[^"]*(")', '${1}1${2}'))
     $game = Start-Process "$LabPath/bin/win64/gmod.exe" -WorkingDirectory $LabPath -WindowStyle Hidden -PassThru `
-        -ArgumentList '-insecure -noworkshop -windowed -w 1280 -h 720 -novid +sv_lan 1 +maxplayers 1 +map gm_construct'
+        -ArgumentList '-insecure -noworkshop -windowed -w 1280 -h 720 -novid +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg +map gm_construct'
     Wait-Until 'fresh world link' {
         (Test-Path "$data/garrycraft-runtime-status.json") -and (Status).hostPid -eq $game.Id -and
             (Status).state -eq 'ready' -and (State).linked -and (State).geometryReady

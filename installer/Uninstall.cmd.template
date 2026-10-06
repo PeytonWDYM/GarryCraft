@@ -1,0 +1,5 @@
+@echo off
+setlocal
+set "PSModulePath="
+rem Release CMD's file handle before a full uninstall removes this folder.
+(goto) 2>nul & "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File "%~dp0Uninstall.ps1" -InstallRoot "%~dp0." -PauseOnExit %*

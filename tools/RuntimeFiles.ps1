@@ -1,3 +1,12 @@
+# Keep the player's folder name out of Java's platform-encoded argument file.
+function Get-RelativeRuntimePath([string]$Root, [string]$Path) {
+    $Root = [IO.Path]::GetFullPath($Root)
+    $Path = [IO.Path]::GetFullPath($Path)
+    if ([IO.Path]::GetPathRoot($Root) -ne [IO.Path]::GetPathRoot($Path)) { return $Path }
+    $base = [Uri]([IO.Path]::GetFullPath($Root).TrimEnd('\') + '\')
+    [Uri]::UnescapeDataString($base.MakeRelativeUri([Uri][IO.Path]::GetFullPath($Path)).ToString())
+}
+
 # Source can hold JSON files open without delete sharing. Keep the last complete snapshot until replacement succeeds.
 function Write-JsonFile($Path, $Value) {
     $temporary = "$Path.tmp"
