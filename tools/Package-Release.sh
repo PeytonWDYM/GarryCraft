@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # Package a Linux x64 release archive. Mirrors tools/Package-Release.ps1.
-# Usage: Package-Release.sh [--output-root DIR] [--gmod-path DIR]
+# Usage: Package-Release.sh [--output-root DIR] [--gmod-path DIR] [--local-only]
 # --gmod-path measures the local Linux engine .so files into release.json pins.
+# --local-only skips the glibc 2.31 check for a package tested on this machine. Never publish it.
 set -euo pipefail
 
 OUTPUT_ROOT=""
 GMOD_PATH=""
+LOCAL_ONLY=0
 while (($# > 0)); do
   case "$1" in
     --output-root) OUTPUT_ROOT="$2"; shift 2 ;;
     --gmod-path) GMOD_PATH="$2"; shift 2 ;;
+    --local-only) LOCAL_ONLY=1; shift ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -44,7 +47,7 @@ for realm in gmcl gmsv; do
   fi
   # GMod runs inside the Steam Runtime (sniper, glibc 2.31). Newer symbol versions fail to load.
   newest="$(objdump -T "$found" | grep -oE 'GLIBC_[0-9]+\.[0-9]+' | sed 's/GLIBC_//' | sort -V | tail -n 1)"
-  if [[ "$(printf '%s\n2.31\n' "$newest" | sort -V | tail -n 1)" != "2.31" ]]; then
+  if ((!LOCAL_ONLY)) && [[ "$(printf '%s\n2.31\n' "$newest" | sort -V | tail -n 1)" != "2.31" ]]; then
     echo "${realm}_garrycraft_linux64.dll requires glibc $newest; releases must load on glibc 2.31." >&2
     echo "Build inside the Steam Runtime sniper SDK. See docs/RELEASING.md." >&2
     exit 1

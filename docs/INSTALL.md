@@ -54,8 +54,14 @@ including their `steamapps/libraryfolders.vdf` entries) and installs GarryCraft.
 If asked for the game folder, use Steam's **Properties > Installed Files > Browse** and paste that path.
 Select the outer game folder, such as `~/.local/share/Steam/steamapps/common/GarrysMod`, not an inner folder.
 
+Flathub Steam (`com.valvesoftware.Steam`) is supported. Setup also searches its Steam folder
+and puts the player folder in `~/.var/app/com.valvesoftware.Steam/.local/share/GarryCraft/player`,
+because the sandboxed game must reach Java and Minecraft. Setup rejects a custom `--install-root`
+that the sandbox cannot see and prints the `flatpak override` command that grants access.
+
 Open `play.sh` beside `install.sh` in the extracted folder after setup. It starts Garry's Mod
-through Steam (`steam -applaunch 4000`) with the GarryCraft session marker, so keep Steam open.
+through Steam (`steam -applaunch 4000`, or `flatpak run com.valvesoftware.Steam` for Flathub Steam)
+with the GarryCraft session marker, so keep Steam open.
 Then select **Start New Game > Sandbox > any map > Single Player**. Minecraft starts automatically.
 
 | Location | Contents |

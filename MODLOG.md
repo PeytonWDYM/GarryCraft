@@ -17,6 +17,8 @@ run has verified this yet; see `tests/release-install.md` for the Linux scenario
 Linux modules link libstdc++ and libgcc statically and export only the GMod entry points.
 Release packaging rejects modules that need glibc newer than the Steam Runtime's 2.31,
 so Linux releases must be built in the sniper SDK.
+Setup and play support Flathub Steam. The player folder defaults to a path inside the Steam sandbox,
+because GMod starts the Minecraft runtime from inside it.
 
 ## October 5, 2026
 

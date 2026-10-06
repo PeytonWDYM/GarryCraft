@@ -64,6 +64,11 @@ Linux x64 JRE 25; Minecraft natives filter on `os.name == 'linux'`.
 | Prepare runtime-only setup | Setup prints the private player launcher path for use after manual game copies. |
 | Start both games in the owned lab | The bridge links on `gm_construct`, enables, disables, and exits without errors. |
 | Run the Windows ZIP scenarios | Unchanged: Windows coverage in the table above still passes on Windows. |
+| Flatpak Steam (`com.valvesoftware.Steam`) with GMod in a `/mnt` library | Setup finds GMod through `~/.var/app/com.valvesoftware.Steam/.local/share/Steam` and its `libraryfolders.vdf`. |
+| Flatpak Steam with no `--install-root` | The player folder defaults to `~/.var/app/com.valvesoftware.Steam/.local/share/GarryCraft/player`, which the sandboxed game can read. |
+| Flatpak Steam with an `--install-root` under `~/.local/share` | Setup rejects the folder before downloads and prints the `flatpak override` command. |
+| Open `play.sh` with Flatpak Steam and no `steam` command | The launcher requests the session through `flatpak run com.valvesoftware.Steam -applaunch 4000`. |
+| Start both games through Flatpak Steam | `runtime.sh` starts inside the sandbox, Minecraft starts, and the bridge links on `gm_construct`. |
 
 Linux engine `.so` identities are pinned after the first verified Linux game build
 reports them; until then setup checks ELF 64-bit identity plus file size and

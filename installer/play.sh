@@ -44,11 +44,14 @@ fi
 if [[ -n "$(gc_running_gmod "$GAME")" ]]; then
   gc_fail "Close Garry's Mod, then open play.sh to start a GarryCraft session."
 fi
-if ! command -v steam >/dev/null 2>&1; then
+STEAM=(steam)
+if gc_flatpak_steam; then
+  STEAM=(flatpak run "$GC_FLATPAK_STEAM_ID")
+elif ! command -v steam >/dev/null 2>&1; then
   gc_fail "The Steam client was not found. Install Steam, keep it open with your Garry's Mod license available, then rerun play.sh."
 fi
 
 gc_log "Game: $GAME"
-nohup steam -applaunch 4000 -insecure -novid -windowed -w 1920 -h 1080 \
+nohup "${STEAM[@]}" -applaunch 4000 -insecure -novid -windowed -w 1920 -h 1080 \
   +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg >/dev/null 2>&1 &
 gc_log "GarryCraft session requested. Select Start New Game > Sandbox > any map > Single Player."

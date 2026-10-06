@@ -4,7 +4,26 @@
 # tools/Resolve-LocalPath.ps1. Requires bash, curl, python3, and tar.
 set -euo pipefail
 
-GC_PLAYER_DEFAULT="$HOME/.local/share/GarryCraft/player"
+GC_FLATPAK_STEAM_ID="com.valvesoftware.Steam"
+GC_FLATPAK_STEAM_HOME="$HOME/.var/app/$GC_FLATPAK_STEAM_ID"
+
+gc_flatpak_steam() {
+  # True when Steam is installed only as the Flathub Flatpak.
+  ! command -v steam >/dev/null 2>&1 && command -v flatpak >/dev/null 2>&1 &&
+    [[ -d "$GC_FLATPAK_STEAM_HOME/.local/share/Steam" ]]
+}
+
+gc_flatpak_sees() {
+  # gc_flatpak_sees <path> -> true when the Steam sandbox, and so GMod's child processes, can read <path>.
+  flatpak run --command=test "$GC_FLATPAK_STEAM_ID" -e "$1" 2>/dev/null
+}
+
+# The sandboxed game starts the Minecraft runtime, so its player folder must be visible inside the sandbox.
+if gc_flatpak_steam; then
+  GC_PLAYER_DEFAULT="$GC_FLATPAK_STEAM_HOME/.local/share/GarryCraft/player"
+else
+  GC_PLAYER_DEFAULT="$HOME/.local/share/GarryCraft/player"
+fi
 
 gc_log() { echo "$*"; }
 gc_warn() { echo "$*" >&2; }
@@ -108,7 +127,8 @@ EOF
 
 gc_steam_roots() {
   local -a roots=()
-  for candidate in "$HOME/.steam/steam" "$HOME/.local/share/Steam"; do
+  for candidate in "$HOME/.steam/steam" "$HOME/.local/share/Steam" \
+    "$GC_FLATPAK_STEAM_HOME/.steam/steam" "$GC_FLATPAK_STEAM_HOME/.local/share/Steam"; do
     [[ -d "$candidate" ]] && roots+=("$candidate")
   done
   printf '%s\n' "${roots[@]}"

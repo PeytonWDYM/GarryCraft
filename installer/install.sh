@@ -110,6 +110,10 @@ if [[ ! -f "$INSTALL_ROOT/.garrycraft-player" ]]; then
   echo "GarryCraft player installation" >"$INSTALL_ROOT/.garrycraft-player"
 fi
 INSTALL_ROOT="$(gc_realpath "$INSTALL_ROOT")"
+if gc_flatpak_steam && ! gc_flatpak_sees "$INSTALL_ROOT/.garrycraft-player"; then
+  install_fail "Flatpak Steam cannot see $INSTALL_ROOT. Omit --install-root, or grant access with:
+  flatpak override --user --filesystem=$INSTALL_ROOT $GC_FLATPAK_STEAM_ID"
+fi
 
 exec {SETUP_LOCK}>"$INSTALL_ROOT/.garrycraft-lock"
 if ! flock -n "$SETUP_LOCK"; then
