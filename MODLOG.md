@@ -24,6 +24,8 @@ as its own console commands, so the session marker never reached GMod. `play.sh 
 starts a map directly for Flatpak Steam, whose sandbox stops GMod's HTML main menu from loading.
 The server module starts `runtime.sh` with bash and clears GMod's library paths. `/bin/sh` is dash
 inside the Steam Runtime container, so the Minecraft launcher previously exited before writing its log.
+Linux no longer raises `fps_max` to 240. That call used Windows ConVar dispatch slots, which differ on Linux,
+and crashed GMod when Minecraft attached. The player's frame cap stays unchanged until the Linux layout is verified.
 
 ## October 5, 2026
 

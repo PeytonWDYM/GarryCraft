@@ -76,6 +76,7 @@ Then select **Start New Game > Sandbox > any map > Single Player**. Minecraft st
 
 The native mesh-shadow hook stays disabled on Linux until its engine offsets are verified
 against real Linux binaries; rendering and gameplay continue without custom mesh shadows.
+Linux also keeps your `fps_max` value instead of raising it to 240 for the session.
 Linux engine `.so` identities are pinned in `release.json` after the first verified Linux
 game build. Until then setup checks the 64-bit x86-64 ELF identity and records the measured
 file size and SHA-256 in the install log.
