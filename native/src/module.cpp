@@ -1,5 +1,6 @@
 #include <GarrysMod/Lua/Interface.h>
 #include "mailbox.hpp"
+#include "platform.hpp"
 #include <exception>
 #ifndef GARRYCRAFT_CLIENT
 #include "runtime.hpp"
@@ -31,29 +32,26 @@ namespace {
 #endif
 
     LUA_FUNCTION_STATIC(refresh) {
-        DEVMODEW mode{};
-        mode.dmSize = sizeof(mode);
-        if (!EnumDisplaySettingsW(nullptr, ENUM_CURRENT_SETTINGS, &mode))
-            return LUA->ThrowError("Cannot read display refresh rate"), 0;
-        LUA->PushNumber(mode.dmDisplayFrequency);
+        try {
+            LUA->PushNumber(platform::displayRefreshHz());
+        } catch (const std::exception& error) { return LUA->ThrowError(error.what()), 0; }
         return 1;
     }
 
     LUA_FUNCTION_STATIC(clock) {
-        LARGE_INTEGER counter, frequency;
-        QueryPerformanceCounter(&counter);
-        QueryPerformanceFrequency(&frequency);
-        LUA->PushNumber(static_cast<double>(counter.QuadPart) / frequency.QuadPart);
+        try {
+            LUA->PushNumber(platform::nowSeconds());
+        } catch (const std::exception& error) { return LUA->ThrowError(error.what()), 0; }
         return 1;
     }
 
     LUA_FUNCTION_STATIC(open) {
         const char* path = LUA->CheckString(1);
-        int count = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, nullptr, 0);
-        if (!count) return LUA->ThrowError("Bridge path must be UTF-8"), 0;
-        std::wstring wide(count, L'\0');
-        MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, path, -1, wide.data(), count);
-        wide.pop_back();
+        platform::BridgePath native;
+        try {
+            native = platform::utf8ToPath(path);
+        } catch (const std::exception& error) { return LUA->ThrowError(error.what()), 0; }
+        const platform::BridgePath& wide = native;
         try {
 #ifdef GARRYCRAFT_CLIENT
             receiver.stop();

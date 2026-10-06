@@ -2,6 +2,7 @@
 #include <basehandle.h>
 #include <icliententitylist.h>
 #include <iclientunknown.h>
+#include "platform.hpp"
 #include "sdkcompat.hpp"
 #include "shadows.hpp"
 #include <algorithm>
@@ -23,10 +24,10 @@ namespace {
         std::vector<Batch> batches;
         std::vector<int> references;
     };
-    using ShadowDraw = void(__fastcall*)(void*, void*, const void*, void*);
-    using ModelDraw = void(__fastcall*)(void*, const void*, const void*, void*);
-    using MeshCount = void(__fastcall*)(void*, int);
-    using MeshOverride = void(__fastcall*)(void*, int, void*, void*, const Matrix*);
+    using ShadowDraw = void(GCALL*)(void*, void*, const void*, void*);
+    using ModelDraw = void(GCALL*)(void*, const void*, const void*, void*);
+    using MeshCount = void(GCALL*)(void*, int);
+    using MeshOverride = void(GCALL*)(void*, int, void*, void*, const Matrix*);
     std::unordered_map<void*, Proxy> proxies;
     IClientEntityList* entities;
     void* studio;
@@ -37,7 +38,7 @@ namespace {
     ModelDraw originalModel;
     MeshCount setMeshCount;
     MeshOverride setMesh;
-    DWORD ownerThread;
+    std::uint32_t ownerThread;
     bool installed;
     bool pinned;
     bool chainedModel;
@@ -48,7 +49,15 @@ namespace {
     std::uint64_t depthDraws, customDepthDraws, invalidDepthMeshState;
     unsigned int modelDrawFlags;
     std::atomic<std::uint64_t> wrongThread;
-    static_assert(sizeof(CBaseHandle) == 4 && offsetof(MeshHandle, mesh) == 8 && sizeof(Matrix) == 64);
+    // sizeof/alignof instead of offsetof: the SDK redefines offsetof as a
+    // non-constant expression on GCC builds. CBaseHandle holds an unsigned
+    // long, so it is 4 bytes on Windows LLP64 and 8 bytes on Linux LP64;
+    // both match the engine build on their platform.
+#ifdef _WIN32
+    static_assert(sizeof(CBaseHandle) == 4 && sizeof(MeshHandle) == 16 && alignof(MeshHandle) == 8 && sizeof(Matrix) == 64);
+#else
+    static_assert(sizeof(CBaseHandle) == 8 && sizeof(MeshHandle) == 16 && alignof(MeshHandle) == 8 && sizeof(Matrix) == 64);
+#endif
 
     Matrix identity() { return {{1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1}}; }
 
@@ -82,8 +91,8 @@ namespace {
         return &found->second;
     }
 
-    void __fastcall drawShadow(void* renderer, void* renderable, const void* info, void* bones) {
-        if (GetCurrentThreadId() != ownerThread) {
+    void GCALL drawShadow(void* renderer, void* renderable, const void* info, void* bones) {
+        if (platform::currentThreadId() != ownerThread) {
             ++wrongThread;
             originalShadow(renderer, renderable, info, bones);
             return;
@@ -106,8 +115,8 @@ namespace {
         ++castDraws;
     }
 
-    void __fastcall drawModel(void* renderer, const void* state, const void* info, void* bones) {
-        if (GetCurrentThreadId() == ownerThread) {
+    void GCALL drawModel(void* renderer, const void* state, const void* info, void* bones) {
+        if (platform::currentThreadId() == ownerThread) {
             void* renderable;
             // ModelRenderInfo_t::pRenderable follows the two 12-byte vectors in the verified x64 layout.
             std::memcpy(&renderable, static_cast<const unsigned char*>(info) + 24, 8);
@@ -131,6 +140,14 @@ namespace {
 
     bool install() {
         if (installed) return true;
+#ifdef __linux__
+        // Raw studio-state offsets and engine-code addresses below are verified
+        // Windows x64 measurements. Linux offsets are not verified yet, so the
+        // hook stays off: rendering and gameplay continue without custom mesh
+        // shadows. Remove this gate after pinning Linux engine builds.
+        installFailure = "Source mesh shadows: Linux engine offsets are not verified yet";
+        return false;
+#else
         installFailure = "Source mesh shadows: unsupported client.dll layout";
         if (!sdkcompat::supportedClient()) return false;
         installFailure = "Source mesh shadows: unsupported engine.dll layout";
@@ -176,6 +193,7 @@ namespace {
         installFailure = "";
         closeMode = "active";
         return true;
+#endif
     }
 
     void freeProxy(GarrysMod::Lua::ILuaBase* lua, Proxy& proxy) {
@@ -187,7 +205,7 @@ namespace {
     }
 
     LUA_FUNCTION_STATIC(update) {
-        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Update Source shadows on the client thread"), 0;
+        if (platform::currentThreadId() != ownerThread) return LUA->ThrowError("Update Source shadows on the client thread"), 0;
         LUA->CheckType(1, GarrysMod::Lua::Type::Entity);
         LUA->CheckType(2, GarrysMod::Lua::Type::Table);
         if (!install()) {
@@ -198,7 +216,7 @@ namespace {
         auto* entity = handle ? entities->GetClientUnknownFromHandle(*handle) : nullptr;
         if (!entity) return LUA->ThrowError("Source shadow proxy has no live entity handle"), 0;
         void* renderable = entity->GetClientRenderable();
-        using GetModel = const void*(__fastcall*)(void*);
+        using GetModel = const void*(GCALL*)(void*);
         auto getModel = reinterpret_cast<GetModel>((*static_cast<void***>(renderable))[9]);
         auto* model = static_cast<const unsigned char*>(getModel(renderable));
         if (!model || *reinterpret_cast<const int*>(model + 0x48) != 3)
@@ -247,7 +265,7 @@ namespace {
     }
 
     LUA_FUNCTION_STATIC(remove) {
-        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Remove Source shadows on the client thread"), 0;
+        if (platform::currentThreadId() != ownerThread) return LUA->ThrowError("Remove Source shadows on the client thread"), 0;
         LUA->CheckType(1, GarrysMod::Lua::Type::Entity);
         auto* handle = LUA->GetUserType<CBaseHandle>(1, GarrysMod::Lua::Type::Entity);
         if (!handle) return 0;
@@ -258,7 +276,7 @@ namespace {
         return 0;
     }
     LUA_FUNCTION_STATIC(clearAll) {
-        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Clear Source shadows on the client thread"), 0;
+        if (platform::currentThreadId() != ownerThread) return LUA->ThrowError("Clear Source shadows on the client thread"), 0;
         clear(LUA); return 0;
     }
     LUA_FUNCTION_STATIC(stats) {
@@ -279,8 +297,8 @@ namespace {
         unsigned index = 0;
         for (const auto& [renderable, proxy] : proxies) {
             if (!findProxy(renderable)) continue;
-            using ShadowHandle = unsigned short(__fastcall*)(void*);
-            using CastType = int(__fastcall*)(void*);
+            using ShadowHandle = unsigned short(GCALL*)(void*);
+            using CastType = int(GCALL*)(void*);
             auto* table = *static_cast<void***>(renderable);
             LUA->PushNumber(++index); LUA->CreateTable();
             LUA->PushNumber(proxy.entity.ToInt()); LUA->SetField(-2, "entityHandle");
@@ -295,7 +313,7 @@ namespace {
 }
 
 void registerShadows(GarrysMod::Lua::ILuaBase* lua) {
-    ownerThread = GetCurrentThreadId();
+    ownerThread = platform::currentThreadId();
     lua->PushCFunction(update); lua->SetField(-2, "shadow_update");
     lua->PushCFunction(remove); lua->SetField(-2, "shadow_remove");
     lua->PushCFunction(clearAll); lua->SetField(-2, "shadow_clear");
@@ -304,6 +322,7 @@ void registerShadows(GarrysMod::Lua::ILuaBase* lua) {
 void releaseShadows(GarrysMod::Lua::ILuaBase* lua) {
     clear(lua);
     if (installed) {
+#ifdef _WIN32
         // A later hook can replace the table or write a callback into our table. Keep either chain alive.
         bool ownsCallbacks = hookTable[14] == reinterpret_cast<void*>(drawShadow)
             && hookTable[21] == reinterpret_cast<void*>(drawModel);
@@ -312,5 +331,10 @@ void releaseShadows(GarrysMod::Lua::ILuaBase* lua) {
         closeMode = restored ? "restored" : "forwarding";
         // Reuse a retained layer on reopen. Installing it twice would make its callback chain recursive.
         installed = !restored;
+#else
+        // The Linux hook never installs (see install()), so there is no table to restore.
+        closeMode = "forwarding";
+        installed = false;
+#endif
     }
 }

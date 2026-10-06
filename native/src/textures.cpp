@@ -1,12 +1,131 @@
 #include <GarrysMod/Lua/Interface.h>
-#include <Windows.h>
+#include "platform.hpp"
+#include "sdkcompat.hpp"
 #include <tier1/interface.h>
+#ifdef _WIN32
 #include <vtf/vtf.h>
+#else
+#include <bitmap/imageformat.h>
+#include <tier0/basetypes.h>
+#include <cstddef>
+// Linux declarations matching vtf/vtf.h from the pinned garrysmod_common SDK.
+// The real vtf.h pulls in mathlib/vector.h, whose threadtools.h dependency is
+// not LP64-clean in this SDK snapshot (CInterlockedIntT assumes 4-byte long).
+// Only pure-virtual interfaces and enums are repeated here, in exact vtable
+// order, so calls into engine objects use the verified dispatch slots. Byte
+// layout is unaffected: Vector is 12 bytes on both sides and only appears in
+// const-reference parameters of methods the bridge never calls.
+class CUtlBuffer;
+struct VtfProcessingOptions;
+enum LookDir_t
+{
+	LOOK_DOWN_X = 0,
+	LOOK_DOWN_NEGX,
+	LOOK_DOWN_Y,
+	LOOK_DOWN_NEGY,
+	LOOK_DOWN_Z,
+	LOOK_DOWN_NEGZ,
+};
+enum CompiledVtfFlags
+{
+	TEXTUREFLAGS_POINTSAMPLE	               = 0x00000001,
+	TEXTUREFLAGS_TRILINEAR		               = 0x00000002,
+	TEXTUREFLAGS_CLAMPS			               = 0x00000004,
+	TEXTUREFLAGS_CLAMPT			               = 0x00000008,
+	TEXTUREFLAGS_ANISOTROPIC	               = 0x00000010,
+	TEXTUREFLAGS_HINT_DXT5		               = 0x00000020,
+	TEXTUREFLAGS_SRGB						   = 0x00000040,
+	TEXTUREFLAGS_NORMAL			               = 0x00000080,
+	TEXTUREFLAGS_NOMIP			               = 0x00000100,
+	TEXTUREFLAGS_NOLOD			               = 0x00000200,
+	TEXTUREFLAGS_ALL_MIPS			           = 0x00000400,
+	TEXTUREFLAGS_PROCEDURAL		               = 0x00000800,
+	TEXTUREFLAGS_ONEBITALPHA	               = 0x00001000,
+	TEXTUREFLAGS_EIGHTBITALPHA	               = 0x00002000,
+	TEXTUREFLAGS_ENVMAP			               = 0x00004000,
+	TEXTUREFLAGS_RENDERTARGET	               = 0x00008000,
+	TEXTUREFLAGS_DEPTHRENDERTARGET	           = 0x00010000,
+	TEXTUREFLAGS_NODEBUGOVERRIDE               = 0x00020000,
+	TEXTUREFLAGS_SINGLECOPY		               = 0x00040000,
+	TEXTUREFLAGS_STAGING_MEMORY                = 0x00080000,
+	TEXTUREFLAGS_IMMEDIATE_CLEANUP			   = 0x00100000,
+	TEXTUREFLAGS_IGNORE_PICMIP				   = 0x00200000,
+	TEXTUREFLAGS_UNUSED_00400000               = 0x00400000,
+	TEXTUREFLAGS_NODEPTHBUFFER                 = 0x00800000,
+	TEXTUREFLAGS_UNUSED_01000000               = 0x01000000,
+	TEXTUREFLAGS_CLAMPU                        = 0x02000000,
+	TEXTUREFLAGS_VERTEXTEXTURE                 = 0x04000000,
+	TEXTUREFLAGS_SSBUMP                        = 0x08000000,
+	TEXTUREFLAGS_UNUSED_10000000               = 0x10000000,
+	TEXTUREFLAGS_BORDER						   = 0x20000000,
+	TEXTUREFLAGS_UNUSED_40000000		       = 0x40000000,
+	TEXTUREFLAGS_UNUSED_80000000		       = 0x80000000,
+};
+class IVTFTexture
+{
+public:
+	virtual ~IVTFTexture() {}
+	virtual bool Init( int nWidth, int nHeight, int nDepth, ImageFormat fmt, int nFlags, int iFrameCount, int nForceMipCount = -1 ) = 0;
+	virtual void SetBumpScale( float flScale ) = 0;
+	virtual void SetReflectivity( const Vector &vecReflectivity ) = 0;
+	virtual void InitLowResImage( int nWidth, int nHeight, ImageFormat fmt ) = 0;
+	virtual void *SetResourceData( uint32 eType, void const *pData, size_t nDataSize ) = 0;
+	virtual void *GetResourceData( uint32 eType, size_t *pDataSize ) const = 0;
+	virtual bool HasResourceEntry( uint32 eType ) const = 0;
+	virtual unsigned int GetResourceTypes( uint32 *arrTypesBuffer, int numTypesBufferElems ) const = 0;
+	virtual bool Unserialize( CUtlBuffer &buf, bool bHeaderOnly = false, int nSkipMipLevels = 0 ) = 0;
+	virtual bool Serialize( CUtlBuffer &buf ) = 0;
+	virtual void LowResFileInfo( int *pStartLocation, int *pSizeInBytes) const = 0;
+	virtual void ImageFileInfo( int nFrame, int nFace, int nMip, int *pStartLocation, int *pSizeInBytes) const = 0;
+	virtual int FileSize( int nMipSkipCount = 0 ) const = 0;
+	virtual int Width() const = 0;
+	virtual int Height() const = 0;
+	virtual int Depth() const = 0;
+	virtual int MipCount() const = 0;
+	virtual int RowSizeInBytes( int nMipLevel ) const = 0;
+	virtual int FaceSizeInBytes( int nMipLevel ) const = 0;
+	virtual ImageFormat Format() const = 0;
+	virtual int FaceCount() const = 0;
+	virtual int FrameCount() const = 0;
+	virtual int Flags() const = 0;
+	virtual float BumpScale() const = 0;
+	virtual int LowResWidth() const = 0;
+	virtual int LowResHeight() const = 0;
+	virtual ImageFormat LowResFormat() const = 0;
+	virtual const Vector &Reflectivity() const = 0;
+	virtual bool IsCubeMap() const = 0;
+	virtual bool IsNormalMap() const = 0;
+	virtual bool IsVolumeTexture() const = 0;
+	virtual void ComputeMipLevelDimensions( int iMipLevel, int *pMipWidth, int *pMipHeight, int *pMipDepth ) const = 0;
+	virtual int ComputeMipSize( int iMipLevel ) const = 0;
+	virtual void ComputeMipLevelSubRect( Rect_t* pSrcRect, int nMipLevel, Rect_t *pSubRect ) const = 0;
+	virtual int ComputeFaceSize( int iStartingMipLevel = 0 ) const = 0;
+	virtual int ComputeTotalSize() const = 0;
+	virtual unsigned char *ImageData() = 0;
+	virtual unsigned char *ImageData( int iFrame, int iFace, int iMipLevel ) = 0;
+	virtual unsigned char *ImageData( int iFrame, int iFace, int iMipLevel, int x, int y, int z = 0 ) = 0;
+	virtual unsigned char *LowResImageData() = 0;
+	virtual	void ConvertImageFormat( ImageFormat fmt, bool bNormalToDUDV ) = 0;
+	virtual void GenerateSpheremap( LookDir_t lookDir = LOOK_DOWN_Z ) = 0;
+	virtual void GenerateHemisphereMap( unsigned char *pSphereMapBitsRGBA, int targetWidth,
+		int targetHeight, LookDir_t lookDir, int iFrame ) = 0;
+	virtual void FixCubemapFaceOrientation( ) = 0;
+	virtual void GenerateMipmaps() = 0;
+	virtual void PutOneOverMipLevelInAlpha() = 0;
+	virtual void ComputeReflectivity( ) = 0;
+	virtual void ComputeAlphaFlags() = 0;
+	virtual bool ConstructLowResImage() = 0;
+	virtual void PostProcess(bool bGenerateSpheremap, LookDir_t lookDir = LOOK_DOWN_Z, bool bAllowFixCubemapOrientation = true) = 0;
+	virtual void MatchCubeMapBorders( int iStage, ImageFormat finalFormat, bool bSkybox ) = 0;
+	virtual void SetAlphaTestThreshholds( float flBase, float flHighFreq ) = 0;
+	virtual void SetPostProcessingSettings( VtfProcessingOptions const *pOptions ) = 0;
+};
+#endif
 #include <texture_group_names.h>
 #include <materialsystem/itexture.h>
 #include "textures.hpp"
 #include "packets.hpp"
-#include "sdkcompat.hpp"
+#include <cstdint>
 #include <cstring>
 #include <memory>
 #include <string>
@@ -19,7 +138,7 @@
 
 namespace {
     std::atomic_bool needsReset = false;
-    DWORD ownerThread;
+    std::uint32_t ownerThread;
     class Pixels final : public ITextureRegenerator {
         std::mutex mutex;
         std::vector<unsigned char> rgba;
@@ -76,9 +195,9 @@ namespace {
     std::unordered_map<std::string, Texture> textures;
     // Old mode handles are invalid. Keep callback storage until the module exits without calling those handles again.
     std::vector<std::unique_ptr<Pixels>> retired;
-    ULONGLONG textureGeneration = 0;
+    std::uint64_t textureGeneration = 0;
     void* materialSystem = nullptr;
-    using CreateTexture = ITexture* (__fastcall*)(void*, const char*, const char*, int, int, ImageFormat, int);
+    using CreateTexture = ITexture* (GCALL*)(void*, const char*, const char*, int, int, ImageFormat, int);
     CreateTexture createTexture = nullptr;
 
     void retireTextures() {
@@ -90,7 +209,7 @@ namespace {
     }
 
     LUA_FUNCTION_STATIC(resetVideo) {
-        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Reset textures on the client thread"), 0;
+        if (platform::currentThreadId() != ownerThread) return LUA->ThrowError("Reset textures on the client thread"), 0;
         bool reset = needsReset.exchange(false);
         LUA->PushBool(reset);
         if (!reset) return 1;
@@ -100,7 +219,7 @@ namespace {
     }
 
     LUA_FUNCTION_STATIC(upload) {
-        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Upload textures on the client thread"), 0;
+        if (platform::currentThreadId() != ownerThread) return LUA->ThrowError("Upload textures on the client thread"), 0;
         const char* name = LUA->CheckString(1);
         double widthNumber = LUA->CheckNumber(2), heightNumber = LUA->CheckNumber(3);
         if (!std::isfinite(widthNumber) || !std::isfinite(heightNumber)
@@ -177,10 +296,10 @@ namespace {
 }
 
 void registerTextures(GarrysMod::Lua::ILuaBase* lua) {
-    ownerThread = GetCurrentThreadId();
+    ownerThread = platform::currentThreadId();
     // Source retains texture names across map reloads, even when the client Lua module reloads.
     // A new lifetime must not retrieve its predecessor's released procedural texture.
-    textureGeneration = GetTickCount64();
+    textureGeneration = platform::tickCount64();
     lua->PushCFunction(upload);
     lua->SetField(-2, "upload");
     lua->PushCFunction(resetVideo);

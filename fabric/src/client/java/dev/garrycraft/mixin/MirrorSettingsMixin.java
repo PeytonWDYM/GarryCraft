@@ -18,7 +18,11 @@ public abstract class MirrorSettingsMixin {
         target = "Ljava/io/File;<init>(Ljava/io/File;Ljava/lang/String;)V"), index = 0)
     private File garrycraft$settings(File runDirectory) {
         if (!Boolean.getBoolean("garrycraft.autoWorld")) return runDirectory;
-        Path directory = Path.of(System.getProperty("garrycraft.settings", System.getenv("LOCALAPPDATA") + "/GarryCraft/settings"));
+        String localAppData = System.getenv("LOCALAPPDATA");
+        String defaultSettings = localAppData != null && !localAppData.isEmpty()
+            ? localAppData + "/GarryCraft/settings"
+            : System.getProperty("user.home") + "/.local/share/GarryCraft/settings";
+        Path directory = Path.of(System.getProperty("garrycraft.settings", defaultSettings));
         try {
             Files.createDirectories(directory);
             Path saved = directory.resolve("options.txt"), current = runDirectory.toPath().resolve("options.txt");

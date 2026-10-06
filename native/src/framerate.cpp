@@ -1,4 +1,5 @@
 #include <GarrysMod/Lua/Interface.h>
+#include "platform.hpp"
 #include <cstring>
 #include <limits>
 #include "framerate.hpp"
@@ -6,10 +7,15 @@
 namespace {
     LUA_FUNCTION_STATIC(cap) {
         LUA->CheckType(1, GarrysMod::Lua::Type::ConVar);
+#ifndef _WIN32
+        // Linux dispatch differs from Windows: two destructor slots and entries for IConVar overrides.
+        // GMod's x86-64 ConVar layout is unverified there, so the player's frame cap stays unchanged.
+        return 0;
+#else
         void* variable = LUA->GetUserType<void>(1, GarrysMod::Lua::Type::ConVar);
         auto** methods = *static_cast<void***>(variable);
-        using Name = const char* (__fastcall*)(void*);
-        using SetInt = void (__fastcall*)(void*, int);
+        using Name = const char* (GCALL*)(void*);
+        using SetInt = void (GCALL*)(void*, int);
         // GMod x86-64 adds RemoveFlags, GetFlags, GetFloat and GetInt to the SDK layout.
         // These slots were checked against engine.dll's ConVar dispatch table.
         const char* name = reinterpret_cast<Name>(methods[6])(variable);
@@ -20,6 +26,7 @@ namespace {
         int target = static_cast<int>(value);
         reinterpret_cast<SetInt>(methods[16])(variable, target);
         return 0;
+#endif
     }
 }
 

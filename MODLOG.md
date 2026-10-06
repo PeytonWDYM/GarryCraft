@@ -1,5 +1,32 @@
 # GarryCraft mod log
 
+## October 6, 2026
+
+Linux x64 support lands beside the Windows build. Native modules compile as
+`gmcl_garrycraft_linux64.dll` and `gmsv_garrycraft_linux64.dll` (ELF objects under
+GMod's Linux module names) with a POSIX mailbox, monotonic clock, and dlopen-based
+engine guards. Setup, play, uninstall, the Minecraft launcher loop, build, packaging,
+and release-install checks ship as shell scripts with Steam library detection under
+`~/.steam/steam` and `~/.local/share/Steam`. The Fabric clock reads
+`clock_gettime(CLOCK_MONOTONIC)` on Linux, and file defaults fall back to
+`~/.local/share/GarryCraft` without `LOCALAPPDATA`. The raw-offset mesh-shadow hook
+stays disabled on Linux until its offsets are verified against real Linux binaries;
+rendering and gameplay continue without custom mesh shadows. Linux engine `.so` pins
+are recorded after the first verified Linux game build reports them. No Linux game
+run has verified this yet; see `tests/release-install.md` for the Linux scenarios.
+Linux modules link libstdc++ and libgcc statically and export only the GMod entry points.
+Release packaging rejects modules that need glibc newer than the Steam Runtime's 2.31,
+so Linux releases must be built in the sniper SDK.
+Setup and play support Flathub Steam. The player folder defaults to a path inside the Steam sandbox,
+because GMod starts the Minecraft runtime from inside it.
+`play.sh` passes game options through `steam://run`. Steam ran `+` options from `steam -applaunch`
+as its own console commands, so the session marker never reached GMod. `play.sh --map <name>`
+starts a map directly for Flatpak Steam, whose sandbox stops GMod's HTML main menu from loading.
+The server module starts `runtime.sh` with bash and clears GMod's library paths. `/bin/sh` is dash
+inside the Steam Runtime container, so the Minecraft launcher previously exited before writing its log.
+Linux no longer raises `fps_max` to 240. That call used Windows ConVar dispatch slots, which differ on Linux,
+and crashed GMod when Minecraft attached. The player's frame cap stays unchanged until the Linux layout is verified.
+
 ## October 5, 2026
 
 V1.0.4 makes Play.cmd opt into GarryCraft for the current process. Normal GMod startup loads no bridge code or native modules.

@@ -8,7 +8,7 @@
 class Receiver {
 public:
     ~Receiver() { stop(); }
-    void start(const std::wstring& path);
+    void start(const platform::BridgePath& path);
     void stop();
     std::unique_ptr<std::string> take(unsigned lane);
 private:
