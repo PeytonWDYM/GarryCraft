@@ -18,7 +18,7 @@ $root = Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$root
 $env:JAVA_HOME = $JavaHome
 & "$repository/fabric/gradlew.bat" -p "$repository/fabric" prepareRuntime --no-configuration-cache "-PgarrycraftRuntime=$root/runtime"
 if ($LASTEXITCODE) { throw 'CMD lab runtime preparation failed.' }
-foreach ($name in 'Runtime.ps1','RuntimeFiles.ps1') {
+foreach ($name in 'Runtime.ps1','RuntimeFiles.ps1','RuntimeProcess.ps1') {
     Copy-Item -LiteralPath "$PSScriptRoot/$name" -Destination "$root/runtime/$name"
 }
 $java = & "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$JavaHome/bin/java.exe"
@@ -36,7 +36,7 @@ foreach ($name in 'Launch.ps1','Resolve-LocalPath.ps1') {
 $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut("$root/runtime/GarryCraft.lnk")
 $shortcut.TargetPath = $testGame
 $shortcut.WorkingDirectory = $lab
-$shortcut.Arguments = "-insecure -noworkshop -windowed -w 1280 -h 720 -novid -condebug +sv_lan 1 +maxplayers 1 +garrycraft_enabled 1 +map $Map"
+$shortcut.Arguments = "-insecure -noworkshop -windowed -w 1280 -h 720 -novid -condebug +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg +map $Map"
 $shortcut.Save()
 @{shortcut="$root/runtime/GarryCraft.lnk";game=$testGame} | ConvertTo-Json |
     Set-Content -LiteralPath "$root/launcher/.garrycraft-local.json" -Encoding utf8NoBOM

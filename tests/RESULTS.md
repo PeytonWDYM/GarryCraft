@@ -1,5 +1,34 @@
 # Local test record
 
+## October 5: launcher isolation, dynamic paths, and V1.0.4
+
+The ordinary-launch baseline failed four isolation checks with V1.0.3 installed.
+V1.0.4 passed all seven checks after a Play.cmd session, including an old saved enable setting.
+Both Lua realms stayed inactive. No GarryCraft native modules or hooks loaded. Normal movement and the physgun remained available.
+
+The extracted ZIP passed 26 installer checks and nine launcher recovery checks under Windows PowerShell 5.1.
+The fresh runtime and game payload were absent before setup. External download caches were disabled.
+Setup downloaded and verified all 5,232 dependencies.
+The package passed 30 uninstall checks on a second drive with spaces, brackets, Unicode, and an ampersand in paths.
+Checks cover saved paths, moved folders, removed games, locks, junctions, ownership, repeated removal, and installed-entry purge.
+
+The actual folder Play.cmd passed ten single-player checks with the user's enabled addons.
+Its private runtime used `D:/GarryCraft-install-tests/v104-paired/player [space] café`.
+Minecraft linked with the imported map geometry. The report recorded two avatar models, 3,342 manual mesh draws, and 1,480 shadow draws.
+Native mesh and thread error counts were zero. Disable saved players, worlds, and chunks before Minecraft exited.
+A fresh mirror world contains no placed blocks, so this startup check uses avatar and first-person meshes.
+The real Minecraft runtime also passed all 12 sharing, heartbeat, ownership, and save checks.
+Default uninstall removed the game payload and programs, then the source checkout reinstalled into the preserved player folder.
+All 13 source-entry checks passed. Every saved world and settings file retained its SHA-256 hash across reinstall.
+The source Uninstall.cmd then purged that owned runtime. Read `v104-reinstall-source-final` for transcripts and the saved file hashes.
+
+Read `release/verification/v104-install-final`, `v104-launch-final`, `v104-play-game-final`, and `v104-normal-after-play`.
+Read `v104-runtime-sharing-03`, `v104-paired-final-evidence`, and `v104-uninstall-final.log` in the same verification directory.
+The marked game copy is only a test fixture. Player installation uses the detected Steam game and does not copy GMod.
+The tested system was Windows 11. Windows 10 uses the same built-in PowerShell 5.1 entry points but needs a separate OS run.
+GMod failed to start from the tested non-ASCII game folder, including through its existing Windows short alias.
+Setup now explains the ASCII game-folder requirement before downloading. Unicode package and player folders passed.
+
 ## October 5: renderer hook compatibility and V1.0.3
 
 The owned game copy reproduced the user's shadow failure with DLib and the enabled Workshop addons.

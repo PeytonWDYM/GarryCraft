@@ -24,6 +24,7 @@ $env:JAVA_HOME = $JavaHome
 if ($LASTEXITCODE) { throw 'Minecraft runtime preparation failed.' }
 Copy-Item -LiteralPath "$PSScriptRoot/Runtime.ps1" -Destination "$root/Runtime.ps1" -Force
 Copy-Item -LiteralPath "$PSScriptRoot/RuntimeFiles.ps1" -Destination "$root/RuntimeFiles.ps1" -Force
+Copy-Item -LiteralPath "$PSScriptRoot/RuntimeProcess.ps1" -Destination "$root/RuntimeProcess.ps1" -Force
 New-Item -ItemType Directory -Path "$root/worlds", $SettingsPath -Force | Out-Null
 [IO.File]::WriteAllText("$SettingsPath/setup-path", '')
 $settings = Split-Path -Parent ((& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$SettingsPath/setup-path"))
@@ -35,7 +36,7 @@ $settings = Split-Path -Parent ((& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "
 $shortcut = (New-Object -ComObject WScript.Shell).CreateShortcut("$root/GarryCraft.lnk")
 $shortcut.TargetPath = "$LabPath/bin/win64/gmod.exe"
 $shortcut.WorkingDirectory = $LabPath
-$shortcut.Arguments = '-insecure -windowed -w 1920 -h 1080 -novid +sv_lan 1 +maxplayers 1'
+$shortcut.Arguments = '-insecure -windowed -w 1920 -h 1080 -novid +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg'
 $shortcut.Save()
 @{shortcut = "$root/GarryCraft.lnk"; game = $shortcut.TargetPath} | ConvertTo-Json |
     Set-Content -LiteralPath "$repository/.garrycraft-local.json" -Encoding utf8NoBOM

@@ -45,7 +45,8 @@ try {
     }
     Assert-Game $GmodPath $manifest.engineBuilds
     $GmodPath = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (& "$PSScriptRoot/Resolve-LocalPath.ps1" -File "$GmodPath/bin/win64/gmod.exe")))
-    if (Get-Process gmod -ErrorAction SilentlyContinue) { throw 'Close Garry''s Mod before installation.' }
+    if ($GmodPath -match '[^\x00-\x7F]') { throw 'GMod needs an ASCII game folder path. Move the game through Steam''s Storage settings, then rerun Install.cmd.' }
+    if (Get-RunningGmod $GmodPath) { throw 'Close the selected Garry''s Mod installation before setup.' }
     Write-Host "Game: $GmodPath"
     $InstallRoot = [IO.Path]::GetFullPath($InstallRoot)
     if ((Test-Path -LiteralPath $InstallRoot) -and -not (Test-Path -LiteralPath "$InstallRoot/.garrycraft-player")) {
@@ -61,7 +62,7 @@ try {
     try { $owns = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $owns = $true }
     if (-not $owns) { throw 'Minecraft is still running or saving. Wait for it to exit, then rerun Install.cmd.' }
     $log = "$InstallRoot/install-$([DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff')).log"
-    Start-Transcript -Path $log | Out-Null
+    Start-Transcript -LiteralPath $log | Out-Null
     $transcript = $true
     Write-Host "Player installation: $InstallRoot"
     Prepare-Runtime $manifest $InstallRoot $package ([bool]$NoDownloadCache)
@@ -78,7 +79,7 @@ try {
     $manualReady = $true
     if ($RuntimeOnly) { Show-ManualCopy $InstallRoot $GmodPath }
     else {
-        if (Get-Process gmod -ErrorAction SilentlyContinue) { throw 'Garry''s Mod started during setup. Close it, then rerun Install.cmd.' }
+        if (Get-RunningGmod $GmodPath) { throw 'The selected Garry''s Mod installation started during setup. Close it, then rerun Install.cmd.' }
         $paths = @($manifest.payload | Where-Object { $_.path.StartsWith('garrysmod/') } | ForEach-Object { $_.path }) + @('garrysmod/data/garrycraft-runtime.json')
         $backup = "$InstallRoot/backups/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss-fff'))"
         Install-GameFiles $manual $GmodPath $backup $paths

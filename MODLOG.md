@@ -2,6 +2,10 @@
 
 ## October 5, 2026
 
+V1.0.4 makes Play.cmd opt into GarryCraft for the current process. Normal GMod startup loads no bridge code or native modules.
+Uninstall.cmd resolves recorded game and runtime paths. It removes program files while preserving saved data by default.
+Its -Purge option removes the selected player installation completely. Locked files and redirected child folders stop cleanup before deletion.
+
 V1.0.3 retains existing model-render callbacks instead of rejecting hooks such as ZXC.
 Shadow shutdown retains callbacks installed later and reuses that layer when the bridge starts again.
 A rejected shadow adapter reports its exact check once. Mesh rendering and gameplay continue without custom mesh shadows.

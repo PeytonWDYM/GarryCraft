@@ -2,7 +2,8 @@ param([Parameter(Mandatory)][string]$Config, [Parameter(Mandatory)][string]$Data
     [Parameter(Mandatory)][int]$HostPid)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot/RuntimeFiles.ps1"
-$configuration = Get-Content -LiteralPath $Config -Raw | ConvertFrom-Json
+. "$PSScriptRoot/RuntimeProcess.ps1"
+$configuration = Get-Content -LiteralPath $Config -Raw -Encoding UTF8 | ConvertFrom-Json
 $root = Split-Path -Parent $Config
 $requestPath = Join-Path $DataPath 'garrycraft-runtime-request.json'
 $statusPath = Join-Path $DataPath 'garrycraft-runtime-status.json'
@@ -10,7 +11,7 @@ $hash = [BitConverter]::ToString([Security.Cryptography.SHA256]::Create().Comput
 $mutex = New-Object Threading.Mutex($false, "Local\GarryCraftRuntime-$hash")
 try { $ownsRuntime = $mutex.WaitOne(0) } catch [Threading.AbandonedMutexException] { $ownsRuntime = $true }
 if (-not $ownsRuntime) { $mutex.Dispose(); exit }
-Start-Transcript -Path "$root/launcher-$HostPid.log" -Append | Out-Null
+Start-Transcript -LiteralPath "$root/launcher-$HostPid.log" -Append | Out-Null
 $client = $null
 $control = $null
 $currentMap = $null
@@ -45,6 +46,7 @@ function Stop-Client([string]$Reason) {
             throw 'Minecraft has not finished saving. Read its log before restarting.'
         }
     }
+    $client.WaitForExit() # Drain both output streams after the confirmed process exit.
     $client.Dispose()
     $script:client = $null
     $script:currentMap = $null
@@ -56,7 +58,7 @@ try {
         if ($hostProcess.HasExited -or $hostProcess.StartTime -ne $hostStarted) { break }
         if (Test-Path -LiteralPath $requestPath) {
             try {
-                $nextRequest = Get-Content -LiteralPath $requestPath -Raw | ConvertFrom-Json
+                $nextRequest = Get-Content -LiteralPath $requestPath -Raw -Encoding UTF8 | ConvertFrom-Json
                 if ($nextRequest) {
                     $nextWrittenAt = (Get-Item -LiteralPath $requestPath).LastWriteTime
                     $request = $nextRequest
@@ -94,13 +96,15 @@ try {
             # Clear mailboxes only after the previous owner has saved and exited.
             $bridge = Join-Path $mapRoot 'bridge.bin'
             [IO.File]::WriteAllBytes($bridge, (New-Object byte[] 134217728))
-            $dynamicArgs = @("-Dgarrycraft.bridge=$bridge", "-Dgarrycraft.settings=$($configuration.settings)",
-                "-Dgarrycraft.artifacts=$mapRoot/artifacts", "-Dgarrycraft.control=$control")
+            $dynamicArgs = @("-Dgarrycraft.bridge=$(Get-RelativeRuntimePath $root $bridge)", "-Dgarrycraft.settings=$(Get-RelativeRuntimePath $root $configuration.settings)",
+                "-Dgarrycraft.artifacts=$(Get-RelativeRuntimePath $root "$mapRoot/artifacts")", "-Dgarrycraft.control=$(Get-RelativeRuntimePath $root $control)")
             $argumentFile = Join-Path $mapRoot 'launch.args'
             $prefix = ($dynamicArgs | ForEach-Object { '"' + $_.Replace('\', '\\').Replace('"', '\"') + '"' }) -join "`n"
-            [IO.File]::WriteAllText($argumentFile, ($prefix + "`n" + [IO.File]::ReadAllText("$root/java.args")), (New-Object Text.UTF8Encoding($false)))
-            $client = Start-Process -FilePath $configuration.java -ArgumentList @("@`"$argumentFile`"") -WorkingDirectory "$mapRoot/minecraft" -WindowStyle Hidden -PassThru `
-                -RedirectStandardOutput "$mapRoot/minecraft-stdout.log" -RedirectStandardError "$mapRoot/minecraft-stderr.log"
+            $encoding = [Text.Encoding]::GetEncoding([Text.Encoding]::Default.CodePage, (New-Object Text.EncoderExceptionFallback), (New-Object Text.DecoderExceptionFallback))
+            $gameDirectory = (Get-RelativeRuntimePath $root "$mapRoot/minecraft").Replace('\', '\\').Replace('"', '\"')
+            [IO.File]::WriteAllText($argumentFile, ($prefix + "`n" + [IO.File]::ReadAllText("$root/java.args") + "`n--gameDir`n`"$gameDirectory`"`n"), $encoding)
+            $launchPath = Get-RelativeRuntimePath $root $argumentFile
+            $client = [GarryCraftMinecraftProcess]::Start($configuration.java, "@`"$launchPath`"", $root, "$mapRoot/minecraft-stdout.log", "$mapRoot/minecraft-stderr.log")
             Publish-Status 'running' 'Waiting for Minecraft and map collision'
         }
         elseif ($wanted -and $client -and (Test-Path -LiteralPath $readyPath)) { Publish-Status 'ready' 'Minecraft is ready' }

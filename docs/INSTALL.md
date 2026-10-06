@@ -1,6 +1,7 @@
 # Install and recover GarryCraft V1
 
 Use Windows 10 or 11 on an Intel or AMD x64 processor. Use single-player 64-bit Garry's Mod.
+GMod's outer game folder must use ASCII path characters. Spaces and brackets are supported. The package and private player folders support Unicode.
 Own Garry's Mod and Minecraft Java Edition. Setup needs internet access for its first run.
 Allow about 2 GB for the runtime and downloads, plus space for worlds and backups.
 
@@ -23,11 +24,40 @@ Keep Steam open with your Garry's Mod license available.
 The launcher starts in 1920×1080 windowed mode. You can change video settings in GMod.
 Select **Start New Game > Sandbox > any map > Single Player**.
 Minecraft starts automatically. Its first start can take longer while it creates the mirror world.
+This automatic startup applies to a `Play.cmd` session. Close an existing GMod session before opening `Play.cmd`.
+Launch GMod through Steam for normal play. The installed addon loads no bridge code or native modules in that session.
 The control panel shows startup and save status.
 Your enabled GMod addons load as usual. The player launcher does not disable Workshop or local addons.
 
 If you run `Install.cmd` from a source checkout, setup downloads the matching compiled release and verifies its checksum.
 You do not need to build the project or create `release.json` yourself.
+
+## Uninstall
+
+Close GMod and wait for Minecraft to finish saving. Open `Uninstall.cmd` beside `Install.cmd`.
+You can also open `Uninstall.cmd` in the private player folder without retaining the extracted ZIP.
+The script reads the paths recorded by setup. It also checks Steam's installed game pointers if the package pointer is missing.
+It removes the GarryCraft addon, native modules, runtime pointers, and downloaded program files.
+It preserves GMod, unrelated addons, normal Minecraft installations, and your GarryCraft worlds and settings.
+Repeated uninstall runs are safe.
+
+For a complete reset, including GarryCraft worlds and settings:
+
+```powershell
+.\Uninstall.cmd -Purge
+```
+
+For a custom runtime or a moved GMod installation:
+
+```powershell
+.\Uninstall.cmd -InstallRoot "D:\GarryCraft" -GmodPath "E:\SteamLibrary\steamapps\common\GarrysMod"
+```
+
+Uninstall checks ownership markers and current game pointers before deleting files.
+It refuses redirected child folders and locked files. Resolve the printed problem, then rerun the script.
+If another runtime owns the game, uninstall preserves that runtime's installed game files.
+Default uninstall leaves saved data in the marked player folder. Reinstall into that folder to use it again.
+Uninstall supports the same Windows 10 and 11 x64 environment as installation.
 
 ## Select a folder explicitly
 
@@ -57,6 +87,7 @@ Setup resolves redirected Windows paths and prints the actual paths used by both
 | `<GMod>\garrysmod\addons\garrycraft\lua` | GarryCraft Lua addon |
 | `<GMod>\garrysmod\lua\bin` | `gmcl_garrycraft_win64.dll` and `gmsv_garrycraft_win64.dll` |
 | `<GMod>\garrysmod\data\garrycraft-runtime.json` | Path to the private Minecraft runtime |
+| `<GMod>\garrysmod\cfg\garrycraft-session.cfg` | Session marker. Only Play.cmd executes it. |
 | `<Player>\minecraft\mods` | GarryCraft and Fabric API jars |
 | `<Player>\java`, `libraries`, `versions`, `assets` | Private Java and downloaded Minecraft dependencies |
 | `<Player>\worlds\<map>\minecraft` | Separate game directory and mirror save for each GMod map |
@@ -67,9 +98,10 @@ Fabric loads the two jars in `minecraft\mods` through the generated Java argumen
 Normal Minecraft saves and launcher profiles remain separate. Setup never asks for account credentials.
 V1 uses a local `GarryCraft` player identity and has no multiplayer support.
 
-The player launcher uses `-insecure -novid +sv_lan 1 +maxplayers 1`.
+The player launcher uses `-insecure -novid +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg`.
 The bridge selects a 240 FPS Source cap while active and restores previous caps when disabled.
 New mirror preferences use Unlimited FPS. Existing preferences remain unchanged.
+The launch session switch is not archived. An old saved enable setting cannot activate GarryCraft during normal startup.
 Keep normal GMod video settings. Native rendering requires the supported engine builds below.
 
 ## Supported engine builds
@@ -124,7 +156,8 @@ Setup prints complete source and destination paths. Keep the private runtime in 
 2. Copy `<Player>\manual\garrysmod\addons\garrycraft` into `<GMod>\garrysmod\addons\garrycraft`.
 3. Copy both DLLs from `<Player>\manual\garrysmod\lua\bin` into `<GMod>\garrysmod\lua\bin`.
 4. Copy `<Player>\manual\garrysmod\data\garrycraft-runtime.json` into `<GMod>\garrysmod\data`.
-5. Open `<Player>\Play.cmd`.
+5. Copy `<Player>\manual\garrysmod\cfg\garrycraft-session.cfg` into `<GMod>\garrysmod\cfg`.
+6. Open `<Player>\Play.cmd`.
 
 The Minecraft mods are already installed. Do not copy them into your normal `.minecraft\mods` folder.
 If setup failed before Minecraft preparation completed, correct the reported error and rerun it before manual copying.
@@ -137,7 +170,7 @@ If setup failed before Minecraft preparation completed, correct the reported err
 | `<Player>\launcher-*.log` | Minecraft startup, map changes, and shutdown |
 | `<Player>\worlds\<map>\minecraft-stderr.log` | Java errors |
 | `<Player>\worlds\<map>\minecraft-stdout.log` | Minecraft startup and save output |
-| `<Player>\worlds\<map>\minecraft\logs\latest.log` | Fabric and Minecraft details |
+| `<Player>\logs\latest.log` | Fabric and Minecraft details for the latest session |
 | `<Player>\worlds\<map>\minecraft\crash-reports` | Minecraft crash reports |
 
 For missing modules, rerun setup with the correct game folder and start the x64 executable through `Play.cmd`.
@@ -150,7 +183,7 @@ Include the setup version, reported engine file, and relevant log when you [repo
 1. Disable GarryCraft through its control panel.
 2. Wait for Minecraft to save and exit.
 3. Close Garry's Mod.
-4. Remove only the `garrycraft` addon folder, both GarryCraft DLLs, and `garrycraft-runtime.json` from the game paths above.
+4. Open `Uninstall.cmd` from the extracted release folder or the private player folder.
 
 If setup replaced a previous GarryCraft installation, restore its files from the corresponding backup instead.
 Keep the player folder to retain mirror saves. Copy `worlds` and `settings` elsewhere before deleting that folder.

@@ -1,3 +1,6 @@
+-- Play.cmd creates this non-archived userinfo value before the map loads.
+local session = GetConVar("garrycraft_session")
+if not session or not session:GetBool() or not game.SinglePlayer() then return end
 GarryCraft = GarryCraft or {}
 if SERVER then
     AddCSLuaFile("garrycraft/cl_runtime.lua")

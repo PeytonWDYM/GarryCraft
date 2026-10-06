@@ -12,7 +12,7 @@ You do not need build tools, a separate Java installation, or PowerShell 7.
 
 1. In Steam, select **Garry's Mod > Properties > Betas > x86-64**.
 2. Wait for the update, then close Garry's Mod.
-3. Download **GarryCraft-1.0.3-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest). Use this asset, not the Source code archives.
+3. Download **GarryCraft-1.0.4-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest). Use this asset, not the Source code archives.
 4. Extract the entire ZIP and open **Install.cmd**.
 5. Open the printed **Play.cmd** path and select **Sandbox > gm_construct > Single Player**.
 
@@ -25,8 +25,13 @@ Your existing Minecraft installation stays separate. Your enabled GMod addons lo
 Setup stops if your GMod engine build is unsupported. Steam updates can require a new GarryCraft release.
 See [installation help](docs/INSTALL.md) for fixes, logs, and manual installation.
 
-Minecraft starts when you load a map. Each map keeps a separate Minecraft world.
+Open `Play.cmd` to start a GarryCraft session. Minecraft starts when you load a single-player map.
+Launch GMod through Steam for normal play. GarryCraft's bridge code and native modules stay inactive in that session.
+Each GarryCraft map keeps a separate Minecraft world.
 Use **Spawn Menu > Utilities > GarryCraft**, or `garrycraft_menu`, to enable or disable the bridge.
+
+Open `Uninstall.cmd` to remove GarryCraft. It preserves worlds and settings by default.
+Use `Uninstall.cmd -Purge` for a complete reset, including those worlds and settings.
 
 From a source checkout, `Install.cmd` downloads and runs the matching compiled release installer automatically.
 If `release` contains the matching ZIP and checksum, setup verifies and uses that local package.

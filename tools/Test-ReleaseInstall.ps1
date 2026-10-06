@@ -2,7 +2,7 @@ param([Parameter(Mandatory)][string]$Package, [Parameter(Mandatory)][string]$Lab
     [string]$RunRoot = "$env:LOCALAPPDATA/GarryCraft/release-tests/$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))")
 $ErrorActionPreference = 'Stop'
 if (-not (Test-Path "$LabPath/.garrycraft-lab")) { throw 'Use a marked, separate game installation.' }
-if (Get-Process gmod -ErrorAction SilentlyContinue) { throw 'Close Garry''s Mod before installer tests. Run game-launch tests after this script completes.' }
+if (Get-Process gmod -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq [IO.Path]::GetFullPath("$LabPath/bin/win64/gmod.exe") }) { throw 'Close the selected test game before installer tests.' }
 if (Test-Path $RunRoot) { throw 'Use a new test directory.' }
 New-Item -ItemType Directory -Path $RunRoot | Out-Null
 [IO.File]::WriteAllText("$RunRoot/owner", 'release-install-tests')
@@ -29,6 +29,11 @@ try {
         -not (Test-Path "$fixture/garrysmod/lua/bin") -and -not (Test-Path "$fixture/garrysmod/data/garrycraft-runtime.json")
     $checks.invalidPath = (Install 'invalid-path' @() "$RunRoot/missing") -ne 0
     $checks.noWritesForInvalidPath = -not (Test-Path $runtime)
+    $unicodeGame = "$RunRoot/game caf$([char]0xe9)"
+    Copy-Item -LiteralPath $fixture -Destination $unicodeGame -Recurse
+    $checks.unicodeGameExplained = (Install 'unicode-game' @() $unicodeGame) -ne 0 -and
+        (Get-Content -LiteralPath "$RunRoot/unicode-game.log" -Raw) -match 'ASCII game folder'
+    $checks.noWritesForUnicodeGame = -not (Test-Path -LiteralPath $runtime)
     $dll = "$extract/payload/garrysmod/lua/bin/gmcl_garrycraft_win64.dll"
     $bytes = [IO.File]::ReadAllBytes($dll)
     [IO.File]::WriteAllText($dll, 'corrupt')

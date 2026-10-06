@@ -23,4 +23,6 @@ foreach ($realm in @('gmcl', 'gmsv')) {
     Copy-Item -LiteralPath "$repository\native\build\Release\${realm}_garrycraft_win64.dll" -Destination "$lab\garrysmod\lua\bin"
 }
 Copy-Item -Path "$repository\gmod\lua\*" -Destination "$lab\garrysmod\addons\garrycraft\lua" -Recurse -Force
+New-Item -ItemType Directory -Path "$lab/garrysmod/cfg" -Force | Out-Null
+Copy-Item -LiteralPath "$repository/gmod/cfg/garrycraft-session.cfg" -Destination "$lab/garrysmod/cfg" -Force
 Write-Output "Installed GarryCraft in $lab"

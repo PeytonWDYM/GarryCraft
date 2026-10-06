@@ -13,16 +13,17 @@ foreach ($realm in 'gmcl','gmsv') {
     Copy-Item "$repository/native/build/Release/${realm}_garrycraft_win64.dll" "$stage/payload/garrysmod/lua/bin/"
 }
 Copy-Item "$repository/gmod/lua" "$stage/payload/garrysmod/addons/garrycraft/" -Recurse
+Copy-Item "$repository/gmod/cfg" "$stage/payload/garrysmod/" -Recurse
 Copy-Item "$repository/fabric/build/libs/garrycraft-$version.jar" "$stage/payload/minecraft/mods/garrycraft.jar"
 Copy-Item "$repository/installer/*.ps1" "$stage/installer/"
 Copy-Item "$repository/installer/*.template" "$stage/installer/"
-foreach ($name in 'Runtime.ps1','RuntimeFiles.ps1','Resolve-LocalPath.ps1') { Copy-Item "$PSScriptRoot/$name" "$stage/installer/" }
-foreach ($name in 'README.md','LICENSE','THIRD_PARTY_NOTICES.md','MODLOG.md','PARITY.md','AGENTS.md','Install.cmd','Play.cmd') { Copy-Item "$repository/$name" "$stage/" }
+foreach ($name in 'Runtime.ps1','RuntimeFiles.ps1','RuntimeProcess.ps1','Resolve-LocalPath.ps1') { Copy-Item "$PSScriptRoot/$name" "$stage/installer/" }
+foreach ($name in 'README.md','LICENSE','THIRD_PARTY_NOTICES.md','MODLOG.md','PARITY.md','AGENTS.md','Install.cmd','Play.cmd','Uninstall.cmd') { Copy-Item "$repository/$name" "$stage/" }
 foreach ($name in 'INSTALL.md','ARCHITECTURE.md','RELEASING.md') { Copy-Item "$repository/docs/$name" "$stage/docs/" }
 Copy-Item "$repository/docs/images" "$stage/docs/" -Recurse
 New-Item -ItemType Directory -Path "$stage/protocol", "$stage/tests" -Force | Out-Null
 Copy-Item "$repository/protocol/README.md" "$stage/protocol/"
-foreach ($name in 'release-install.md','RESULTS.md','physics-blocks.md') { Copy-Item "$repository/tests/$name" "$stage/tests/" }
+foreach ($name in 'release-install.md','launcher-uninstall.md','RESULTS.md','physics-blocks.md') { Copy-Item "$repository/tests/$name" "$stage/tests/" }
 $build = Get-Content "$repository/fabric/build.gradle" -Raw
 $minecraft = [regex]::Match($build, "minecraft 'com.mojang:minecraft:([^']+)'").Groups[1].Value
 $loader = [regex]::Match($build, "implementation 'net.fabricmc:fabric-loader:([^']+)'").Groups[1].Value

@@ -1,4 +1,11 @@
 # Steam records every library in libraryfolders.vdf. Do not search unrelated folders.
+function Get-RunningGmod([string]$Game, [string]$Resolver = "$PSScriptRoot/Resolve-LocalPath.ps1") {
+    $executable = Join-Path $Game 'bin\win64\gmod.exe'
+    Get-Process gmod -ErrorAction SilentlyContinue | Where-Object {
+        $_.Path -and (& $Resolver -File $_.Path) -eq $executable
+    }
+}
+
 function Find-Gmod {
     $steam = (Get-ItemProperty 'HKCU:\Software\Valve\Steam' -ErrorAction SilentlyContinue).SteamPath
     if (-not $steam) { return }
@@ -78,6 +85,7 @@ function Show-ManualCopy([string]$Root, [string]$Game) {
     Write-Host "  $Root\manual\garrysmod\lua\bin\gmcl_garrycraft_win64.dll -> $Game\garrysmod\lua\bin\gmcl_garrycraft_win64.dll"
     Write-Host "  $Root\manual\garrysmod\lua\bin\gmsv_garrycraft_win64.dll -> $Game\garrysmod\lua\bin\gmsv_garrycraft_win64.dll"
     Write-Host "  $Root\manual\garrysmod\data\garrycraft-runtime.json -> $Game\garrysmod\data\garrycraft-runtime.json"
+    Write-Host "  $Root\manual\garrysmod\cfg\garrycraft-session.cfg -> $Game\garrysmod\cfg\garrycraft-session.cfg"
     Write-Host "Minecraft mods: $Root\minecraft\mods (already installed)"
     Write-Host "After all copies, open: $Root\Play.cmd"
 }

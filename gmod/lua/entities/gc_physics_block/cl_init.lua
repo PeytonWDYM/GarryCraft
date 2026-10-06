@@ -11,13 +11,13 @@ function ENT:GetRenderMesh()
 end
 
 function ENT:Draw(flags)
-    GarryCraft.DrawPhysicsBlock(self, flags, false)
+    if GarryCraft then GarryCraft.DrawPhysicsBlock(self, flags, false) end
 end
 
 function ENT:DrawTranslucent(flags)
-    GarryCraft.DrawPhysicsBlock(self, flags, true)
+    if GarryCraft then GarryCraft.DrawPhysicsBlock(self, flags, true) end
 end
 
 function ENT:OnRemove()
-    garrycraft_bridge.shadow_remove(self)
+    if GarryCraft then garrycraft_bridge.shadow_remove(self) end
 end

@@ -1,6 +1,6 @@
 param([string]$Bridge = "$env:LOCALAPPDATA\GarryCraft\bridge.bin")
 $ErrorActionPreference = 'Stop'
-$stream = [System.IO.FileStream]::new($Bridge, 'Open', 'Read', 'ReadWrite', 1, [IO.FileOptions]::RandomAccess)
+$stream = [System.IO.FileStream]::new($Bridge, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::ReadWrite, [int]1, [IO.FileOptions]::RandomAccess)
 try {
     for ($attempt = 0; $attempt -lt 16; $attempt++) {
     $stream.Position = 65600
