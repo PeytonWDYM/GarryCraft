@@ -68,6 +68,8 @@ Linux x64 JRE 25; Minecraft natives filter on `os.name == 'linux'`.
 | Flatpak Steam with no `--install-root` | The player folder defaults to `~/.var/app/com.valvesoftware.Steam/.local/share/GarryCraft/player`, which the sandboxed game can read. |
 | Flatpak Steam with an `--install-root` under `~/.local/share` | Setup rejects the folder before downloads and prints the `flatpak override` command. |
 | Open `play.sh` with Flatpak Steam and no `steam` command | The launcher requests the session through `flatpak run com.valvesoftware.Steam -applaunch 4000`. |
+| Open `play.sh` while Steam is running | Steam's `console_log.txt` shows no `command not found` for `sv_lan`, `maxplayers`, or `exec`, and the GMod command line contains `+exec garrycraft-session.cfg`. |
+| Open `play.sh --map gm_construct` | GMod starts `gm_construct` in single-player without the main menu, which fails to load under Flatpak Steam. |
 | Start both games through Flatpak Steam | `runtime.sh` starts inside the sandbox, Minecraft starts, and the bridge links on `gm_construct`. |
 
 Linux engine `.so` identities are pinned after the first verified Linux game build

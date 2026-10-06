@@ -61,7 +61,11 @@ that the sandbox cannot see and prints the `flatpak override` command that grant
 
 Open `play.sh` beside `install.sh` in the extracted folder after setup. It starts Garry's Mod
 through Steam (`steam -applaunch 4000`, or `flatpak run com.valvesoftware.Steam` for Flathub Steam)
-with the GarryCraft session marker, so keep Steam open.
+with the GarryCraft session marker, so keep Steam open. It passes the game options through a
+`steam://run` link, so Steam can ask you to confirm the launch arguments.
+
+Under Flatpak Steam, GMod's HTML main menu fails to load because the sandbox blocks its browser.
+Start the map directly instead: `./play.sh --map gm_construct`.
 Then select **Start New Game > Sandbox > any map > Single Player**. Minecraft starts automatically.
 
 | Location | Contents |

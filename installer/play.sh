@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Launch a GarryCraft session through Steam. Mirrors installer/Play.ps1.
-# Usage: play.sh [--package-root DIR]
+# Usage: play.sh [--package-root DIR] [--map NAME]
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -11,9 +11,11 @@ if ! . "$SCRIPT_DIR/common.sh" 2>/dev/null; then
 fi
 
 PACKAGE_ROOT=""
+MAP=""
 while (($# > 0)); do
   case "$1" in
     --package-root) PACKAGE_ROOT="$2"; shift 2 ;;
+    --map) MAP="$2"; shift 2 ;;
     *) echo "Unknown option: $1" >&2; exit 1 ;;
   esac
 done
@@ -51,7 +53,18 @@ elif ! command -v steam >/dev/null 2>&1; then
   gc_fail "The Steam client was not found. Install Steam, keep it open with your Garry's Mod license available, then rerun play.sh."
 fi
 
+if [[ -n "$MAP" && ! "$MAP" =~ ^[A-Za-z0-9_]+$ ]]; then
+  gc_fail "Use a map name such as gm_construct."
+fi
+GAME_ARGS="-insecure -novid -windowed -w 1920 -h 1080 +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg"
+[[ -n "$MAP" ]] && GAME_ARGS+=" +map $MAP"
+# Steam runs +commands on its own command line as Steam console commands. steam://run passes them to the game.
+URL="steam://run/4000//$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$GAME_ARGS")/"
+
 gc_log "Game: $GAME"
-nohup "${STEAM[@]}" -applaunch 4000 -insecure -novid -windowed -w 1920 -h 1080 \
-  +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg >/dev/null 2>&1 &
-gc_log "GarryCraft session requested. Select Start New Game > Sandbox > any map > Single Player."
+nohup "${STEAM[@]}" "$URL" >/dev/null 2>&1 &
+if [[ -n "$MAP" ]]; then
+  gc_log "GarryCraft session requested on $MAP. Accept Steam's launch-arguments prompt if it appears."
+else
+  gc_log "GarryCraft session requested. Accept Steam's launch-arguments prompt if it appears, then select Start New Game > Sandbox > any map > Single Player."
+fi

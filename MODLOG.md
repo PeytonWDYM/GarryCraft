@@ -19,6 +19,9 @@ Release packaging rejects modules that need glibc newer than the Steam Runtime's
 so Linux releases must be built in the sniper SDK.
 Setup and play support Flathub Steam. The player folder defaults to a path inside the Steam sandbox,
 because GMod starts the Minecraft runtime from inside it.
+`play.sh` passes game options through `steam://run`. Steam ran `+` options from `steam -applaunch`
+as its own console commands, so the session marker never reached GMod. `play.sh --map <name>`
+starts a map directly for Flatpak Steam, whose sandbox stops GMod's HTML main menu from loading.
 
 ## October 5, 2026
 
