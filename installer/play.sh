@@ -56,7 +56,7 @@ fi
 if [[ -n "$MAP" && ! "$MAP" =~ ^[A-Za-z0-9_]+$ ]]; then
   gc_fail "Use a map name such as gm_construct."
 fi
-GAME_ARGS="-insecure -novid -windowed -w 1920 -h 1080 +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg"
+GAME_ARGS="-insecure -novid -condebug -windowed -w 1920 -h 1080 +sv_lan 1 +maxplayers 1 +exec garrycraft-session.cfg"
 [[ -n "$MAP" ]] && GAME_ARGS+=" +map $MAP"
 # Steam runs +commands on its own command line as Steam console commands. steam://run passes them to the game.
 URL="steam://run/4000//$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$GAME_ARGS")/"

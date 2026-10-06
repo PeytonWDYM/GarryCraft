@@ -66,6 +66,7 @@ with the GarryCraft session marker, so keep Steam open. It passes the game optio
 
 Under Flatpak Steam, GMod's HTML main menu fails to load because the sandbox blocks its browser.
 Start the map directly instead: `./play.sh --map gm_construct`.
+GMod writes its console to `garrysmod/console.log` during a `play.sh` session for troubleshooting.
 Then select **Start New Game > Sandbox > any map > Single Player**. Minecraft starts automatically.
 
 | Location | Contents |
