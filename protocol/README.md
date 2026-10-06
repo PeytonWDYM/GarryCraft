@@ -76,8 +76,9 @@ Static import and moving bodies share one immutable query snapshot. A different 
 The optional trace includes received body triangles for the owned comparison fixture.
 ## Current clock and camera
 
-The native client reads lane 1 directly. Player state includes previous/current raw tick positions, tick period, and a Windows performance-counter timestamp.
+The native client reads lane 1 directly. Player state includes previous/current raw tick positions, tick period, and a monotonic clock timestamp.
 The Source camera interpolates the raw tick history on the same clock. It never treats post-gravity velocity as camera displacement.
+The clock is the Windows performance counter on Windows and `clock_gettime(CLOCK_MONOTONIC)` on Linux, exposed to both sides through the same seconds interface.
 Minecraft publishes camera FOV and bob after its render frame. Source converts the vertical FOV to the horizontal 4:3 setting.
 Lane 1 also carries `nativeViewmodelPose`: twelve floats in row order for the camera-relative 3-by-4 vanilla first-person bob/hurt matrix.
 The matrix uses Source axes and units, without camera rotation. Source applies it to the native physics gun and its attached Minecraft arms.

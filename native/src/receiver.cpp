@@ -2,7 +2,7 @@
 #include <chrono>
 #include <stdexcept>
 
-void Receiver::start(const std::wstring& path) {
+void Receiver::start(const platform::BridgePath& path) {
     stop();
     mailbox_.open(path);
     worker_ = std::jthread([this](std::stop_token stop) {

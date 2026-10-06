@@ -1,8 +1,11 @@
 #include <GarrysMod/Lua/Interface.h>
-#include <Windows.h>
+#include "platform.hpp"
+#include "runtime.hpp"
 #include <filesystem>
 #include <string>
-#include "runtime.hpp"
+
+#ifdef _WIN32
+#include <Windows.h>
 
 namespace {
     std::wstring wide(const char* value) {
@@ -54,6 +57,54 @@ namespace {
         return 0;
     }
 }
+
+#else
+
+#include <cerrno>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+namespace {
+    LUA_FUNCTION_STATIC(startRuntime) {
+        try {
+            auto root = std::filesystem::path(LUA->CheckString(1));
+            char self[4096];
+            ssize_t length = ::readlink("/proc/self/exe", self, sizeof(self) - 1);
+            if (length <= 0) throw std::runtime_error("Cannot locate GMod");
+            self[length] = '\0';
+            // <game>/bin/linux64/<host> -> <game>/garrysmod/data
+            auto data = std::filesystem::path(self).parent_path().parent_path().parent_path() / "garrysmod/data";
+            std::string script = (root / "runtime.sh").string();
+            std::string config = (root / "config.json").string();
+            std::string dataPath = data.string();
+            std::string pid = std::to_string(::getpid());
+            // Double-fork so the game thread never waits for Java and keeps no zombie.
+            pid_t child = ::fork();
+            if (child < 0) throw std::runtime_error("Cannot start Minecraft launcher");
+            if (child == 0) {
+                if (::fork() != 0) ::_exit(0);
+                ::setsid();
+                ::close(STDIN_FILENO);
+                ::open("/dev/null", O_RDONLY);
+                ::close(STDOUT_FILENO);
+                ::close(STDERR_FILENO);
+                ::open("/dev/null", O_WRONLY);
+                ::open("/dev/null", O_WRONLY);
+                ::execl("/bin/sh", "sh", script.c_str(),
+                    "-Config", config.c_str(), "-DataPath", dataPath.c_str(), "-HostPid", pid.c_str(), nullptr);
+                ::_exit(127);
+            }
+            int status = 0;
+            while (::waitpid(child, &status, 0) < 0 && errno == EINTR) {}
+        } catch (const std::exception& error) { return LUA->ThrowError(error.what()), 0; }
+        return 0;
+    }
+}
+
+#endif
 
 void registerRuntime(GarrysMod::Lua::ILuaBase* lua) {
     lua->PushCFunction(startRuntime);

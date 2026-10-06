@@ -1,8 +1,11 @@
 #include <GarrysMod/Lua/Interface.h>
-#include <Windows.h>
+#include "platform.hpp"
+#ifdef _WIN32
 #include <emmintrin.h>
+#endif
 #include <cstring>
 
+#ifdef _WIN32
 // The pinned SDK declares an unused MMX helper. MSVC x64 only supplies the SSE2 conversion.
 inline __m64 sourceSdkTruncatePair(__m128 value) {
     __m128i converted = _mm_cvttps_epi32(value);
@@ -18,6 +21,7 @@ inline __m64 sourceSdkTruncatePair(__m128 value) {
 #pragma pop_macro("_mm_empty")
 #pragma pop_macro("_mm_cvttps_pi32")
 #include <mathlib/vector.h>
+#endif
 #include "meshes.hpp"
 #include "packets.hpp"
 #include "sdkcompat.hpp"
@@ -35,17 +39,32 @@ namespace {
     int triangles;
     struct Vertex { float x, y, z, u, v; unsigned char rgba[4]; };
     static_assert(sizeof(Vertex) == 24);
+#ifdef _WIN32
     static_assert(sizeof(MeshDesc_t) == 0x108);
     struct MeshHandle { std::uint32_t magic; IMesh* mesh; };
-    static_assert(offsetof(MeshHandle, mesh) == 8);
-    using GetContext = void* (__fastcall*)(void*);
-    using RenderOperation = void (__fastcall*)(void*);
+#else
+    // The Linux build uses GMod's public mesh calls until the native buffer
+    // layout is verified against real Linux binaries. The handle keeps the
+    // same Lua-visible shape; the mesh pointer is never dereferenced here.
+    struct MeshHandle { std::uint32_t magic; void* mesh; };
+#endif
+    // sizeof/alignof instead of offsetof: the SDK redefines offsetof as a
+    // non-constant expression on GCC builds. {u32, pointer} can only lay out
+    // as magic@0, mesh@8 with these size and alignment values.
+    static_assert(sizeof(MeshHandle) == 16 && alignof(MeshHandle) == 8);
+#ifdef _WIN32
+    using GetContext = void* (GCALL*)(void*);
+    using RenderOperation = void (GCALL*)(void*);
     void* materialSystem;
     GetContext getContext;
-    DWORD ownerThread;
+#else
+    void* materialSystem = nullptr;
+#endif
+    std::uint32_t ownerThread;
     std::uint64_t nativeBuilds, publicBuilds, builtVertices;
     double buildMilliseconds;
 
+#ifdef _WIN32
     // These Windows x64 dispatch slots were checked against the isolated September 23, 2026 binaries.
     // Keep creation, Draw, Destroy, and video-reset bookkeeping in GMod's public IMesh API.
     void findNativeBackend() {
@@ -64,31 +83,50 @@ namespace {
             reinterpret_cast<RenderOperation>((*static_cast<void***>(context))[1])(context);
         }
     };
+#endif
+
+    // Minimal vector math on the Lua Vector layout (three floats). Used on
+    // Linux, where the SDK's mathlib headers are unavailable; Windows keeps
+    // the SDK operators through the same helper names.
+    struct Point { float x, y, z; };
+    inline Point toPoint(const Vector& v) { return {v.x, v.y, v.z}; }
+    inline Vector toVector(const Point& p) { Vector v; v.x = p.x; v.y = p.y; v.z = p.z; return v; }
+    inline Point sub(const Point& a, const Point& b) { return {a.x - b.x, a.y - b.y, a.z - b.z}; }
+    inline Point add(const Point& a, const Point& b) { return {a.x + b.x, a.y + b.y, a.z + b.z}; }
+    inline Point scale(const Point& a, float s) { return {a.x * s, a.y * s, a.z * s}; }
+    inline Point divn(const Point& a, float s) { return {a.x / s, a.y / s, a.z / s}; }
+    inline Point cross(const Point& a, const Point& b) {
+        return {a.y * b.z - a.z * b.y, a.z * b.x - a.x * b.z, a.x * b.y - a.y * b.x};
+    }
+    inline float lengthSquared(const Point& a) { return a.x * a.x + a.y * a.y + a.z * a.z; }
 
     Vector position(const Vertex& v, int space, float height) {
-        return space == 2 ? Vector(-v.z * 32, -v.x * 32, v.y * 32)
-            : Vector(v.x * 32, -v.z * 32, v.y * 32 + (space == 1 ? height : 0));
+        return space == 2 ? toVector({-v.z * 32, -v.x * 32, v.y * 32})
+            : toVector({v.x * 32, -v.z * 32, v.y * 32 + (space == 1 ? height : 0)});
     }
 
     template<class Write> void writeTriangles(const char* bytes, int count, int space, float height, Write write) {
         for (int first = 0; first < count; first += 3) {
             std::array<Vertex, 3> vertices;
-            std::array<Vector, 3> positions;
+            std::array<Point, 3> positions;
             for (int i = 0; i < 3; ++i) {
                 std::memcpy(&vertices[i], bytes + (first + i) * sizeof(Vertex), sizeof(Vertex));
-                positions[i] = position(vertices[i], space, height);
+                positions[i] = toPoint(position(vertices[i], space, height));
             }
-            auto a = positions[1] - positions[0], b = positions[2] - positions[0];
+            auto a = sub(positions[1], positions[0]);
+            auto b = sub(positions[2], positions[0]);
             double nx = double(a.y) * b.z - double(a.z) * b.y;
             double ny = double(a.z) * b.x - double(a.x) * b.z;
             double nz = double(a.x) * b.y - double(a.y) * b.x;
             double length = std::sqrt(nx * nx + ny * ny + nz * nz);
-            Vector normal(0, 0, 0);
-            if (length > 0) normal = Vector(static_cast<float>(nx / length), static_cast<float>(ny / length), static_cast<float>(nz / length));
-            for (int i : {0, 2, 1}) write(vertices[i], positions[i], normal);
+            Point normal{0, 0, 0};
+            if (length > 0)
+                normal = {static_cast<float>(nx / length), static_cast<float>(ny / length), static_cast<float>(nz / length)};
+            for (int i : {0, 2, 1}) write(vertices[i], toVector(positions[i]), toVector(normal));
         }
     }
 
+#ifdef _WIN32
     // Only the verified SetPrimitiveType, LockMesh, and UnlockMesh SDK methods are used here.
     const char* buildNative(IMesh* mesh, const char* bytes, int count, int space, float height) {
         auto* context = getContext(materialSystem);
@@ -117,9 +155,14 @@ namespace {
         mesh->UnlockMesh(count, count, desc);
         return nullptr;
     }
+#endif
 
     LUA_FUNCTION_STATIC(backend) {
+#ifdef _WIN32
         LUA->PushString(getContext ? "native" : "public");
+#else
+        LUA->PushString("public");
+#endif
         return 1;
     }
     LUA_FUNCTION_STATIC(stats) {
@@ -145,7 +188,7 @@ namespace {
 
     LUA_FUNCTION_STATIC(buildMesh) {
         LUA->CheckType(1, GarrysMod::Lua::Type::IMesh);
-        if (GetCurrentThreadId() != ownerThread) return LUA->ThrowError("Build meshes on the client thread"), 0;
+        if (platform::currentThreadId() != ownerThread) return LUA->ThrowError("Build meshes on the client thread"), 0;
         auto start = std::chrono::steady_clock::now();
         auto body = packetBytes(LUA, 2);
         double offsetNumber = LUA->CheckNumber(3), countNumber = LUA->CheckNumber(4), spaceNumber = LUA->CheckNumber(5);
@@ -163,22 +206,21 @@ namespace {
         float height = static_cast<float>(heightNumber);
         const char* bytes = body.data() + offset;
         float largest = std::numeric_limits<float>::max();
-        Vector minimum(largest, largest, largest), maximum(-largest, -largest, -largest);
+        Point minimum{largest, largest, largest}, maximum{-largest, -largest, -largest};
         for (int i = 0; i < count; ++i) {
             Vertex v;
             std::memcpy(&v, bytes + i * sizeof(Vertex), sizeof(Vertex));
-            auto point = position(v, space, height);
+            auto point = toPoint(position(v, space, height));
             if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)
                 || std::abs(point.x) > std::numeric_limits<float>::max() / 4
                 || std::abs(point.y) > std::numeric_limits<float>::max() / 4
                 || std::abs(point.z) > std::numeric_limits<float>::max() / 4
                 || !std::isfinite(v.u) || !std::isfinite(v.v))
                 return LUA->ThrowError("Packed mesh contains nonfinite vertices"), 0;
-            for (int axis = 0; axis < 3; ++axis) {
-                minimum[axis] = std::min(minimum[axis], point[axis]);
-                maximum[axis] = std::max(maximum[axis], point[axis]);
-            }
+            minimum.x = std::min(minimum.x, point.x); minimum.y = std::min(minimum.y, point.y); minimum.z = std::min(minimum.z, point.z);
+            maximum.x = std::max(maximum.x, point.x); maximum.y = std::max(maximum.y, point.y); maximum.z = std::max(maximum.z, point.z);
         }
+#ifdef _WIN32
         bool publicBackend = LUA->IsType(7, GarrysMod::Lua::Type::Bool) && LUA->GetBool(7);
         if (getContext && !publicBackend) {
             auto* handle = LUA->GetUserType<MeshHandle>(1, GarrysMod::Lua::Type::IMesh);
@@ -189,51 +231,57 @@ namespace {
             buildPublic(LUA, bytes, count, space, height);
             ++publicBuilds;
         }
+#else
+        buildPublic(LUA, bytes, count, space, height);
+        ++publicBuilds;
+#endif
         builtVertices += count;
         buildMilliseconds += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count();
-        LUA->PushVector(minimum);
-        LUA->PushVector(maximum);
-        std::array<Vector, 3> firstTriangle;
+        LUA->PushVector(toVector(minimum));
+        LUA->PushVector(toVector(maximum));
+        std::array<Point, 3> firstTriangle;
         for (int i = 0; i < 3; ++i) {
             Vertex vertex;
             std::memcpy(&vertex, bytes + i * sizeof(Vertex), sizeof(Vertex));
-            firstTriangle[i] = position(vertex, space, height);
+            firstTriangle[i] = toPoint(position(vertex, space, height));
         }
-        Vector normal = (firstTriangle[1] - firstTriangle[0]).Cross(firstTriangle[2] - firstTriangle[0]);
-        const float length = std::sqrt(normal.x * normal.x + normal.y * normal.y + normal.z * normal.z);
-        if (length > 0) normal /= length;
-        LUA->PushVector(normal);
+        Point normal = cross(sub(firstTriangle[1], firstTriangle[0]), sub(firstTriangle[2], firstTriangle[0]));
+        float length = std::sqrt(lengthSquared(normal));
+        if (length > 0) normal = divn(normal, length);
+        LUA->PushVector(toVector(normal));
         // Choose a point on an actual face. A concave batch's bounds center can lie inside another block.
-        const Vector center = (minimum + maximum) / 2.f;
-        Vector surfaceOrigin = (firstTriangle[0] + firstTriangle[1] + firstTriangle[2]) / 3.f;
-        Vector surfaceNormal = normal;
-        float nearest = (surfaceOrigin - center).LengthSqr();
+        const Point center = divn(add(minimum, maximum), 2.0f);
+        Point surfaceOrigin = divn(add(add(firstTriangle[0], firstTriangle[1]), firstTriangle[2]), 3.0f);
+        Point surfaceNormal = normal;
+        float nearest = lengthSquared(sub(surfaceOrigin, center));
         for (int first = 3; first < count; first += 3) {
-            Vector candidate(0, 0, 0);
-            std::array<Vector, 3> triangle;
+            Point candidate{0, 0, 0};
+            std::array<Point, 3> triangle;
             for (int i = 0; i < 3; ++i) {
                 Vertex vertex;
                 std::memcpy(&vertex, bytes + (first + i) * sizeof(Vertex), sizeof(Vertex));
-                triangle[i] = position(vertex, space, height);
-                candidate += triangle[i] / 3.f;
+                triangle[i] = toPoint(position(vertex, space, height));
+                candidate = add(candidate, divn(triangle[i], 3.0f));
             }
-            const float distance = (candidate - center).LengthSqr();
+            const float distance = lengthSquared(sub(candidate, center));
             if (distance < nearest) {
-                surfaceNormal = (triangle[1] - triangle[0]).Cross(triangle[2] - triangle[0]);
-                const float surfaceLength = std::sqrt(surfaceNormal.LengthSqr());
-                if (surfaceLength > 0) surfaceNormal /= surfaceLength;
+                surfaceNormal = cross(sub(triangle[1], triangle[0]), sub(triangle[2], triangle[0]));
+                const float surfaceLength = std::sqrt(lengthSquared(surfaceNormal));
+                if (surfaceLength > 0) surfaceNormal = divn(surfaceNormal, surfaceLength);
                 nearest = distance;
                 surfaceOrigin = candidate;
             }
         }
-        LUA->PushVector(surfaceOrigin + surfaceNormal * .5f);
+        LUA->PushVector(toVector(add(surfaceOrigin, scale(surfaceNormal, .5f))));
         return 4;
     }
 }
 
 void registerMeshes(GarrysMod::Lua::ILuaBase* lua) {
-    ownerThread = GetCurrentThreadId();
+    ownerThread = platform::currentThreadId();
+#ifdef _WIN32
     findNativeBackend();
+#endif
     lua->PushSpecial(GarrysMod::Lua::SPECIAL_GLOB);
     lua->GetField(-1, "MATERIAL_TRIANGLES"); triangles = static_cast<int>(lua->GetNumber(-1)); lua->Pop();
     lua->GetField(-1, "mesh");
@@ -247,7 +295,9 @@ void registerMeshes(GarrysMod::Lua::ILuaBase* lua) {
 void releaseMeshes(GarrysMod::Lua::ILuaBase* lua) {
     for (int reference : functions) lua->ReferenceFree(reference);
     materialSystem = nullptr;
+#ifdef _WIN32
     getContext = nullptr;
+#endif
     nativeBuilds = publicBuilds = builtVertices = 0;
     buildMilliseconds = 0;
 }

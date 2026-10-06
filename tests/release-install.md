@@ -3,6 +3,7 @@
 Write these scenarios before the installer. Use Windows PowerShell 5.1 and the actual release ZIP.
 Keep each run under a new directory outside tracked source.
 Use only a separate game installation with a `.garrycraft-lab` marker for game tests.
+Linux scenarios use `bash` and the `GarryCraft-<version>-linux-x64.zip` asset with the same rules.
 
 | Scenario | Required result |
 | --- | --- |
@@ -39,6 +40,39 @@ Use only a separate game installation with a `.garrycraft-lab` marker for game t
 `tools/Test-PlayerAddons.ps1 -LabPath <marked-lab> -RuntimeRoot <player-folder> -PackageRoot <extracted-folder>` tests the folder launcher.
 It checks addon loading, bridge readiness, and Minecraft shutdown. It saves `player-addons-result.json` and runtime observations.
 Save bridge observations and game logs for the paired game run. Read these files before reporting a pass.
+
+## Linux installer scenarios
+
+The Linux release carries `gmcl_garrycraft_linux64.dll` and `gmsv_garrycraft_linux64.dll`
+(ELF shared objects under GMod's Linux module names) beside the same Lua addon.
+Setup is `install.sh`; play and uninstall are `play.sh` and `uninstall.sh`.
+The private player folder defaults to `$HOME/.local/share/GarryCraft/player`.
+Steam libraries resolve from `~/.steam/steam`, `~/.local/share/Steam`, and their
+`steamapps/libraryfolders.vdf` files. The private Java runtime is an Adoptium
+Linux x64 JRE 25; Minecraft natives filter on `os.name == 'linux'`.
+
+| Scenario | Required result |
+| --- | --- |
+| Extract the Linux release into a path with spaces and Unicode | `install.sh` succeeds with only `bash`, `curl`, `python3`, `tar`, and `unzip` (plus JDK 25, CMake, and a C++20 compiler for builds). |
+| Inspect the extracted Linux ZIP before setup | `install.sh` and `play.sh` are beside each other. No `.cmd` or `.ps1` file is required. |
+| Open `play.sh` before setup | The launcher exits with setup instructions and the full `install.sh` path. |
+| Install into a game-shaped fixture with Linux engine files | Both `*_linux64.dll` modules, all Lua files, and the runtime pointer match the package. |
+| Wrong game path or missing Linux game binary | Setup fails before downloads or game writes and explains Steam's folder selection. |
+| Unsupported Linux engine build | Setup rejects the build and prints the mismatched `.so` file and measured identity. |
+| Corrupt a packaged `.so` | Setup rejects its checksum before game writes. |
+| Run setup again | Existing worlds, preferences, and unrelated addons retain their contents. |
+| Prepare runtime-only setup | Setup prints the private player launcher path for use after manual game copies. |
+| Start both games in the owned lab | The bridge links on `gm_construct`, enables, disables, and exits without errors. |
+| Run the Windows ZIP scenarios | Unchanged: Windows coverage in the table above still passes on Windows. |
+
+Linux engine `.so` identities are pinned after the first verified Linux game build
+reports them; until then setup checks ELF 64-bit identity plus file size and
+SHA-256 against `release.json` and records measured values in the install log.
+Native mesh-shadow hooks stay disabled on Linux until their offsets are verified
+against real Linux binaries; rendering and gameplay continue without custom mesh
+shadows. `tools/Test-ReleaseInstall.sh` mirrors the PowerShell checks and saves
+`release-install-result.json` with the same clean-state rules (exact folders,
+absent runtime and game payload, `-NoDownloadCache` equivalent first-download run).
 
 ## Clean installation evidence
 

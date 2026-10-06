@@ -93,7 +93,10 @@ public final class GarryCraftClient implements ClientModInitializer {
         dev.garrycraft.physicsblocks.PhysicsBlocks.initialize();
         dev.garrycraft.physicsblocks.DetachedBlockMining.initialize();
         EntityRendererRegistry.register(SourceCombat.TYPE, NoopRenderer::new);
-        String defaultPath = System.getenv("LOCALAPPDATA") + "\\GarryCraft\\bridge.bin";
+        String localAppData = System.getenv("LOCALAPPDATA");
+        String defaultPath = localAppData != null && !localAppData.isEmpty()
+            ? localAppData + "\\GarryCraft\\bridge.bin"
+            : System.getProperty("user.home") + "/.local/share/GarryCraft/bridge.bin";
         Path path = Path.of(System.getProperty("garrycraft.bridge", defaultPath));
         Thread.ofPlatform().daemon().name("garrycraft-bridge").start(() -> transport(path));
         Thread.ofPlatform().daemon().name("garrycraft-geometry-transfer").start(() -> geometryTransport(path));

@@ -6,7 +6,7 @@ Minecraft gameplay inside Garry's Mod. Minecraft handles movement, blocks, inven
 
 ## Install V1
 
-**Windows x64 and 64-bit Garry's Mod are required. Single-player only.**
+**Windows x64 or Linux x64 with 64-bit Garry's Mod is required. Single-player only.**
 Own Garry's Mod and Minecraft Java Edition. Setup downloads Minecraft Java 26.3, Fabric, and a private Java 25 runtime.
 You do not need build tools, a separate Java installation, or PowerShell 7.
 
@@ -15,6 +15,10 @@ You do not need build tools, a separate Java installation, or PowerShell 7.
 3. Download **GarryCraft-1.0.4-windows-x64.zip** from [the latest release](https://github.com/PeytonWDYM/GarryCraft/releases/latest). Use this asset, not the Source code archives.
 4. Extract the entire ZIP and open **Install.cmd**.
 5. Open the printed **Play.cmd** path and select **Sandbox > gm_construct > Single Player**.
+
+On Linux x64, download **GarryCraft-1.0.4-linux-x64.zip** instead, extract it, and open
+**install.sh**. It needs only `bash`, `curl`, `python3`, `tar`, and `unzip`. The private player
+folder defaults to `~/.local/share/GarryCraft/player`. See [installation help](docs/INSTALL.md).
 
 Setup finds Garry's Mod in your Steam libraries and installs GarryCraft.
 If asked for the game folder, use Steam's **Properties > Installed Files > Browse** and paste that path.
@@ -51,6 +55,12 @@ Use a separate GMod installation with a `.garrycraft-lab` marker.
 ```powershell
 .\tools\Build.ps1
 .\tools\Setup-Lab.ps1 -LabPath "$env:LOCALAPPDATA\GarryCraft\gmod-lab"
+```
+
+On Linux x64:
+
+```bash
+./tools/Build.sh
 ```
 
 Keep generated game files, account data, logs, and test worlds outside tracked source.

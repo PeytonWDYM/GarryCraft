@@ -1,7 +1,8 @@
 # Install and recover GarryCraft V1
 
-Use Windows 10 or 11 on an Intel or AMD x64 processor. Use single-player 64-bit Garry's Mod.
-GMod's outer game folder must use ASCII path characters. Spaces and brackets are supported. The package and private player folders support Unicode.
+Use Windows 10 or 11, or Linux, on an Intel or AMD x64 processor. Use single-player 64-bit Garry's Mod.
+On Windows, GMod's outer game folder must use ASCII path characters. Spaces and brackets are supported. The package and private player folders support Unicode.
+On Linux, UTF-8 paths are supported for the game, package, and player folders.
 Own Garry's Mod and Minecraft Java Edition. Setup needs internet access for its first run.
 Allow about 2 GB for the runtime and downloads, plus space for worlds and backups.
 
@@ -32,8 +33,51 @@ Your enabled GMod addons load as usual. The player launcher does not disable Wor
 If you run `Install.cmd` from a source checkout, setup downloads the matching compiled release and verifies its checksum.
 You do not need to build the project or create `release.json` yourself.
 
+## Linux setup
+
+Use the `GarryCraft-<version>-linux-x64.zip` asset. Setup needs only `bash`, `curl`, `python3`, `tar`, and `unzip`.
+The private player folder defaults to `~/.local/share/GarryCraft/player`.
+
+1. Select **Garry's Mod > Properties > Betas > x86-64** in Steam.
+2. Wait for Steam to complete the update.
+3. Close Garry's Mod.
+4. Extract the entire release ZIP.
+5. Open `install.sh`.
+
+```bash
+./install.sh
+./install.sh --gmod-path "$HOME/.local/share/Steam/steamapps/common/GarrysMod" --install-root "$HOME/GarryCraft"
+```
+
+Setup finds Garry's Mod in your Steam libraries (`~/.steam/steam` and `~/.local/share/Steam`,
+including their `steamapps/libraryfolders.vdf` entries) and installs GarryCraft.
+If asked for the game folder, use Steam's **Properties > Installed Files > Browse** and paste that path.
+Select the outer game folder, such as `~/.local/share/Steam/steamapps/common/GarrysMod`, not an inner folder.
+
+Open `play.sh` beside `install.sh` in the extracted folder after setup. It starts Garry's Mod
+through Steam (`steam -applaunch 4000`) with the GarryCraft session marker, so keep Steam open.
+Then select **Start New Game > Sandbox > any map > Single Player**. Minecraft starts automatically.
+
+| Location | Contents |
+| --- | --- |
+| `<GMod>/garrysmod/lua/bin` | `gmcl_garrycraft_linux64.dll` and `gmsv_garrycraft_linux64.dll` (ELF shared objects under GMod's Linux module names) |
+| `<Player>` | defaults to `~/.local/share/GarryCraft/player`; same `minecraft`, `worlds`, `settings`, and log layout as Windows |
+
+The native mesh-shadow hook stays disabled on Linux until its engine offsets are verified
+against real Linux binaries; rendering and gameplay continue without custom mesh shadows.
+Linux engine `.so` identities are pinned in `release.json` after the first verified Linux
+game build. Until then setup checks the 64-bit x86-64 ELF identity and records the measured
+file size and SHA-256 in the install log.
+
+For a complete reset, including GarryCraft worlds and settings:
+
+```bash
+./uninstall.sh --purge
+```
+
 ## Uninstall
 
+On Linux, open `uninstall.sh` beside `install.sh` (see [Linux setup](#linux-setup)).
 Close GMod and wait for Minecraft to finish saving. Open `Uninstall.cmd` beside `Install.cmd`.
 You can also open `Uninstall.cmd` in the private player folder without retaining the extracted ZIP.
 The script reads the paths recorded by setup. It also checks Steam's installed game pointers if the package pointer is missing.
@@ -58,6 +102,7 @@ It refuses redirected child folders and locked files. Resolve the printed proble
 If another runtime owns the game, uninstall preserves that runtime's installed game files.
 Default uninstall leaves saved data in the marked player folder. Reinstall into that folder to use it again.
 Uninstall supports the same Windows 10 and 11 x64 environment as installation.
+On Linux, `uninstall.sh` supports the same Linux x64 environment as `install.sh`.
 
 ## Select a folder explicitly
 
@@ -118,6 +163,11 @@ Setup checks all four files under `<GMod>\bin\win64` before it writes game files
 
 Selecting x86-64 does not guarantee these identifiers after a Steam update.
 If setup reports an unsupported build, use a matching GarryCraft release. Do not replace engine DLLs with downloaded copies.
+
+On Linux, setup checks `bin/linux64/client_client.so`, `bin/linux64/engine_client.so`,
+`bin/linux64/studiorender_client.so`, and `bin/linux64/materialsystem_client.so`.
+Exact Linux pins land in `release.json` after the first verified Linux game build reports them.
+Until then setup verifies the 64-bit x86-64 ELF identity and records measurements in the install log.
 
 ## Installation failures
 

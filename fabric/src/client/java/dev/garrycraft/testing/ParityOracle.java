@@ -68,7 +68,11 @@ public final class ParityOracle {
         if (!running && host.test() != null && host.test().startsWith("entities:") && !host.test().equals(request)) {
             request = host.test();
             x = host.x(); y = host.y(); z = host.z();
-            output = Path.of(System.getProperty("garrycraft.artifacts", System.getenv("LOCALAPPDATA") + "/GarryCraft/artifacts/parity"));
+            String localAppData = System.getenv("LOCALAPPDATA");
+            String defaultArtifacts = localAppData != null && !localAppData.isEmpty()
+                ? localAppData + "/GarryCraft/artifacts/parity"
+                : System.getProperty("user.home") + "/.local/share/GarryCraft/artifacts/parity";
+            output = Path.of(System.getProperty("garrycraft.artifacts", defaultArtifacts));
             BASELINE.clear(); SOURCE.clear(); meleeRequests = crosshairHits = 0;
             placed = null; placementPassed = removalPassed = false;
             floorTorch = wallTorch = null; floorTorchPassed = wallTorchPassed = false;

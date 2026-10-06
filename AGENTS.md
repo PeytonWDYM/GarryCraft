@@ -6,7 +6,9 @@ Source owns the host world and renderer. Keep both games in separate processes.
 Read `README.md`, `MODLOG.md`, and `protocol/README.md` first.
 Keep player installation steps in `README.md` and `docs/INSTALL.md`. Keep agent instructions in this file.
 Use `tools/Build.ps1` to build the native module and Fabric mod.
-Use `tools/Package-Release.ps1` for release archives. Do not package a developer runtime.
+On Linux use `tools/Build.sh`. Use `tools/Package-Release.ps1` for release archives
+(`tools/Package-Release.sh` on Linux, with `--gmod-path` to pin Linux engine builds).
+Do not package a developer runtime.
 Use its generated release notes for every release. Keep the five installation steps and omit change logs from release descriptions.
 Write installer end-to-end scenarios before changing installation behavior.
 Test the extracted ZIP with Windows PowerShell 5.1 and a separate, marked game installation.

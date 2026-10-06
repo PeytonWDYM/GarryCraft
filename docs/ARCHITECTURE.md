@@ -65,6 +65,12 @@ The public `IMesh:Destroy` path orders underlying mesh deletion after queued dra
 Temporary link loss keeps mesh bindings for recreation. Session changes and video resets replace the render ownership.
 
 Native compatibility checks pin the Windows x64 PE identities in `native/src/sdkcompat.hpp` and the expected render dispatch addresses.
+On Linux, the guard verifies 64-bit x86-64 ELF identity plus the versioned interfaces
+(`VStudioRender025`, `VMaterialSystem080`, `VClientEntityList003`, `VEngineModel016`);
+exact Linux file pins are recorded in `release.json` after the first verified Linux game build.
+Linux render dispatch slots are shared with the Windows x64 build from the same GMod x86-64
+codebase until Linux measurements prove otherwise. The raw-offset mesh-shadow hook stays
+disabled on Linux until its offsets are verified against real Linux binaries.
 Mesh construction can use GMod's public calls on an unknown client build. Texture creation requires the pinned material-system build.
 Custom render-to-texture (RTT) shadows require the pinned client, engine, and studio-renderer builds, with unmodified render interfaces.
 Native model ambient and brush lightmap adapters also verify their engine layouts and dispatch before use.
